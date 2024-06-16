@@ -1,4 +1,39 @@
-<!DOCTYPE html>
+<?php
+
+namespace Modules\ZoneManagement\Entities;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Grimzy\LaravelMysqlSpatial\Eloquent\SpatialTrait;
+use App\Traits\HasUuid;
+use Modules\CategoryManagement\Entities\Category;
+use Modules\ProviderManagement\Entities\Provider;
+use Modules\UserManagement\Entities\User;
+
+class Zone extends Model
+{
+    use HasFactory;
+    use SpatialTrait;
+    use HasUuid;
+
+    protected $casts = [
+        'is_active' => 'integer'
+    ];
+
+    protected $fillable = [];
+
+    protected $spatialFields = [
+        'coordinates'
+    ];
+
+    public function scopeOfStatus($query, $status)
+    {
+        $query->where('is_active', '=', $status);
+    }
+
+    public function providers()
+    {
+        return $this-><!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="utf-8">

@@ -1,4 +1,25 @@
-<!DOCTYPE html>
+@extends('adminmodule::layouts.master')
+
+@section('title',translate('Loyalty_Point_Transaction_Report'))
+
+@push('css_or_js')
+
+@endpush
+
+@section('content')
+    <div class="main-content">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-12">
+                    <div class="page-title-wrap mb-3">
+                        <h2 class="page-title">{{translate('Loyalty_Point_Report')}}</h2>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="mb-3 fz-16">{{translate('Filter_Data')}}</div>
+
+                            <form action="{{route('admin.customer.loyalty-point.report', ['transaction_type'=>$query_params['transaction_type']])}}" method<!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="utf-8">

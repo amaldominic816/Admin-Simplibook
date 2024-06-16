@@ -6,6 +6,30 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
+class Discount extends Model
+{
+    use HasFactory, HasUuid;
+
+    protected $casts = [
+        'discount_amount' => 'float',
+        'min_purchase' => 'float',
+        'max_discount_amount' => 'float',
+        'limit_per_user' => 'integer',
+        'is_active' => 'integer',
+    ];
+
+    protected $fillable = [];
+
+    public function discount_types(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMa<?php
+
+namespace Modules\PromotionManagement\Entities;
+
+use App\Traits\HasUuid;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
 class PushNotification extends Model
 {
     use HasFactory;
