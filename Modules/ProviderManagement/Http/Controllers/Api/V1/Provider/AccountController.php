@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Validator;
 use Modules\BusinessSettingsModule\Entities\BusinessSettings;
 use Modules\ProviderManagement\Entities\Provider;
 use Modules\TransactionModule\Entities\Account;
+use Modules\UserManagement\Entities\User;
 
 class AccountController extends Controller
 {
@@ -32,24 +33,26 @@ class AccountController extends Controller
     public function overview(Request $request): JsonResponse
     {
         $provider = $this->provider->with('owner.account')->where('user_id', $request->user()->id)->first();
-        $booking_overview = DB::table('bookings')->where('provider_id', $request->user()->provider->id)
+        $limitStatus = provider_warning_amount_calculate($provider->owner->account->account_payable,$provider->owner->account->account_receivable);
+        $provider['cash_limit_status'] = $limitStatus == false ? 'available' : $limitStatus;
+        $bookingOverview = DB::table('bookings')->where('provider_id', $request->user()->provider->id)
             ->select('booking_status', DB::raw('count(*) as total'))
             ->groupBy('booking_status')
             ->get();
 
-        $promotional_costs = $this->business_settings->where('settings_type', 'promotional_setup')->get();
-        $promotional_cost_percentage = [];
+        $promotionalCosts = $this->business_settings->where('settings_type', 'promotional_setup')->get();
+        $promotionalCostPercentage = [];
 
-        $data = $promotional_costs->where('key_name', 'discount_cost_bearer')->first()->live_values;
-        $promotional_cost_percentage['discount'] = $data['provider_percentage'];
+        $data = $promotionalCosts->where('key_name', 'discount_cost_bearer')->first()->live_values;
+        $promotionalCostPercentage['discount'] = $data['provider_percentage'];
 
-        $data = $promotional_costs->where('key_name', 'campaign_cost_bearer')->first()->live_values;
-        $promotional_cost_percentage['campaign'] = $data['provider_percentage'];
+        $data = $promotionalCosts->where('key_name', 'campaign_cost_bearer')->first()->live_values;
+        $promotionalCostPercentage['campaign'] = $data['provider_percentage'];
 
-        $data = $promotional_costs->where('key_name', 'coupon_cost_bearer')->first()->live_values;
-        $promotional_cost_percentage['coupon'] = $data['provider_percentage'];
+        $data = $promotionalCosts->where('key_name', 'coupon_cost_bearer')->first()->live_values;
+        $promotionalCostPercentage['coupon'] = $data['provider_percentage'];
 
-        return response()->json(response_formatter(DEFAULT_200, ['provider_info' => $provider, 'booking_overview' => $booking_overview, 'promotional_cost_percentage' => $promotional_cost_percentage]), 200);
+        return response()->json(response_formatter(DEFAULT_200, ['provider_info' => $provider, 'booking_overview' => $bookingOverview, 'promotional_cost_percentage' => $promotionalCostPercentage]), 200);
     }
 
     /**
@@ -57,7 +60,7 @@ class AccountController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function account_edit(Request $request): JsonResponse
+    public function accountEdit(Request $request): JsonResponse
     {
         $provider = $this->provider->with('owner')->find($request->user()->id);
         if (isset($provider)) {
@@ -72,7 +75,7 @@ class AccountController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function account_update(Request $request): JsonResponse
+    public function accountUpdate(Request $request): JsonResponse
     {
         $provider = $this->provider->with('owner')->find($request->user()->id);
         $validator = Validator::make($request->all(), [
@@ -84,7 +87,7 @@ class AccountController extends Controller
             'confirm_password' => 'same:password',
             'account_first_name' => 'required',
             'account_last_name' => 'required',
-            'account_phone' => 'required|unique:users,phone,' . $provider->user_id . ',id',
+            'account_phone' => 'required',
 
             'company_name' => 'required',
             'company_phone' => 'required|unique:providers,company_phone,' . $provider->id . ',id',
@@ -94,6 +97,11 @@ class AccountController extends Controller
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
+        }
+
+        //email & phone check
+        if (User::where('phone', $request['account_phone'])->where('id', '!=', $provider->user_id)->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code"=>"account_phone","message"=>translate('Phone already taken')]]), 400);
         }
 
         $provider->company_name = $request->company_name;
@@ -128,7 +136,7 @@ class AccountController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function commission_info(Request $request): JsonResponse
+    public function commissionInfo(Request $request): JsonResponse
     {
         $provider = $this->provider->with('owner')->where('user_id',$request->user()->id)->first();
         if (isset($provider)) {

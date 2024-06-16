@@ -16,10 +16,12 @@
                         class="page-title-wrap d-flex justify-content-between flex-wrap align-items-center gap-3 mb-3">
                         <h2 class="page-title">{{translate('service_list')}}</h2>
                         <div>
-                            <a href="{{route('admin.service.create')}}" class="btn btn--primary">
-                                <span class="material-icons">add</span>
-                                {{translate('add_service')}}
-                            </a>
+                            @can('service_add')
+                                <a href="{{route('admin.service.create')}}" class="btn btn--primary">
+                                    <span class="material-icons">add</span>
+                                    {{translate('add_service')}}
+                                </a>
+                            @endcan
                         </div>
                     </div>
 
@@ -72,23 +74,6 @@
                                             <button type="submit"
                                                     class="btn btn--primary">{{translate('search')}}</button>
                                         </form>
-
-                                        {{--                                        <div class="d-flex flex-wrap align-items-center gap-3">--}}
-                                        {{--                                            <div class="dropdown">--}}
-                                        {{--                                                <button type="button"--}}
-                                        {{--                                                        class="btn btn--secondary text-capitalize dropdown-toggle"--}}
-                                        {{--                                                        data-bs-toggle="dropdown">--}}
-                                        {{--                                                    <span class="material-icons">file_download</span> download--}}
-                                        {{--                                                </button>--}}
-                                        {{--                                                <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-right">--}}
-                                        {{--                                                    <li>--}}
-                                        {{--                                                        <a class="dropdown-item" href="{{route('admin.service.download')}}">--}}
-                                        {{--                                                            {{translate('excel')}}--}}
-                                        {{--                                                        </a>--}}
-                                        {{--                                                    </li>--}}
-                                        {{--                                                </ul>--}}
-                                        {{--                                            </div>--}}
-                                        {{--                                        </div>--}}
                                     </div>
 
                                     <div class="table-responsive">
@@ -100,8 +85,12 @@
                                                 <th>{{translate('category')}}</th>
                                                 <th>{{translate('zones')}}</th>
                                                 <th>{{translate('Minimum Bidding Price')}}</th>
-                                                <th>{{translate('status')}}</th>
-                                                <th>{{translate('action')}}</th>
+                                                @can('service_manage_status')
+                                                    <th>{{translate('status')}}</th>
+                                                @endcan
+                                                @canany(['service_delete', 'service_update'])
+                                                    <th>{{translate('action')}}</th>
+                                                @endcan
                                             </tr>
                                             </thead>
                                             <tbody>
@@ -110,7 +99,7 @@
                                                     <td>{{$services->firstitem()+$key}}</td>
                                                     <td>
                                                         <a href="{{route('admin.service.detail',[$service->id])}}">
-                                                            {{$service->name}}
+                                                            {{Str::limit($service->name, 50)}}
                                                         </a>
                                                     </td>
                                                     <td>
@@ -125,42 +114,54 @@
                                                         {{with_currency_symbol($service->min_bidding_price)}}
 
                                                         @if($service->min_bidding_price == 0)
-                                                            <i class="text-warning material-icons px-1" data-bs-toggle="tooltip" data-bs-placement="top"
+                                                            <i class="text-warning material-icons px-1"
+                                                               data-bs-toggle="tooltip" data-bs-placement="top"
                                                                title="{{translate('Update the minimum bidding price')}}"
                                                             >warning</i>
                                                         @endif
                                                     </td>
-                                                    <td>
-                                                        <label class="switcher" data-bs-toggle="modal"
-                                                               data-bs-target="#deactivateAlertModal">
-                                                            <input class="switcher_input"
-                                                                   onclick="route_alert('{{route('admin.service.status-update',[$service->id])}}','{{translate('want_to_update_status')}}')"
-                                                                   type="checkbox" {{$service->is_active?'checked':''}}>
-                                                            <span class="switcher_control"></span>
-                                                        </label>
-                                                    </td>
-                                                    <td>
-                                                        <div class="table-actions">
-                                                            <a href="{{route('admin.service.edit',[$service->id])}}"
-                                                               class="table-actions_edit demo_check">
-                                                                <span class="material-icons">edit</span>
-                                                            </a>
-                                                            <button type="button"
-                                                                    @if(env('APP_ENV')!='demo')
-                                                                    onclick="form_alert('delete-{{$service->id}}','{{translate('want_to_delete_this_service')}}?')"
-                                                                    @endif
-                                                                    class="table-actions_delete bg-transparent border-0 p-0 demo_check">
-                                                                <span class="material-icons">delete</span>
-                                                            </button>
-                                                            <form
-                                                                action="{{route('admin.service.delete',[$service->id])}}"
-                                                                method="post" id="delete-{{$service->id}}"
-                                                                class="hidden">
-                                                                @csrf
-                                                                @method('DELETE')
-                                                            </form>
-                                                        </div>
-                                                    </td>
+                                                    @can('service_manage_status')
+                                                        <td>
+                                                            <label class="switcher" data-bs-toggle="modal"
+                                                                   data-bs-target="#deactivateAlertModal">
+                                                                <input class="switcher_input route-alert"
+                                                                       data-route="{{route('admin.service.status-update',[$service->id])}}"
+                                                                       data-message="{{translate('want_to_update_status')}}"
+                                                                       type="checkbox" {{$service->is_active?'checked':''}}>
+                                                                <span class="switcher_control"></span>
+                                                            </label>
+                                                        </td>
+                                                    @endcan
+                                                    @canany(['service_delete', 'service_update'])
+                                                        <td>
+                                                            <div class="d-flex gap-2">
+                                                                @can('service_update')
+                                                                    <a href="{{route('admin.service.edit',[$service->id])}}"
+                                                                       class="action-btn btn--light-primary demo_check"
+                                                                       style="--size: 30px">
+                                                                        <span class="material-icons">edit</span>
+                                                                    </a>
+                                                                @endcan
+                                                                @can('service_delete')
+                                                                    <button type="button"
+                                                                            data-id="delete-{{$service->id}}"
+                                                                            data-message="{{translate('want_to_delete_this_service')}}?"
+                                                                            class="action-btn btn--danger {{ env('APP_ENV')!='demo' ? 'form-alert' : 'demo_check'}}"
+                                                                            style="--size: 30px">
+                                                                    <span
+                                                                        class="material-symbols-outlined">delete</span>
+                                                                    </button>
+                                                                    <form
+                                                                        action="{{route('admin.service.delete',[$service->id])}}"
+                                                                        method="post" id="delete-{{$service->id}}"
+                                                                        class="hidden">
+                                                                        @csrf
+                                                                        @method('DELETE')
+                                                                    </form>
+                                                                @endcan
+                                                            </div>
+                                                        </td>
+                                                    @endcan
                                                 </tr>
                                             @endforeach
                                             </tbody>
@@ -182,6 +183,8 @@
 @push('script')
     <script src="{{asset('public/assets/admin-module')}}/plugins/select2/select2.min.js"></script>
     <script>
+        "use strict"
+
         $(document).ready(function () {
             $('.js-select').select2();
         });

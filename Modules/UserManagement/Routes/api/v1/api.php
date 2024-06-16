@@ -37,7 +37,7 @@ Route::group(['prefix' => 'user', 'namespace' => 'Api\V1'], function () {
     Route::group(['prefix' => 'forget-password'], function () {
         Route::post('send-otp', [PasswordResetController::class, 'check']);
         Route::post('verify-otp', [PasswordResetController::class, 'verify']);
-        Route::put('reset', [PasswordResetController::class, 'reset_password']);
+        Route::put('reset', [PasswordResetController::class, 'resetPassword']);
     });
 });
 

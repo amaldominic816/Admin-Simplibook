@@ -13,11 +13,11 @@ use Modules\PaymentModule\Entities\OfflinePayment;
 
 class OfflinePaymentController extends Controller
 {
-    protected OfflinePayment $offline_payment;
+    protected OfflinePayment $offlinePayment;
 
-    public function __construct(OfflinePayment $offline_payment)
+    public function __construct(OfflinePayment $offlinePayment)
     {
-        $this->offline_payment = $offline_payment;
+        $this->offlinePayment = $offlinePayment;
     }
 
 
@@ -28,14 +28,14 @@ class OfflinePaymentController extends Controller
      * @param Request $request
      * @return Renderable
      */
-    public function method_list(Request $request): Renderable
+    public function methodList(Request $request): Renderable
     {
         Validator::make($request->all(), [
             'search' => 'max:255',
             'body' => 'required',
         ]);
 
-        $withdrawal_methods = $this->offline_payment
+        $withdrawalMethods = $this->offlinePayment
             ->when($request->has('search'), function ($query) use ($request) {
                 $keys = explode(' ', $request['search']);
                 return $query->where(function ($query) use ($keys) {
@@ -48,17 +48,19 @@ class OfflinePaymentController extends Controller
         $status = null;
         $search = $request['search'];
         $type = 'offline_payment';
-        return View('paymentmodule::admin.offline-payments.list', compact('withdrawal_methods', 'status', 'search','type'));
+        $webPage = 'payment_config';
+        return View('paymentmodule::admin.offline-payments.list', compact('withdrawalMethods', 'status', 'search', 'type', 'webPage'));
     }
 
     /**
      * Create resource.
      * @return Renderable
      */
-    public function method_create(): Renderable
+    public function methodCreate(): Renderable
     {
         $type = 'offline_payment';
-        return View('paymentmodule::admin.offline-payments.create', compact('type'));
+        $webPage = 'payment_config';
+        return View('paymentmodule::admin.offline-payments.create', compact('type', 'webPage'));
     }
 
     /**
@@ -66,7 +68,7 @@ class OfflinePaymentController extends Controller
      * @param Request $request
      * @return RedirectResponse
      */
-    public function method_store(Request $request): RedirectResponse
+    public function methodStore(Request $request): RedirectResponse
     {
         $request->validate([
             'method_name' => 'required',
@@ -84,7 +86,7 @@ class OfflinePaymentController extends Controller
             'is_required' => 0
         ];
 
-        foreach ($request->field_name as $key=>$field_name) {
+        foreach ($request->field_name as $key => $field_name) {
             $customer_information[] = [
                 'field_name' => strtolower(str_replace(' ', "_", $request->field_name[$key])),
                 'placeholder' => $request->placeholder[$key],
@@ -92,23 +94,23 @@ class OfflinePaymentController extends Controller
             ];
         }
 
-        $payment_information = [];
-        foreach ($request->data as $key=>$data) {
-            $payment_information[] = [
+        $paymentInformation = [];
+        foreach ($request->data as $key => $data) {
+            $paymentInformation[] = [
                 'title' => strtolower(str_replace(' ', "_", $request->title[$key])),
                 'data' => $request->data[$key],
             ];
         }
 
-        $offline_payment_object = $this->offline_payment->updateOrCreate(
+        $this->offlinePayment->updateOrCreate(
             ['method_name' => $request->method_name],
             [
-            'customer_information' => $customer_information,
-            'payment_information' => $payment_information
+                'customer_information' => $customer_information,
+                'payment_information' => $paymentInformation
             ]
         );
 
-        Toastr::success(DEFAULT_STORE_200['message']);
+        Toastr::success(translate(DEFAULT_STORE_200['message']));
         return back();
     }
 
@@ -117,11 +119,12 @@ class OfflinePaymentController extends Controller
      * @param $id
      * @return Renderable
      */
-    public function method_edit($id): Renderable
+    public function methodEdit($id): Renderable
     {
-        $withdrawal_method = $this->offline_payment->find($id);
+        $withdrawalMethod = $this->offlinePayment->find($id);
         $type = 'offline_payment';
-        return View('paymentmodule::admin.offline-payments.edit', compact('withdrawal_method', 'type'));
+        $webPage = 'payment_config';
+        return View('paymentmodule::admin.offline-payments.edit', compact('withdrawalMethod', 'type', 'webPage'));
     }
 
     /**
@@ -129,7 +132,7 @@ class OfflinePaymentController extends Controller
      * @param Request $request
      * @return RedirectResponse
      */
-    public function method_update(Request $request)
+    public function methodUpdate(Request $request): RedirectResponse
     {
         $request->validate([
             'method_name' => 'required',
@@ -140,10 +143,10 @@ class OfflinePaymentController extends Controller
             'is_required' => '',
         ]);
 
-        $withdrawal_method = $this->offline_payment->find($request['id']);
+        $withdrawal_method = $this->offlinePayment->find($request['id']);
 
-        if(!isset($withdrawal_method)) {
-            Toastr::error(DEFAULT_404['message']);
+        if (!isset($withdrawal_method)) {
+            Toastr::error(translate(DEFAULT_404['message']));
             return back();
         }
 
@@ -154,7 +157,7 @@ class OfflinePaymentController extends Controller
             'is_required' => 0
         ];
 
-        foreach ($request->field_name as $key=>$field_name) {
+        foreach ($request->field_name as $key => $field_name) {
             $customer_information[] = [
                 'field_name' => strtolower(str_replace(' ', "_", $request->field_name[$key])),
                 'placeholder' => $request->placeholder[$key],
@@ -162,23 +165,23 @@ class OfflinePaymentController extends Controller
             ];
         }
 
-        $payment_information = [];
-        foreach ($request->data as $key=>$data) {
-            $payment_information[] = [
+        $paymentInformation = [];
+        foreach ($request->data as $key => $data) {
+            $paymentInformation[] = [
                 'title' => strtolower(str_replace(' ', "_", $request->title[$key])),
                 'data' => $request->data[$key],
             ];
         }
 
-        $offline_payment_object = $this->offline_payment->updateOrCreate(
+        $this->offlinePayment->updateOrCreate(
             ['method_name' => $request->method_name],
             [
-            'customer_information' => $customer_information,
-            'payment_information' => $payment_information
+                'customer_information' => $customer_information,
+                'payment_information' => $paymentInformation
             ]
         );
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 
@@ -187,10 +190,10 @@ class OfflinePaymentController extends Controller
      * @param $id
      * @return RedirectResponse
      */
-    public function method_destroy($id): RedirectResponse
+    public function methodDestroy($id): RedirectResponse
     {
-        $this->offline_payment->where('id', $id)->delete();
-        Toastr::success(DEFAULT_DELETE_200['message']);
+        $this->offlinePayment->where('id', $id)->delete();
+        Toastr::success(translate(DEFAULT_DELETE_200['message']));
         return back();
     }
 
@@ -200,11 +203,11 @@ class OfflinePaymentController extends Controller
      * @param $id
      * @return JsonResponse
      */
-    public function method_status_update(Request $request, $id): JsonResponse
+    public function statusUpdate(Request $request, $id): JsonResponse
     {
-        $offline_payment = $this->offline_payment->where('id', $id)->first();
-        $this->offline_payment->where('id', $id)->update(['is_active' => !$offline_payment->is_active]);
-        return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+        $offlinePayment = $this->offlinePayment->where('id', $id)->first();
+        $this->offlinePayment->where('id', $id)->update(['is_active' => !$offlinePayment->is_active]);
+        return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
     }
 
 }

@@ -60,6 +60,11 @@ class Post extends Model
         return $this->hasMany(PostAdditionalInstruction::class, 'post_id', 'id');
     }
 
+    public function postDeleteNote(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(PostAdditionalInformation::class, 'post_id')->where('key', 'post_delete_note');
+    }
+
     public function ignored_posts(): HasMany
     {
         return $this->hasMany(IgnoredPost::class, 'post_id', 'id');

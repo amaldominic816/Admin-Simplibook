@@ -5,6 +5,7 @@ namespace Modules\BusinessSettingsModule\Http\Controllers\Web\Admin;
 use App\Traits\ActivationClass;
 use App\Traits\FileManagerTrait;
 use Brian2694\Toastr\Facades\Toastr;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
@@ -19,67 +20,68 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Madnest\Madzipper\Facades\Madzipper;
-use Mockery\Exception;
 use Modules\BusinessSettingsModule\Entities\BusinessSettings;
+use Modules\BusinessSettingsModule\Entities\DataSetting;
+use Modules\BusinessSettingsModule\Entities\Translation;
+use Modules\ProviderManagement\Entities\Provider;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Illuminate\Support\Facades\File;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use ZipArchive;
 
 class BusinessInformationController extends Controller
 {
     use ActivationClass;
     use FileManagerTrait;
+    use AuthorizesRequests;
 
-    private BusinessSettings $business_setting;
+    private BusinessSettings $businessSetting;
+    private DataSetting $dataSetting;
 
-    public function __construct(BusinessSettings $business_setting)
+    public function __construct(BusinessSettings $businessSetting, DataSetting $dataSetting)
     {
-        $this->business_setting = $business_setting;
-
-        if (request()->isMethod('get')) {
-            $response = $this->actch();
-            $data = json_decode($response->getContent(), true);
-            if (!$data['active']) {
-                return Redirect::away(base64_decode('aHR0cHM6Ly82YW10ZWNoLmNvbS9zb2Z0d2FyZS1hY3RpdmF0aW9u'))->send();
-            }
-        }
+        $this->businessSetting = $businessSetting;
+        $this->dataSetting = $dataSetting;
     }
 
     /**
      * Display a listing of the resource.
      */
-    public function business_information_get(Request $request): Factory|View|Application
+    public function businessInformationGet(Request $request): Factory|View|Application
     {
-        $web_page = $request->has('web_page') ? $request['web_page'] : 'business_setup';
-        if ($web_page == 'business_setup') {
-            $data_values = $this->business_setting->where('settings_type', 'business_information')->get();
-        } elseif ($web_page == 'service_setup') {
-            $data_values = $this->business_setting->where('settings_type', 'service_setup')->get();
-        } elseif ($web_page == 'providers') {
-            $data_values = $this->business_setting->where('settings_type', 'provider_config')->get();
-        } elseif ($web_page == 'customers') {
-            $data_values = $this->business_setting->where('settings_type', 'customer_config')->get();
-        } elseif ($web_page == 'servicemen') {
-            $data_values = $this->business_setting->where('settings_type', 'serviceman_config')->get();
-        } elseif ($web_page == 'promotional_setup') {
-            $data_values = $this->business_setting->where('settings_type', 'promotional_setup')->get();
-        } elseif ($web_page == 'otp_login_setup') {
-            $data_values = $this->business_setting->where('settings_type', 'otp_login_setup')->get();
-        } elseif ($web_page == 'bookings') {
-            $data_values = $this->business_setting->whereIn('settings_type', ['booking_setup', 'bidding_system'])->get();
+        $this->authorize('business_view');
+        $webPage = $request->has('web_page') ? $request['web_page'] : 'business_setup';
+        if ($webPage == 'business_setup') {
+            $dataValues = $this->businessSetting->where('settings_type', 'business_information')->get();
+        } elseif ($webPage == 'service_setup') {
+            $dataValues = $this->businessSetting->where('settings_type', 'service_setup')->get();
+        } elseif ($webPage == 'providers') {
+            $dataValues = $this->businessSetting->where('settings_type', 'provider_config')->get();
+        } elseif ($webPage == 'customers') {
+            $dataValues = $this->businessSetting->where('settings_type', 'customer_config')->get();
+        } elseif ($webPage == 'servicemen') {
+            $dataValues = $this->businessSetting->where('settings_type', 'serviceman_config')->get();
+        } elseif ($webPage == 'promotional_setup') {
+            $dataValues = $this->businessSetting->where('settings_type', 'promotional_setup')->get();
+        } elseif ($webPage == 'otp_login_setup') {
+            $dataValues = $this->businessSetting->where('settings_type', 'otp_login_setup')->get();
+        } elseif ($webPage == 'bookings') {
+            $dataValues = $this->businessSetting->whereIn('settings_type', ['booking_setup', 'bidding_system'])->get();
         }
 
-        return view('businesssettingsmodule::admin.business', compact('data_values', 'web_page'));
+        return view('businesssettingsmodule::admin.business', compact('dataValues', 'webPage'));
     }
 
     /**
      * Display a listing of the resource.
      * @param Request $request
      * @return JsonResponse
-     * @throws ValidationException
+     * @throws ValidationException|AuthorizationException
      */
-    public function business_information_set(Request $request): JsonResponse
+    public function businessInformationSet(Request $request): JsonResponse
     {
+        $this->authorize('business_update');
         if (!$request->has('phone_number_visibility_for_chatting')) {
             $request['phone_number_visibility_for_chatting'] = '0';
         }
@@ -105,8 +107,8 @@ class BusinessInformationController extends Controller
             'pagination_limit' => 'required',
             'footer_text' => 'required',
             'cookies_text' => 'required',
-            'minimum_withdraw_amount' => 'required',
-            'maximum_withdraw_amount' => 'required',
+            'minimum_withdraw_amount' => 'required|numeric|gte:0',
+            'maximum_withdraw_amount' => 'required|numeric|gt:minimum_withdraw_amount',
             'phone_number_visibility_for_chatting' => 'required|in:0,1',
             'direct_provider_booking' => 'required|in:0,1',
             'forget_password_verification_method' => 'required|in:phone,email',
@@ -119,15 +121,15 @@ class BusinessInformationController extends Controller
         foreach ($validator->validated() as $key => $value) {
 
             if ($key == 'business_logo') {
-                $file = $this->business_setting->where('key_name', 'business_logo')->first();
+                $file = $this->businessSetting->where('key_name', 'business_logo')->first();
                 $value = file_uploader('business/', 'png', $request->file('business_logo'), !empty($file->live_values) ? $file->live_values : '');
             }
             if ($key == 'business_favicon') {
-                $file = $this->business_setting->where('key_name', 'business_favicon')->first();
+                $file = $this->businessSetting->where('key_name', 'business_favicon')->first();
                 $value = file_uploader('business/', 'png', $request->file('business_favicon'), !empty($file->live_values) ? $file->live_values : '');
             }
 
-            $this->business_setting->updateOrCreate(['key_name' => $key], [
+            $this->businessSetting->updateOrCreate(['key_name' => $key], [
                 'key_name' => $key,
                 'live_values' => $value,
                 'test_values' => $value,
@@ -146,10 +148,11 @@ class BusinessInformationController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return JsonResponse|RedirectResponse
-     * @throws ValidationException
+     * @throws ValidationException|AuthorizationException
      */
-    public function otp_login_information_set(Request $request): JsonResponse|RedirectResponse
+    public function otpLoginInformationSet(Request $request): JsonResponse|RedirectResponse
     {
+        $this->authorize('business_update');
         $validator = Validator::make($request->all(), [
             'temporary_login_block_time' => 'required',
             'maximum_login_hit' => 'required',
@@ -163,7 +166,7 @@ class BusinessInformationController extends Controller
         }
 
         foreach ($validator->validated() as $key => $value) {
-            $this->business_setting->updateOrCreate(['key_name' => $key], [
+            $this->businessSetting->updateOrCreate(['key_name' => $key], [
                 'key_name' => $key,
                 'live_values' => $value,
                 'test_values' => $value,
@@ -173,7 +176,7 @@ class BusinessInformationController extends Controller
             ]);
         }
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 
@@ -181,10 +184,11 @@ class BusinessInformationController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return JsonResponse
-     * @throws ValidationException
+     * @throws ValidationException|AuthorizationException
      */
-    public function set_bidding_system(Request $request): JsonResponse
+    public function setBiddingSystem(Request $request): JsonResponse
     {
+        $this->authorize('business_update');
         if (!$request->has('bidding_status')) {
             $request['bidding_status'] = '0';
         }
@@ -203,7 +207,7 @@ class BusinessInformationController extends Controller
         }
 
         foreach ($validator->validated() as $key => $value) {
-            $this->business_setting->updateOrCreate(['key_name' => $key], [
+            $this->businessSetting->updateOrCreate(['key_name' => $key], [
                 'key_name' => $key,
                 'live_values' => $value,
                 'test_values' => $value,
@@ -220,11 +224,12 @@ class BusinessInformationController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return JsonResponse
-     * @throws ValidationException
+     * @throws ValidationException|AuthorizationException
      */
-    public function booking_setup_set(Request $request): JsonResponse
+    public function bookingSetupSet(Request $request): JsonResponse
     {
-        collect(['booking_otp', 'service_complete_photo_evidence', 'bidding_status', 'bid_offers_visibility_for_providers', 'booking_additional_charge'])
+        $this->authorize('business_update');
+        collect(['booking_otp', 'service_complete_photo_evidence', 'bidding_status', 'bid_offers_visibility_for_providers', 'booking_additional_charge', 'instant_booking', 'schedule_booking_time_restriction', 'schedule_booking'])
             ->each(fn($item, $key) => $request[$item] = $request->has($item) ? (int)$request[$item] : 0);
 
         $validator = Validator::make($request->all(), [
@@ -235,6 +240,11 @@ class BusinessInformationController extends Controller
             'max_booking_amount' => 'required|numeric|gt:min_booking_amount',
             'additional_charge_label_name' => 'required|string',
             'additional_charge_fee_amount' => 'required|numeric|min:0',
+            'instant_booking' => 'required|in:0,1',
+            'schedule_booking_time_restriction' => 'required|in:0,1',
+            'schedule_booking' => 'required|in:0,1',
+            'advanced_booking_restriction_value' => 'required',
+            'advanced_booking_restriction_type' => 'required|in:day,hour',
 
             //bidding
             'bidding_post_validity' => 'required|numeric|gt:0',
@@ -249,7 +259,7 @@ class BusinessInformationController extends Controller
         foreach ($validator->validated() as $key => $value) {
             $settings_type = in_array($key, ['bidding_post_validity', 'bid_offers_visibility_for_providers', 'bidding_status']) ? 'bidding_system' : 'booking_setup';
 
-            $this->business_setting->updateOrCreate(['key_name' => $key], [
+            $this->businessSetting->updateOrCreate(['key_name' => $key], [
                 'key_name' => $key,
                 'live_values' => $value,
                 'test_values' => $value,
@@ -265,10 +275,11 @@ class BusinessInformationController extends Controller
     /**
      * @param Request $request
      * @return JsonResponse|RedirectResponse
-     * @throws ValidationException
+     * @throws ValidationException|AuthorizationException
      */
-    public function service_setup(Request $request): JsonResponse|RedirectResponse
+    public function serviceSetup(Request $request): JsonResponse|RedirectResponse
     {
+        $this->authorize('business_update');
         collect([
             'phone_verification', 'email_verification', 'cash_after_service',
             'digital_payment', 'partial_payment', 'offline_payment', 'guest_checkout'
@@ -289,7 +300,7 @@ class BusinessInformationController extends Controller
         }
 
         foreach ($validator->validated() as $key => $value) {
-            $this->business_setting->updateOrCreate(['key_name' => $key], [
+            $this->businessSetting->updateOrCreate(['key_name' => $key], [
                 'key_name' => $key,
                 'live_values' => $value,
                 'test_values' => $value,
@@ -299,17 +310,18 @@ class BusinessInformationController extends Controller
             ]);
         }
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 
     /**
      * @param Request $request
      * @return JsonResponse|RedirectResponse
-     * @throws ValidationException
+     * @throws ValidationException|AuthorizationException
      */
     public function servicemen(Request $request): JsonResponse|RedirectResponse
     {
+        $this->authorize('business_update');
         collect(['serviceman_can_edit_booking', 'serviceman_can_cancel_booking'])->each(fn($item, $key) => $request[$item] = $request->has($item) ? (int)$request[$item] : 0);
         $validator = Validator::make($request->all(), [
             'serviceman_can_edit_booking' => 'required|in:0,1',
@@ -321,7 +333,7 @@ class BusinessInformationController extends Controller
         }
 
         foreach ($validator->validated() as $key => $value) {
-            $this->business_setting->updateOrCreate(['key_name' => $key], [
+            $this->businessSetting->updateOrCreate(['key_name' => $key], [
                 'key_name' => $key,
                 'live_values' => $value,
                 'test_values' => $value,
@@ -331,28 +343,37 @@ class BusinessInformationController extends Controller
             ]);
         }
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 
     /**
      * @param Request $request
      * @return JsonResponse|RedirectResponse
-     * @throws ValidationException
+     * @throws ValidationException|AuthorizationException
      */
-    public function customer_setup(Request $request): JsonResponse|RedirectResponse
+    public function customerSetup(Request $request): JsonResponse|RedirectResponse
     {
-        collect(['customer_wallet'])->each(fn($item, $key) => $request[$item] = $request->has($item) ? (int)$request[$item] : 0);
-        $validator = Validator::make($request->all(), [
+        $this->authorize('business_update');
+        collect(['customer_wallet', 'customer_loyalty_point', 'customer_referral_earning', 'add_to_fund_wallet', 'referral_based_new_user_discount'])->each(fn($item, $key) => $request[$item] = $request->has($item) ? (int)$request[$item] : 0);
+        $validator = $request->validate([
             'customer_wallet' => 'required|in:0,1',
+            'add_to_fund_wallet' => 'required|in:0,1',
+            'customer_loyalty_point' => 'required|in:0,1',
+            'customer_referral_earning' => 'required|in:0,1',
+            'referral_based_new_user_discount' => 'required|in:0,1',
+            'loyalty_point_value_per_currency_unit' => 'required',
+            'loyalty_point_percentage_per_booking' => 'required',
+            'min_loyalty_point_to_transfer' => 'required',
+            'referral_value_per_currency_unit' => 'required',
+            'referral_discount_type' => 'required|in:flat,percentage',
+            'referral_discount_amount' => 'required|numeric|min:1',
+            'referral_discount_validity_type' => 'required|in:day,month',
+            'referral_discount_validity' => 'required|min:1',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
-        }
-
-        foreach ($validator->validated() as $key => $value) {
-            $this->business_setting->updateOrCreate(['key_name' => $key], [
+        foreach ($validator as $key => $value) {
+            $this->businessSetting->updateOrCreate(['key_name' => $key], [
                 'key_name' => $key,
                 'live_values' => $value,
                 'test_values' => $value,
@@ -362,30 +383,41 @@ class BusinessInformationController extends Controller
             ]);
         }
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 
     /**
      * @param Request $request
      * @return JsonResponse|RedirectResponse
-     * @throws ValidationException
+     * @throws ValidationException|AuthorizationException
      */
-    public function provider_setup(Request $request): JsonResponse|RedirectResponse
+    public function providerSetup(Request $request): JsonResponse|RedirectResponse
     {
-        collect(['provider_can_cancel_booking', 'provider_can_edit_booking', 'provider_self_registration'])->each(fn($item, $key) => $request[$item] = $request->has($item) ? (int)$request[$item] : 0);
-        $validator = Validator::make($request->all(), [
+        $this->authorize('business_update');
+        collect(['provider_can_cancel_booking', 'provider_can_edit_booking', 'provider_self_registration', 'suspend_on_exceed_cash_limit_provider', 'provider_self_delete'])->each(fn($item, $key) => $request[$item] = $request->has($item) ? (int)$request[$item] : 0);
+
+        $validated = $request->validate([
             'provider_can_cancel_booking' => 'required|in:0,1',
             'provider_can_edit_booking' => 'required|in:0,1',
             'provider_self_registration' => 'required|in:0,1',
+            'provider_self_delete' => 'required|in:0,1',
+            'max_cash_in_hand_limit_provider' => 'required',
+            'min_payable_amount' => 'required',
+            'suspend_on_exceed_cash_limit_provider' => 'required|in:0,1',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
+        $maxCash = $request->input('max_cash_in_hand_limit_provider');
+        $minPayable = $request->input('min_payable_amount');
+
+        if ($minPayable > $maxCash) {
+            return redirect()->back()->withErrors(['min_payable_amount' => 'The min payable amount must be less than the max cash in hand limit for the provider.'])->withInput();
         }
 
-        foreach ($validator->validated() as $key => $value) {
-            $this->business_setting->updateOrCreate(['key_name' => $key], [
+        $oldMaximumLimitAmount = $this->businessSetting->where('key_name', 'max_cash_in_hand_limit_provider')->where('settings_type', 'provider_config')?->first()?->live_values;
+
+        foreach ($validated as $key => $value) {
+            $this->businessSetting->updateOrCreate(['key_name' => $key], [
                 'key_name' => $key,
                 'live_values' => $value,
                 'test_values' => $value,
@@ -395,7 +427,32 @@ class BusinessInformationController extends Controller
             ]);
         }
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        $currentMaxLimitAmount = $this->businessSetting->where('key_name', 'max_cash_in_hand_limit_provider')->where('settings_type', 'provider_config')->first()->live_values;
+        $providers = Provider::ofApproval(1)->ofStatus(1)->get();
+
+        if($oldMaximumLimitAmount && $oldMaximumLimitAmount != $currentMaxLimitAmount){
+            foreach ($providers as $provider){
+                if ($provider){
+                    $payable = $provider?->owner?->account?->account_payable;
+                    $receivable = $provider?->owner?->account?->account_receivable;
+                    if ($payable > $receivable) {
+                        $cash_in_hand = $payable - $receivable;
+                        if ($cash_in_hand >= $currentMaxLimitAmount){
+                            $provider->is_suspended = 1;
+                            $provider->save();
+                        }else{
+                            $provider->is_suspended = 0;
+                            $provider->save();
+                        }
+                    }elseif($payable <= $receivable){
+                        $provider->is_suspended = 0;
+                        $provider->save();
+                    }
+                }
+            }
+        }
+
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 
@@ -404,10 +461,11 @@ class BusinessInformationController extends Controller
      * Update resource.
      * @param Request $request
      * @return JsonResponse
-     * @throws ValidationException
+     * @throws ValidationException|AuthorizationException
      */
-    public function update_action_status(Request $request): JsonResponse
+    public function updateActionStatus(Request $request): JsonResponse
     {
+        $this->authorize('business_update');
         $request[$request['key']] = $request['value'];
 
         $validator = Validator::make($request->all(), [
@@ -436,7 +494,7 @@ class BusinessInformationController extends Controller
 
         foreach ($validator->validated() as $key => $value) {
             if ($key != 'phone_verification' && $key != 'email_verification') {
-                $this->business_setting->updateOrCreate(['key_name' => $key, 'settings_type' => $request['settings_type']], [
+                $this->businessSetting->updateOrCreate(['key_name' => $key, 'settings_type' => $request['settings_type']], [
                     'key_name' => $key,
                     'live_values' => $value,
                     'test_values' => $value,
@@ -446,7 +504,7 @@ class BusinessInformationController extends Controller
                 ]);
             } else {
                 if ($key == 'phone_verification') {
-                    $this->business_setting->updateOrCreate(['key_name' => $key, 'settings_type' => $request['settings_type']], [
+                    $this->businessSetting->updateOrCreate(['key_name' => $key, 'settings_type' => $request['settings_type']], [
                         'key_name' => $key,
                         'live_values' => $value,
                         'test_values' => $value,
@@ -455,7 +513,7 @@ class BusinessInformationController extends Controller
                         'mode' => 'live',
                     ]);
                     if ($value == 1) {
-                        $this->business_setting->updateOrCreate(['key_name' => 'email_verification', 'settings_type' => $request['settings_type']], [
+                        $this->businessSetting->updateOrCreate(['key_name' => 'email_verification', 'settings_type' => $request['settings_type']], [
                             'key_name' => 'email_verification',
                             'live_values' => (int)!$value,
                             'test_values' => (int)!$value,
@@ -465,7 +523,7 @@ class BusinessInformationController extends Controller
                         ]);
                     }
                 } else if ($key == 'email_verification') {
-                    $this->business_setting->updateOrCreate(['key_name' => $key, 'settings_type' => $request['settings_type']], [
+                    $this->businessSetting->updateOrCreate(['key_name' => $key, 'settings_type' => $request['settings_type']], [
                         'key_name' => $key,
                         'live_values' => $value,
                         'test_values' => $value,
@@ -474,7 +532,7 @@ class BusinessInformationController extends Controller
                         'mode' => 'live',
                     ]);
                     if ($value == 1) {
-                        $this->business_setting->updateOrCreate(['key_name' => 'phone_verification', 'settings_type' => $request['settings_type']], [
+                        $this->businessSetting->updateOrCreate(['key_name' => 'phone_verification', 'settings_type' => $request['settings_type']], [
                             'key_name' => 'phone_verification',
                             'live_values' => (int)!$value,
                             'test_values' => (int)!$value,
@@ -493,11 +551,12 @@ class BusinessInformationController extends Controller
     /**
      * Display a listing of the resource.
      * @param Request $request
-     * @return \Illuminate\Http\RedirectResponse
-     * @throws ValidationException
+     * @return RedirectResponse
+     * @throws ValidationException|AuthorizationException
      */
-    public function promotion_setup_set(Request $request): \Illuminate\Http\RedirectResponse
+    public function promotionSetupSet(Request $request): RedirectResponse
     {
+        $this->authorize('business_update');
         $request->validate([
             'bearer' => 'required|in:admin,provider,both',
         ]);
@@ -519,12 +578,12 @@ class BusinessInformationController extends Controller
         ]);
 
         if ($validator->fails()) {
-            Toastr::error(DEFAULT_FAIL_200['message']);
+            Toastr::error(translate(DEFAULT_FAIL_200['message']));
             return back();
         }
 
 
-        $this->business_setting->updateOrCreate(['key_name' => $request['type'] . '_cost_bearer', 'settings_type' => 'promotional_setup'], [
+        $this->businessSetting->updateOrCreate(['key_name' => $request['type'] . '_cost_bearer', 'settings_type' => 'promotional_setup'], [
             'key_name' => $request['type'] . '_cost_bearer',
             'live_values' => $validator->validated(),
             'test_values' => $validator->validated(),
@@ -533,7 +592,7 @@ class BusinessInformationController extends Controller
             'mode' => 'live',
         ]);
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 
@@ -541,81 +600,117 @@ class BusinessInformationController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
-    public function pages_setup_get(Request $request): View|Factory|Application
+    public function pagesSetupGet(Request $request): View|Factory|Application
     {
-        $web_page = $request->has('web_page') ? $request['web_page'] : 'about_us';
-        $data_values = $this->business_setting->where('settings_type', 'pages_setup')->orderBy('key_name')->get();
-        return view('businesssettingsmodule::admin.page-settings', compact('data_values', 'web_page'));
+        $this->authorize('page_view');
+        $webPage = $request->has('web_page') ? $request['web_page'] : 'about_us';
+        $dataValues = $this->dataSetting->where('type', 'pages_setup')->withoutGlobalScope('translate')->with('translations')->orderBy('key')->get();
+        return view('businesssettingsmodule::admin.page-settings', compact('dataValues', 'webPage'));
     }
 
     /**
      * Display a listing of the resource.
      * @param Request $request
-     * @return JsonResponse|\Illuminate\Http\RedirectResponse
+     * @return JsonResponse|RedirectResponse
+     * @throws AuthorizationException
      */
-    public function pages_setup_set(Request $request): JsonResponse|\Illuminate\Http\RedirectResponse
+    public function pagesSetupSet(Request $request): JsonResponse|RedirectResponse
     {
+        $this->authorize('page_update');
         $request->validate([
             'page_name' => 'required|in:about_us,privacy_policy,terms_and_conditions,refund_policy,cancellation_policy',
-            'page_content' => ''
+            'page_content.0' => 'required',
+        ], [
+            'page_content.0.required' => 'The default content is required.',
         ]);
 
-        $this->business_setting->updateOrCreate(['key_name' => $request['page_name'], 'settings_type' => 'pages_setup'], [
-            'key_name' => $request['page_name'],
-            'live_values' => $request['page_content'],
-            'test_values' => null,
-            'settings_type' => 'pages_setup',
-            'mode' => 'live',
+        $businessData = $this->dataSetting->updateOrCreate(['key' => $request['page_name'], 'type' => 'pages_setup'], [
+            'key' => $request['page_name'],
+            'value' => $request->page_content[array_search('default', $request->lang)],
+            'type' => 'pages_setup',
             'is_active' => $request['is_active'] ?? 0,
         ]);
+
+        $defaultLanguage = str_replace('_', '-', app()->getLocale());
+
+        foreach ($request->lang as $index => $key) {
+            if ($defaultLanguage == $key && !($request->page_content[$index])) {
+                if ($key != 'default') {
+                    Translation::updateOrInsert(
+                        [
+                            'translationable_type' => 'Modules\BusinessSettingsModule\Entities\DataSetting',
+                            'translationable_id' => $businessData->id,
+                            'locale' => $key,
+                            'key' => $businessData->key],
+                        ['value' => $businessData->page_content]
+                    );
+                }
+            } else {
+                if ($request->page_content[$index] && $key != 'default') {
+                    Translation::updateOrInsert(
+                        [
+                            'translationable_type' => 'Modules\BusinessSettingsModule\Entities\DataSetting',
+                            'translationable_id' => $businessData->id,
+                            'locale' => $key,
+                            'key' => $businessData->key],
+                        ['value' => $request->page_content[$index]]
+                    );
+                }
+            }
+        }
 
         if (in_array($request['page_name'], ['privacy_policy', 'terms_and_conditions'])) {
             $message = translate('page_information_has_been_updated') . '!';
 
-            $tnc_update = business_config('tnc_update', 'notification_settings');
-            if ($request['page_name'] == 'terms_and_conditions' && isset($tnc_update) && $tnc_update->live_values['push_notification_tnc_update'] == 1 && $request['is_active'] == 1) {
+            $tncUpdate = business_config('tnc_update', 'notification_settings');
+            if ($request['page_name'] == 'terms_and_conditions' && isset($tncUpdate) && $tncUpdate->live_values['push_notification_tnc_update'] == 1 && $request['is_active'] == 1) {
                 topic_notification('customer', translate($request['page_name']), $message, 'def.png', null, $request['page_name']);
                 topic_notification('provider-admin', translate($request['page_name']), $message, 'def.png', null, $request['page_name']);
                 topic_notification('provider-serviceman', translate($request['page_name']), $message, 'def.png', null, $request['page_name']);
             }
 
-            $pp_update = business_config('pp_update', 'notification_settings');
-            if ($request['page_name'] == 'privacy_policy' && isset($pp_update) && $pp_update->live_values['push_notification_pp_update'] == 1) {
+            $privacyPolicyUpdate = business_config('pp_update', 'notification_settings');
+            if ($request['page_name'] == 'privacy_policy' && isset($privacyPolicyUpdate) && $privacyPolicyUpdate->live_values['push_notification_pp_update'] == 1) {
                 topic_notification('customer', translate($request['page_name']), $message, 'def.png', null, $request['page_name']);
                 topic_notification('provider-admin', translate($request['page_name']), $message, 'def.png', null, $request['page_name']);
                 topic_notification('provider-serviceman', translate($request['page_name']), $message, 'def.png', null, $request['page_name']);
             }
         }
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 
     /**
      * Display a listing of the resource.
-     * @param Request $request
+     * @param string $path
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
-    public function gallery_setup_get($folder_path = "cHVibGlj"): View|Factory|Application
+    public function gallerySetupGet(string $path = "cHVibGlj"): View|Factory|Application
     {
-        $file = Storage::files(base64_decode($folder_path));
-        $directories = Storage::directories(base64_decode($folder_path));
+        $this->authorize('gallery_view');
+        $file = Storage::files(base64_decode($path));
+        $directories = Storage::directories(base64_decode($path));
 
         $folders = $this->format_file_and_folders($directories, 'folder');
         $files = $this->format_file_and_folders($file, 'file');
-        // dd($files);
         $data = array_merge($folders, $files);
-        return view('businesssettingsmodule::admin.gallery-settings', compact('data', 'folder_path'));
+        $folderPath = $path;
+        return view('businesssettingsmodule::admin.gallery-settings', compact('data', 'folderPath'));
     }
 
     /**
      * Display a listing of the resource.
      * @param Request $request
-     * @return \Illuminate\Http\RedirectResponse
+     * @return RedirectResponse
+     * @throws AuthorizationException
      */
-    public function gallery_image_upload(Request $request)
+    public function galleryImageUpload(Request $request): RedirectResponse
     {
+        $this->authorize('gallery_add');
         if (env('APP_MODE') == 'demo') {
             Toastr::info(translate('messages.upload_option_is_disable_for_demo'));
             return back();
@@ -639,20 +734,20 @@ class BusinessInformationController extends Controller
             $name = $file->getClientOriginalName();
 
             Madzipper::make($file)->extractTo('storage/app/' . $request->path);
-            // Storage::disk('local')->put($request->path.'/'. $name, file_get_contents($file));
-
         }
-        Toastr::success(translate('image_uploaded_successfully'));
-        return back()->with('success', translate('image_uploaded_successfully'));
+        Toastr::success(translate('uploaded_successfully'));
+        return back()->with('success', translate('uploaded_successfully'));
     }
 
     /**
      * Display a listing of the resource.
-     * @param Request $request
-     * @return \Illuminate\Http\RedirectResponse
+     * @param $file_path
+     * @return RedirectResponse
+     * @throws AuthorizationException
      */
-    public function gallery_image_remove($file_path)
+    public function galleryImageRemove($file_path)
     {
+        $this->authorize('gallery_delete');
         Storage::disk('local')->delete(base64_decode($file_path));
         Toastr::success(translate('image_deleted_successfully'));
         return back()->with('success', translate('image_deleted_successfully'));
@@ -660,16 +755,17 @@ class BusinessInformationController extends Controller
 
     /**
      * Display a listing of the resource.
-     * @param Request $request
-     * @return \Symfony\Component\HttpFoundation\StreamedResponse
+     * @param $file_name
+     * @return StreamedResponse
      */
-    public function gallery_image_download($file_name)
+    public function galleryImageDownload($file_name): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         return Storage::download(base64_decode($file_name));
     }
 
-    public function download_public_directory()
+    public function downloadPublicDirectory(): BinaryFileResponse|RedirectResponse
     {
+        $this->authorize('gallery_export');
         if (!class_exists('ZipArchive')) {
             Toastr::error(translate('The ZipArchive class is not available'));
             return back();
@@ -705,44 +801,46 @@ class BusinessInformationController extends Controller
 
     /**
      * Display a listing of the resource.
-     * @param Request $request
      * @return Application|Factory|View
      */
-    public function get_database_backup(): View|Factory|Application
+    public function getDatabaseBackup(): View|Factory|Application
     {
+//        $this->authorize('backup_view');
         if (!File::exists(storage_path('backup'))) {
             File::makeDirectory(storage_path('backup'), 0777, true);
         }
         $files = File::files('storage/backup');
 
-        $filenames = [];
+        $fileNames = [];
         foreach ($files as $file) {
-            $filenames[] = $file->getFilename();
+            $fileNames[] = $file->getFilename();
         }
 
-        return view('businesssettingsmodule::admin.database-backup', compact('filenames'));
+        return view('businesssettingsmodule::admin.database-backup', compact('fileNames'));
     }
 
     /**
      * Display a listing of the resource.
-     * @param Request $request
+     * @param $file_name
      * @return RedirectResponse
      */
-    public function delete_database_backup($file_name)
+    public function deleteDatabaseBackup($file_name): RedirectResponse
     {
+        $this->authorize('backup_delete');
         $file = storage_path('backup/' . $file_name);
         if (File::exists($file)) {
             File::delete($file);
         }
-        Toastr::success(DEFAULT_DELETE_200['message']);
+        Toastr::success(translate(DEFAULT_DELETE_200['message']));
         return back();
     }
 
     /**
      * Backup of the resource.
      */
-    public function backup_database()
+    public function backupDatabase(): RedirectResponse
     {
+        $this->authorize('backup_add');
         //take backup
         Artisan::call('database:backup');
 
@@ -750,10 +848,10 @@ class BusinessInformationController extends Controller
         if (!File::exists(storage_path('backup'))) {
             File::makeDirectory(storage_path('backup'), 0777, true);
         }
-        $sql_file_name = 'database_backup_' . date("Y-m-d_H-i") . '.sql';
+        $sqlFileName = 'database_backup_' . date("Y-m-d_H-i") . '.sql';
 
-        $file = base_path($sql_file_name);
-        $destination = storage_path('backup/' . $sql_file_name);
+        $file = base_path($sqlFileName);
+        $destination = storage_path('backup/' . $sqlFileName);
         File::move($file, $destination);
 
         Toastr::success(translate('Database backup has been completed successfully'));
@@ -763,8 +861,9 @@ class BusinessInformationController extends Controller
     /**
      * Restore the resource.
      */
-    public function restore_database_backup($file_name)
+    public function restoreDatabaseBackup($file_name): RedirectResponse
     {
+        $this->authorize('backup_add');
         $file = storage_path('backup/' . $file_name);
         if (!File::exists($file)) {
             Toastr::error(translate('File does not exists'));
@@ -788,11 +887,12 @@ class BusinessInformationController extends Controller
 
     /**
      * Display a listing of the resource.
-     * @param Request $request
+     * @param $file_name
      * @return BinaryFileResponse | RedirectResponse
      */
     public function download($file_name): BinaryFileResponse|RedirectResponse
     {
+        $this->authorize('backup_export');
         $file = storage_path('backup/' . $file_name);
         if (File::exists($file)) {
             return response()->download($file);

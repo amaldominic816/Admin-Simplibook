@@ -2,8 +2,8 @@
 
 namespace App\Http;
 
-use App\Http\Middleware\ApiHitLimit;
 use App\Http\Middleware\ApiHitLimitMiddleware;
+use App\Http\Middleware\LocalizationMiddleware;
 use App\Http\Middleware\ZoneAdder;
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
 use Modules\AdminModule\Http\Middleware\AdminMiddleware;
@@ -22,7 +22,6 @@ class Kernel extends HttpKernel
      * @var array<int, class-string|string>
      */
     protected $middleware = [
-        // \App\Http\Middleware\TrustHosts::class,
         \App\Http\Middleware\TrustProxies::class,
         \Fruitcake\Cors\HandleCors::class,
         \App\Http\Middleware\PreventRequestsDuringMaintenance::class,
@@ -42,16 +41,17 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
-            // \Illuminate\Session\Middleware\AuthenticateSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\Localization::class
         ],
 
         'api' => [
-            // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+
+            LocalizationMiddleware::class
         ],
     ];
 
@@ -72,11 +72,12 @@ class Kernel extends HttpKernel
         'signed' => \Illuminate\Routing\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
-        'mpc' => AdminModulePermission::class, //module permission checker
-        'hitLimiter' => ApiHitLimitMiddleware::class, //api hit limiter
+        'mpc' => AdminModulePermission::class,
+        'hitLimiter' => ApiHitLimitMiddleware::class,
         'detectUser' => DetectUser::class,
         'admin' => AdminMiddleware::class,
         'provider' => ProviderMiddleware::class,
         'ensureBiddingIsActive' => EnsureBiddingIsActive::class,
+        'localization' => \App\Http\Middleware\LocalizationMiddleware::class,
     ];
 }

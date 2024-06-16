@@ -2,20 +2,31 @@
 
 @section('title', translate('Request_List'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
     <div class="container-fluid">
+        @if(!request()->user()->provider->service_availability && $type == 'new_booking_request')
+            <div class="alert alert-primary availability-alert">
+                <div class="media gap-3 align-items-center">
+                    <div class="alert-close-btn">
+                        <span class="material-symbols-outlined close-btn">close</span>
+                    </div>
+                    <div class="media-body">
+                        <h5 class="text-capitalize">{{translate('Attention Please')}}!</h5>
+                        <p class="text-dark fs-12">
+                            {{translate('The service availability option has been turned off. You will not receive any new customized requests until you turn on the service availability option')}}
+                            <span><a class="text-primary"
+                                     href="{{route('provider.business-settings.get-business-information')}}">{{translate('Go to settings')}}</a></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        @endif
         <div class="row">
             <div class="col-12">
-                <!-- Page Title -->
                 <div class="page-title-wrap mb-3">
                     <h2 class="page-title">{{translate('Customized Booking Requests')}}</h2>
                 </div>
 
-                <!-- Tab Menu -->
                 <div
                     class="d-flex flex-wrap justify-content-between align-items-center border-bottom mx-lg-4 mb-10 gap-3">
                     <ul class="nav nav--tabs" role="tablist">
@@ -39,7 +50,6 @@
                     </div>
                 </div>
 
-                <!-- Table Content -->
                 <div class="card">
                     <div class="card-body">
                         <div class="data-table-top d-flex flex-wrap gap-10 justify-content-between">
@@ -50,8 +60,10 @@
                                         <span class="search-form__icon">
                                             <span class="material-icons">search</span>
                                         </span>
-                                    <input type="search" class="theme-input-style search-form__input fz-10" name="search"
-                                           value="{{$search??''}}" placeholder="{{translate('Search by customer info')}}">
+                                    <input type="search" class="theme-input-style search-form__input fz-10"
+                                           name="search"
+                                           value="{{$search??''}}"
+                                           placeholder="{{translate('Search by customer info')}}">
                                 </div>
                                 <button type="submit" class="btn btn--primary text-capitalize">
                                     {{translate('Search')}}</button>
@@ -75,7 +87,8 @@
                         </div>
 
                         <div class="select-table-wrap">
-                            <div class="multiple-select-actions gap-3 flex-wrap align-items-center justify-content-between">
+                            <div
+                                class="multiple-select-actions gap-3 flex-wrap align-items-center justify-content-between">
                                 <div class="d-flex align-items-center flex-wrap gap-2 gap-lg-4">
                                     <div class="ms-sm-1">
                                         <input type="checkbox" class="multi-checker">
@@ -88,7 +101,7 @@
                                 </div>
                             </div>
                             <div class="table-responsive position-relative">
-                                <table class="table align-middle  multi-select-table" style="min-width: 800px; min-height: 220px">
+                                <table class="table align-middle  multi-select-table multi-select-table-provider">
                                     <thead>
                                     <tr>
                                         @if($type == 'new_booking_request')
@@ -111,7 +124,8 @@
                                     @forelse($posts as $key=>$post)
                                         <tr>
                                             @if($type == 'new_booking_request')
-                                                <td><input type="checkbox" class="multi-check" value="{{$post->id}}"></td>
+                                                <td><input type="checkbox" class="multi-check" value="{{$post->id}}">
+                                                </td>
                                             @endif
                                             @if($type != 'new_booking_request')
                                                 @if($post->booking)
@@ -130,8 +144,6 @@
                                                         <div class="customer-name fw-medium">
                                                             {{$post->customer?->first_name.' '.$post->customer?->last_name}}
                                                         </div>
-                                                        <a href="tel:{{$post->customer?->phone}}"
-                                                        class="fs-12">{{$post->customer?->phone}}</a>
                                                     </div>
                                                 @else
                                                     <div><small
@@ -164,7 +176,7 @@
                                                 <td>
                                                     <div class="dropdown-hover">
                                                         <div class="dropdown-hover-toggle"
-                                                            data-bs-toggle="dropdown">
+                                                             data-bs-toggle="dropdown">
                                                             {{$bids->count() ?? 0}} {{translate('Providers')}}
                                                         </div>
 
@@ -174,12 +186,16 @@
                                                                     <li>
                                                                         <div class="media gap-3">
                                                                             <div class="avatar border rounded"
-                                                                                data-bs-toggle="modal"
-                                                                                data-bs-target="#providerInfoModal--{{$bid->id}}">
+                                                                                 data-bs-toggle="modal"
+                                                                                 data-bs-target="#providerInfoModal--{{$bid->id}}">
                                                                                 <img
-                                                                                    src="{{asset('storage/app/public/provider/logo')}}/{{ $bid->provider?->logo }}"
-                                                                                    onerror="this.src='{{asset('public/assets/admin-module')}}/img/placeholder.png'"
-                                                                                    class="rounded" alt="">
+                                                                                    src="{{onErrorImage(
+                                                                                            $bid->provider?->logo,
+                                                                                            asset('storage/app/public/provider/logo').'/' . $bid->provider?->logo,
+                                                                                            asset('public/assets/admin-module/img/placeholder.png') ,
+                                                                                            'provider/logo/')}}"
+                                                                                    class="rounded"
+                                                                                    alt="{{ translate('logo') }}">
                                                                             </div>
                                                                             <div class="media-body">
                                                                                 @if($bid->provider)
@@ -211,31 +227,25 @@
                                                         <span class="material-icons">more_horiz</span>
                                                     </button>
                                                     <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-                                                        <!-- View details -->
                                                         <li><a class="dropdown-item"
-                                                            href="{{route('provider.booking.post.details', [$post->id])}}">{{translate('View details')}}</a>
+                                                               href="{{route('provider.booking.post.details', [$post->id])}}">{{translate('View details')}}</a>
                                                         </li>
-                                                    @if($post?->bids->contains('provider_id', auth()->user()->provider->id))
-                                                            <!-- See My Offer -->
+                                                        @if($post?->bids->contains('provider_id', auth()->user()->provider->id))
                                                             <li><a class="dropdown-item" href="#" data-bs-toggle="modal"
-                                                                data-bs-target="#offerDetailsModal--{{$post['id']}}">{{translate('See My Offer')}}</a>
+                                                                   data-bs-target="#offerDetailsModal--{{$post['id']}}">{{translate('See My Offer')}}</a>
                                                             </li>
-                                                            <!-- Withdraw -->
                                                             <li><a class="dropdown-item" href="#" data-bs-toggle="modal"
-                                                                data-bs-target="#withdrawRequestModal--{{$post['id']}}">{{translate('Withdraw the Offer')}}</a>
+                                                                   data-bs-target="#withdrawRequestModal--{{$post['id']}}">{{translate('Withdraw the Offer')}}</a>
                                                             </li>
 
+                                                        @endif
 
-                                                    @endif
-
-                                                    @if(!$post->is_booked && !$post?->bids->contains('provider_id', auth()->user()->provider->id))
-                                                            <!-- Placed Offer -->
+                                                        @if(!$post->is_booked && !$post?->bids->contains('provider_id', auth()->user()->provider->id))
                                                             <li>
                                                                 <button class="dropdown-item" href="#"
                                                                         data-bs-toggle="modal"
                                                                         data-bs-target="#newBookingModal--{{$post['id']}}">{{translate('Placed Offer')}}</button>
                                                             </li>
-                                                            <!-- Ignore/Reject -->
                                                             <li>
                                                                 <button class="dropdown-item" data-bs-toggle="modal"
                                                                         data-bs-target="#ignoreRequestModal--{{$post['id']}}">{{translate('Ignore/Reject')}}</button>
@@ -246,12 +256,10 @@
                                             </td>
                                         </tr>
 
-
-                                        <!-- Offer Details Modal -->
                                         <div class="modal fade" id="offerDetailsModal--{{$post['id']}}" tabindex="-1"
-                                            aria-labelledby="offerDetailsModalLabel"
-                                            aria-hidden="true">
-                                            <div class="modal-dialog" style="--bs-modal-width: 430px">
+                                             aria-labelledby="offerDetailsModalLabel"
+                                             aria-hidden="true">
+                                            <div class="modal-dialog offer-detail-modal">
                                                 <div class="modal-content">
                                                     <div class="modal-header px-sm-4">
                                                         <h4 class="modal-title text-primary"
@@ -265,9 +273,12 @@
                                                             <div class="d-flex gap-4 mb-4">
                                                                 <div class="media gap-2 ">
                                                                     <img width="30"
-                                                                        src="{{asset('storage/app/public/category')}}/{{$post?->sub_category?->image}}"
-                                                                        onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                                                                        alt="">
+                                                                         src="{{onErrorImage(
+                                                                        $post?->sub_category?->image,
+                                                                        asset('storage/app/public/category').'/' . $post?->sub_category?->image,
+                                                                        asset('public/assets/placeholder.png') ,
+                                                                        'category/')}}"
+                                                                         alt="{{translate('sub category')}}">
                                                                     <div class="media-body">
                                                                         <h5>{{$post?->service?->name}}</h5>
                                                                         <div
@@ -288,7 +299,8 @@
                                                                 </div>
                                                             </div>
 
-                                                            <h3 class="text-muted mb-2">{{translate('Description')}}:</h3>
+                                                            <h3 class="text-muted mb-2">{{translate('Description')}}
+                                                                :</h3>
                                                             <p>{{$post?->bids?->where('provider_id', auth()->user()->provider->id)?->first()?->provider_note}}</p>
                                                         </div>
                                                     </div>
@@ -296,10 +308,9 @@
                                             </div>
                                         </div>
 
-                                        <!-- New Booking Request Modal -->
                                         <div class="modal fade" id="newBookingModal--{{$post['id']}}" tabindex="-1"
-                                            aria-labelledby="newBookingModalLabel"
-                                            aria-hidden="true">
+                                             aria-labelledby="newBookingModalLabel"
+                                             aria-hidden="true">
                                             <div class="modal-dialog modal-dialog-centered">
                                                 <div class="modal-content">
                                                     <form
@@ -308,7 +319,8 @@
                                                         <div class="modal-header">
                                                             <h5 class="modal-title"
                                                                 id="newBookingModalLabel">{{translate('New Booking Request Form')}}</h5>
-                                                            <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                                            <button type="button" class="btn-close"
+                                                                    data-bs-dismiss="modal"
                                                                     aria-label="Close"></button>
                                                         </div>
                                                         <div class="modal-body">
@@ -318,9 +330,12 @@
                                                                         <div class="media gap-2">
                                                                             <div class="avatar avatar-lg rounded">
                                                                                 <img
-                                                                                    src="{{asset('storage/app/public/user/profile_image')}}/{{$post?->customer?->profile_image}}"
-                                                                                    onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                                                                                    alt="">
+                                                                                    src="{{onErrorImage(
+                                                                                    $post?->customer?->profile_image,
+                                                                                    asset('storage/app/public/user/profile_image').'/' . $post?->customer?->profile_image,
+                                                                                    asset('public/assets/placeholder.png') ,
+                                                                                    'user/profile_image/')}}"
+                                                                                    alt="{{translate('image')}}">
                                                                             </div>
                                                                             <div class="media-body">
                                                                                 <h5 class="text-primary">{{$post?->customer?->first_name.' '.$post?->customer?->last_name}}</h5>
@@ -334,9 +349,12 @@
                                                                         <div>
                                                                             <div class="media gap-2 border-start ps-4">
                                                                                 <img width="30"
-                                                                                    src="{{asset('storage/app/public/category')}}/{{$post?->sub_category?->image}}"
-                                                                                    onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                                                                                    alt="">
+                                                                                     src="{{onErrorImage(
+                                                                                    $post?->sub_category?->image,
+                                                                                    asset('storage/app/public/category').'/' . $post?->sub_category?->image,
+                                                                                    asset('public/assets/placeholder.png') ,
+                                                                                    'category/')}}"
+                                                                                     alt="{{translate('image')}}">
                                                                                 <div class="media-body">
                                                                                     <h5>{{$post?->service?->name}}</h5>
                                                                                     <div
@@ -348,8 +366,8 @@
 
                                                                     <div class="d-flex align-items-center gap-2 mb-2">
                                                                         <img width="18"
-                                                                            src="{{asset('public/assets/provider-module')}}/img/media/edit-info.png"
-                                                                            alt="">
+                                                                             src="{{asset('public/assets/provider-module')}}/img/media/edit-info.png"
+                                                                             alt="">
                                                                         <h4>{{translate('Service Requirement')}}</h4>
                                                                     </div>
 
@@ -368,30 +386,35 @@
                                                                     <div class="mb-30">
                                                                         <div class="form-floating">
                                                                             <input type="number" class="form-control"
-                                                                                name="offered_price" min="{{$post?->service?->min_bidding_price??0}}" step="any"
-                                                                                placeholder="{{translate('Offer Price')}}"
-                                                                                id="offer-price" data-bs-toggle="tooltip"
-                                                                                data-bs-placement="top"
-                                                                                title="{{translate('Minimum Offer price')}} {{with_currency_symbol($post?->service?->min_bidding_price??0)}}">
+                                                                                   name="offered_price"
+                                                                                   min="{{$post?->service?->min_bidding_price??0}}"
+                                                                                   step="any"
+                                                                                   placeholder="{{translate('Offer Price')}}"
+                                                                                   id="offer-price"
+                                                                                   data-bs-toggle="tooltip"
+                                                                                   data-bs-placement="top"
+                                                                                   title="{{translate('Minimum Offer price')}} {{with_currency_symbol($post?->service?->min_bidding_price??0)}}">
                                                                             <label
                                                                                 for="offer-price">{{translate('Offer Price')}}</label>
                                                                         </div>
                                                                     </div>
                                                                     <div class="form-floating">
                                                                     <textarea class="form-control"
-                                                                            placeholder="{{translate('Add Your Note')}}"
-                                                                            name="provider_note"
-                                                                            id="add-your-note"></textarea>
+                                                                              placeholder="{{translate('Add Your Note')}}"
+                                                                              name="provider_note"
+                                                                              id="add-your-note"></textarea>
                                                                         <label for="add-your-note"
-                                                                            class="d-flex align-items-center gap-1">
+                                                                               class="d-flex align-items-center gap-1">
                                                                             {{translate('Add Your Note')}}
                                                                         </label>
-                                                                        <input type="hidden" name="status" value="accept">
+                                                                        <input type="hidden" name="status"
+                                                                               value="accept">
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <div class="modal-footer d-flex justify-content-end border-0 pt-0">
+                                                        <div
+                                                            class="modal-footer d-flex justify-content-end border-0 pt-0">
                                                             <button type="submit"
                                                                     class="btn btn--primary">{{translate('Send Your Offer')}}</button>
                                                         </div>
@@ -400,10 +423,9 @@
                                             </div>
                                         </div>
 
-                                        <!-- Ignore Request Modal -->
                                         <div class="modal fade" id="ignoreRequestModal--{{$post['id']}}" tabindex="-1"
-                                            aria-labelledby="ignoreRequestModalLabel"
-                                            aria-hidden="true">
+                                             aria-labelledby="ignoreRequestModalLabel"
+                                             aria-hidden="true">
                                             <div class="modal-dialog modal-dialog-centered">
                                                 <div class="modal-content">
                                                     <div class="modal-header border-0 pb-0">
@@ -413,8 +435,8 @@
                                                     <div class="modal-body">
                                                         <div class="d-flex flex-column gap-2 align-items-center">
                                                             <img width="75" class="mb-2"
-                                                                src="{{asset('public/assets/provider-module')}}/img/media/ignore-request.png"
-                                                                alt="">
+                                                                 src="{{asset('public/assets/provider-module')}}/img/media/ignore-request.png"
+                                                                 alt="">
                                                             <h3>{{translate('Are you sure you want to ignore this request')}}
                                                                 ?</h3>
                                                             <div
@@ -427,17 +449,16 @@
                                                                 data-bs-dismiss="modal"
                                                                 aria-label="Close">{{translate('Cancel')}}</button>
                                                         <a href="{{route('provider.booking.post.update_status', [$post->id, 'status' => 'ignore'])}}"
-                                                        type="button"
-                                                        class="btn btn--primary">{{translate('Ignore')}}</a>
+                                                           type="button"
+                                                           class="btn btn--primary">{{translate('Ignore')}}</a>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <!-- Withdraw Request Modal -->
                                         <div class="modal fade" id="withdrawRequestModal--{{$post['id']}}" tabindex="-1"
-                                            aria-labelledby="withdrawRequestModalLabel"
-                                            aria-hidden="true">
+                                             aria-labelledby="withdrawRequestModalLabel"
+                                             aria-hidden="true">
                                             <div class="modal-dialog modal-dialog-centered">
                                                 <div class="modal-content">
                                                     <div class="modal-header border-0 pb-0">
@@ -447,8 +468,8 @@
                                                     <div class="modal-body">
                                                         <div class="d-flex flex-column gap-2 align-items-center">
                                                             <img width="75" class="mb-2"
-                                                                src="{{asset('public/assets/provider-module')}}/img/media/withdraw.png"
-                                                                alt="">
+                                                                 src="{{asset('public/assets/provider-module')}}/img/media/withdraw.png"
+                                                                 alt="">
                                                             <h3>{{translate('Are you sure you want to withdraw this offer?')}}
                                                                 ?</h3>
                                                             <div
@@ -461,8 +482,8 @@
                                                                 data-bs-dismiss="modal"
                                                                 aria-label="Close">{{translate('Cancel')}}</button>
                                                         <a href="{{route('provider.booking.post.withdraw', [$post->id])}}"
-                                                        type="button"
-                                                        class="btn btn--primary">{{translate('Withdraw Offer')}}</a>
+                                                           type="button"
+                                                           class="btn btn--primary">{{translate('Withdraw Offer')}}</a>
                                                     </div>
                                                 </div>
                                             </div>
@@ -471,13 +492,11 @@
                                             @php($bids = $post->bids->where('provider_id', '!=', auth()->user()->provider->id))
                                             @if($bids->count() > 0)
                                                 @foreach($bids as $bid)
-                                                    <!-- Provider Info Modal -->
                                                     <div class="modal fade"
-                                                        id="providerInfoModal--{{$bid->id}}" tabindex="-1"
-                                                        aria-labelledby="providerInfoModalLabel"
-                                                        aria-hidden="true">
-                                                        <div class="modal-dialog modal-lg"
-                                                            style="--bs-modal-width: 630px">
+                                                         id="providerInfoModal--{{$bid->id}}" tabindex="-1"
+                                                         aria-labelledby="providerInfoModalLabel"
+                                                         aria-hidden="true">
+                                                        <div class="modal-dialog modal-lg provider-info-modal">
                                                             <div class="modal-content">
                                                                 <div class="modal-header px-sm-4">
                                                                     <h4 class="modal-title text-primary"
@@ -490,9 +509,12 @@
                                                                     <div
                                                                         class="media flex-column flex-sm-row flex-wrap gap-3">
                                                                         <img width="173" class="radius-10"
-                                                                            src="{{asset('storage/app/public/provider/logo')}}/{{$bid?->provider?->logo}}"
-                                                                            onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                                                                            alt="">
+                                                                             src="{{onErrorImage(
+                                                                                    $bid?->provider?->logo,
+                                                                                    asset('storage/app/public/provider/logo').'/' . $bid?->provider?->logo,
+                                                                                    asset('public/assets/placeholder.png') ,
+                                                                                    'provider/logo/')}}"
+                                                                             alt="{{translate('provider image')}}">
                                                                         <div class="media-body">
                                                                             <h5 class="fw-medium mb-1">{{$bid->provider?->company_name}}</h5>
                                                                             <div
@@ -550,11 +572,13 @@
 
 @push('script')
     <script>
-        $('#multi-ignore').on('click', function() {
+        "use strict";
+
+        $('#multi-ignore').on('click', function () {
             var request_ids = [];
             $('input:checkbox.multi-check').each(function () {
-                if(this.checked) {
-                    request_ids.push( $(this).val() );
+                if (this.checked) {
+                    request_ids.push($(this).val());
                 }
             });
 

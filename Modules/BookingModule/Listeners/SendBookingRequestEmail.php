@@ -36,10 +36,9 @@ class SendBookingRequestEmail
 
         $config = business_config('booking', 'notification_settings');
         if ($config->live_values['push_notification_booking']) {
-
-            $data = business_config('booking_place', 'notification_messages');
-            if (isset($event->booking->customer->fcm_token)) {
-                device_notification($event->booking->customer->fcm_token, $data->live_values['booking_place_message'], null, null, $event->booking->id, 'booking');
+            $title = get_push_notification_message('booking_place', 'customer_notification', $event->booking?->customer?->current_language_key);
+            if (isset($event->booking->customer->fcm_token) && $title) {
+                device_notification($event->booking->customer->fcm_token, $title, null, null, $event->booking->id, 'booking');
             }
         }
     }

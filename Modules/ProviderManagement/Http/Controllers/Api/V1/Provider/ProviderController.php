@@ -2,13 +2,19 @@
 
 namespace Modules\ProviderManagement\Http\Controllers\Api\V1\Provider;
 
+use Brian2694\Toastr\Facades\Toastr;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
+use Modules\BidModule\Entities\IgnoredPost;
+use Modules\BidModule\Entities\Post;
 use Modules\BookingModule\Entities\Booking;
+use Modules\PromotionManagement\Entities\Advertisement;
 use Modules\PromotionManagement\Entities\PushNotification;
 use Modules\ProviderManagement\Entities\BankDetail;
 use Modules\ProviderManagement\Entities\Provider;
@@ -23,24 +29,35 @@ use Modules\PaymentModule\Traits\SmsGateway;
 
 class ProviderController extends Controller
 {
-    private $bankDetail, $provider, $account, $user, $push_notification, $serviceman;
+    private $bankDetail, $provider, $account, $user, $pushNotification, $serviceman, $ignoredPost;
+
+    protected $post;
     private $google_map;
     private $subscribedService;
     private Booking $booking;
     private Review $review;
+    private Advertisement $advertisement;
 
-    public function __construct(SubscribedService $subscribedService, BankDetail $bankDetail, Provider $provider, Account $account, User $user, PushNotification $pushNotification, Serviceman $serviceman, Booking $booking, Review $review)
+
+    protected Transaction $transaction;
+
+
+    public function __construct(Transaction $transaction, SubscribedService $subscribedService, BankDetail $bankDetail, Provider $provider, Account $account, User $user, PushNotification $pushNotification, Serviceman $serviceman, Booking $booking, Review $review, Post $post, IgnoredPost $ignoredPost, Advertisement $advertisement,)
     {
         $this->bankDetail = $bankDetail;
         $this->provider = $provider;
         $this->user = $user;
         $this->account = $account;
-        $this->push_notification = $pushNotification;
+        $this->pushNotification = $pushNotification;
         $this->serviceman = $serviceman;
         $this->subscribedService = $subscribedService;
         $this->google_map = business_config('google_map', 'third_party');
         $this->booking = $booking;
         $this->review = $review;
+        $this->transaction = $transaction;
+        $this->post = $post;
+        $this->ignoredPost = $ignoredPost;
+        $this->advertisement = $advertisement;
     }
 
     /**
@@ -57,7 +74,7 @@ class ProviderController extends Controller
 
         $validator = Validator::make($request->all(), [
             'sections' => 'required|array',
-            'sections.*' => 'in:top_cards,earning_stats,booking_stats,recent_bookings,my_subscriptions,serviceman_list',
+            'sections.*' => 'in:top_cards,earning_stats,booking_stats,recent_bookings,my_subscriptions,serviceman_list,customized_post,additional_info_count',
             'year' => 'integer|min:2000|max:' . (date('Y') + 1),
             'month' => 'integer|min:1|max:12',
             'stats_type' => 'in:full_year,full_month'
@@ -69,7 +86,7 @@ class ProviderController extends Controller
 
         $data = [];
 
-        $max_booking_amount = (business_config('max_booking_amount', 'booking_setup'))->live_values;
+        $maxBookingAmount = (business_config('max_booking_amount', 'booking_setup'))->live_values;
 
         if (in_array('top_cards', $request['sections'])) {
             $account = $this->account->where('user_id', $request->user()->id)->first();
@@ -90,7 +107,7 @@ class ProviderController extends Controller
         }
 
         if (in_array('earning_stats', $request['sections'])) {
-            $all_transactions = $transaction->where(['to_user_id' => $request->user()->id])->where('credit', '>', 0)
+            $allTransactions = $transaction->where(['to_user_id' => $request->user()->id])->where('credit', '>', 0)
                 ->whereIn('to_user_account', ['received_balance', 'total_withdrawn'])
                 ->when($request->has('stats_type') && $request['stats_type'] == 'full_year', function ($query) use ($request) {
                     return $query->whereYear('created_at', '=', $request['year'])->select(
@@ -104,40 +121,43 @@ class ProviderController extends Controller
                     )->groupby('year', 'month', 'day');
                 })->get()->toArray();
 
-            $data[] = ['earning_stats' => $all_transactions];
+            $data[] = ['earning_stats' => $allTransactions];
         }
 
         if (in_array('booking_stats', $request['sections'])) {
-            $booking_overview = DB::table('bookings')->where('provider_id', $request->user()->provider->id)
+            $bookingOverview = DB::table('bookings')->where('provider_id', $request->user()->provider->id)
                 ->select('booking_status', DB::raw('count(*) as total'))
                 ->groupBy('booking_status')
                 ->get();
-            $total_bookings = $this->booking->where('provider_id', $request->user()->provider->id)->count();
-            $data[] = ['booking_stats' => $booking_overview, 'total_bookings' => $total_bookings];
+            $totalBookings = $this->booking->where('provider_id', $request->user()->provider->id)->count();
+            $data[] = ['booking_stats' => $bookingOverview, 'total_bookings' => $totalBookings];
         }
 
         if (in_array('recent_bookings', $request['sections'])) {
-            $subscribed_sub_categories = $this->subscribedService
+            $subscribedSubCategories = $this->subscribedService
                 ->where(['provider_id' => $request->user()->provider->id])
                 ->where(['is_subscribed' => 1])->pluck('sub_category_id')->toArray();
 
-            $recent_bookings = $this->booking->with(['detail.service' => function ($query) {
+            $recentBookings = $this->booking->with(['detail.service' => function ($query) {
                 $query->select('id', 'name', 'thumbnail');
 
             }])->where('booking_status', 'pending')
-                ->whereIn('sub_category_id', $subscribed_sub_categories)
-                ->when($max_booking_amount > 0, function($query) use ($max_booking_amount) {
-                    $query->where(function ($query) use ($max_booking_amount) {
+                ->whereIn('sub_category_id', $subscribedSubCategories)
+                ->when($maxBookingAmount > 0, function ($query) use ($maxBookingAmount) {
+                    $query->where(function ($query) use ($maxBookingAmount) {
                         $query->where('payment_method', 'cash_after_service')
-                            ->where(function ($query) use ($max_booking_amount) {
+                            ->where(function ($query) use ($maxBookingAmount) {
                                 $query->where('is_verified', 1)
-                                    ->orWhere('total_booking_amount', '<=', $max_booking_amount);
+                                    ->orWhere('total_booking_amount', '<=', $maxBookingAmount);
                             })
                             ->orWhere('payment_method', '<>', 'cash_after_service');
                     });
                 })
+                ->where('zone_id', $request->user()->provider->zone_id)
                 ->latest()->take(5)->get();
-            $data[] = ['recent_bookings' => $recent_bookings];
+            $recentNotBooking = [];
+            $recentBookings = $request->user()?->provider?->is_suspended == 0 || !business_config('suspend_on_exceed_cash_limit_provider', 'provider_config')->live_values ? $recentBookings : $recentNotBooking;
+            $data[] = ['recent_bookings' => $recentBookings];
         }
 
         if (in_array('my_subscriptions', $request['sections'])) {
@@ -155,14 +175,99 @@ class ProviderController extends Controller
         }
 
         if (in_array('serviceman_list', $request['sections'])) {
-            $serviceman_list = $this->serviceman->with(['user'])->whereHas('user', function ($query) {
+            $servicemanList = $this->serviceman->with(['user'])->whereHas('user', function ($query) {
                 $query->ofStatus(1);
             })
                 ->where(['provider_id' => $request->user()->provider->id])
                 ->latest()
                 ->take(5)->get();
 
-            $data[] = ['serviceman_list' => $serviceman_list];
+            $data[] = ['serviceman_list' => $servicemanList];
+        }
+
+        if (in_array('customized_post', $request['sections'])) {
+
+
+            $subCategories = $this->subscribedService
+                ->where(['provider_id' => $request->user()->provider->id])
+                ->where(['is_subscribed' => 1])->pluck('sub_category_id')->toArray();
+
+            $ignoredPosts = $this->ignoredPost->where('provider_id', $request->user()->provider->id)->pluck('post_id')->toArray();
+            $biddingPostValidity = (int)(business_config('bidding_post_validity', 'bidding_system'))->live_values;
+            $posts = $this->post
+                ->with(['addition_instructions', 'service', 'category', 'sub_category', 'booking', 'customer'])
+                ->where('is_booked', 0)
+                ->whereNotIn('id', $ignoredPosts)
+                ->whereIn('sub_category_id', $subCategories)
+                ->where('zone_id', $request->user()->provider->zone_id)
+                ->whereBetween('created_at', [Carbon::now()->subDays($biddingPostValidity), Carbon::now()])
+                ->when(true, function ($query) use ($request) {
+                    if($request->user()?->provider?->service_availability && (!$request->user()?->provider?->is_suspended || !business_config('suspend_on_exceed_cash_limit_provider', 'provider_config')->live_values)){
+                        $query->whereDoesntHave('bids', function ($query) use ($request) {
+                            $query->where('provider_id', $request->user()->provider->id);
+                        });
+                    }else{
+                        $query->whereNull('id');
+                    }
+                })
+                ->latest()
+                ->take(5)->get();
+
+            $data[] = ['customized_post' => $posts];
+        }
+
+        if (in_array('additional_info_count', $request['sections'])) {
+
+            $ignoredPosts = $this->ignoredPost->where('provider_id', $request->user()->provider->id)->pluck('post_id')->toArray();
+            $subCategories = $this->subscribedService
+                ->where(['provider_id' => $request->user()->provider->id])
+                ->where(['is_subscribed' => 1])->pluck('sub_category_id')->toArray();
+
+            $postCount = $this->post
+                ->where('is_booked', 0)
+                ->whereNotIn('id', $ignoredPosts)
+                ->whereIn('sub_category_id', $subCategories)
+                ->where('zone_id', $request->user()->provider->zone_id)
+                ->whereBetween('created_at', [Carbon::now()->subDays($biddingPostValidity), Carbon::now()])
+                ->when(true, function ($query) use ($request) {
+                    if($request->user()?->provider?->service_availability && (!$request->user()?->provider?->is_suspended || !business_config('suspend_on_exceed_cash_limit_provider', 'provider_config')->live_values)){
+                        $query->whereDoesntHave('bids', function ($query) use ($request) {
+                            $query->where('provider_id', $request->user()->provider->id);
+                        });
+                    }else{
+                        $query->whereNull('id');
+                    }
+                })
+                ->latest()->count();
+
+            $advertisementCount = $this->advertisement->with(['attachments'])
+                ->where('provider_id', auth('api')->user()->provider->id)
+                ->count();
+
+            $pendingBookingCount = $this->booking->where('booking_status', 'pending')
+                ->whereIn('sub_category_id', $subscribedSubCategories)
+                ->when($maxBookingAmount > 0, function ($query) use ($maxBookingAmount) {
+                    $query->where(function ($query) use ($maxBookingAmount) {
+                        $query->where('payment_method', 'cash_after_service')
+                            ->where(function ($query) use ($maxBookingAmount) {
+                                $query->where('is_verified', 1)
+                                    ->orWhere('total_booking_amount', '<=', $maxBookingAmount);
+                            })
+                            ->orWhere('payment_method', '<>', 'cash_after_service');
+                    });
+                })
+                ->where('zone_id', $request->user()->provider->zone_id)
+                ->count();
+
+            $recentNotBooking = [];
+            $pendingBookingCount = $request->user()?->provider?->is_suspended == 0 || !business_config('suspend_on_exceed_cash_limit_provider', 'provider_config')->live_values ? $pendingBookingCount : $recentNotBooking;
+
+            $data[] = ['additional_info_count' =>
+                [
+                    'customized_post_count' => $postCount,
+                    'advertisement_count' => $advertisementCount,
+                    'pending_booking_count' => $pendingBookingCount
+                ]];
         }
 
         return response()->json(response_formatter(DEFAULT_200, $data), 200);
@@ -187,18 +292,42 @@ class ProviderController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function get_bank_details(Request $request): JsonResponse
+    public function getBankDetails(Request $request): JsonResponse
     {
-        $bank_details = $this->bankDetail->where('provider_id', $request->user()->provider->id)->first();
+        $bankDetails = $this->bankDetail->where('provider_id', $request->user()->provider->id)->first();
 
-        return response()->json(response_formatter(DEFAULT_200, $bank_details), 200);
+        return response()->json(response_formatter(DEFAULT_200, $bankDetails), 200);
+    }
+
+    /**
+     * Display a listing of the resource.
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function deleteProvider(Request $request): JsonResponse
+    {
+        $provider = $this->provider::where('user_id', $request->user()->id)->first();
+        if ($provider) {
+
+            // Disable is_active for associated servicemen users
+            $provider->servicemen->each(function ($serviceman) {
+                $servicemanUser = $serviceman->user;
+                $servicemanUser->is_active = 0;
+                $servicemanUser->save();
+            });
+
+            $provider->delete();
+            $provider->owner->delete();
+            return response()->json(response_formatter(DEFAULT_DELETE_200), 200);
+        }
+        return response()->json(response_formatter(DEFAULT_404), 200);
     }
 
     /**
      * @param Request $request
      * @return JsonResponse
      */
-    public function update_bank_details(Request $request): JsonResponse
+    public function updateBankDetails(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'bank_name' => 'required',
@@ -234,7 +363,7 @@ class ProviderController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function update_profile(Request $request): JsonResponse
+    public function updateProfile(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'contact_person_name' => 'required',
@@ -292,7 +421,7 @@ class ProviderController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function forgot_password(Request $request): JsonResponse
+    public function forgotPassword(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'phone_or_email' => 'required'
@@ -320,13 +449,13 @@ class ProviderController extends Controller
 
             $method = business_config('forget_password_verification_method', 'business_information')?->live_values;
             if ($method == 'phone') {
-                $published_status = 0;
-                $payment_published_status = config('get_payment_publish_status');
-                if (isset($payment_published_status[0]['is_published'])) {
-                    $published_status = $payment_published_status[0]['is_published'];
+                $publishedStatus = 0;
+                $paymentPublishedStatus = config('get_payment_publish_status');
+                if (isset($paymentPublishedStatus[0]['is_published'])) {
+                    $publishedStatus = $paymentPublishedStatus[0]['is_published'];
                 }
 
-                if ($published_status == 1) {
+                if ($publishedStatus == 1) {
                     $response = SmsGateway::send($customer->phone, $token);
                 } else {
                     SMS_gateway::send($customer->phone, $token);
@@ -352,7 +481,7 @@ class ProviderController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function otp_verification(Request $request): JsonResponse
+    public function otpVerification(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'phone_or_email' => 'required',
@@ -379,7 +508,7 @@ class ProviderController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function reset_password(Request $request): JsonResponse
+    public function resetPassword(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'phone_or_email' => 'required',
@@ -421,7 +550,7 @@ class ProviderController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function update_fcm_token(Request $request): JsonResponse
+    public function updateFcmToken(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'fcm_token' => 'required',
@@ -455,12 +584,12 @@ class ProviderController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $push_notification = $this->push_notification->ofStatus(1)->whereJsonContains('to_users', 'provider-admin')
+        $pushNotification = $this->pushNotification->ofStatus(1)->whereJsonContains('to_users', 'provider-admin')
             ->whereJsonContains('zone_ids', $request->user()->provider->zone_id)
             ->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, $push_notification), 200);
+        return response()->json(response_formatter(DEFAULT_200, $pushNotification), 200);
     }
 
     /**
@@ -468,7 +597,7 @@ class ProviderController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function subscribed_sub_categories(Request $request): JsonResponse
+    public function subscribedSubCategories(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -515,29 +644,88 @@ class ProviderController extends Controller
             ->ofStatus(1)->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $rating_group_count = DB::table('reviews')->where('provider_id', $request->user()->provider->id)
+        $ratingGroupCount = DB::table('reviews')->where('provider_id', $request->user()->provider->id)
             ->select('review_rating', DB::raw('count(*) as total'))
             ->groupBy('review_rating')
             ->get();
 
-        $total_rating = 0;
-        $rating_count = 0;
-        foreach ($rating_group_count as $count) {
-            $total_rating += round($count->review_rating * $count->total, 2);
-            $rating_count += $count->total;
+        $totalRating = 0;
+        $ratingCount = 0;
+        foreach ($ratingGroupCount as $count) {
+            $totalRating += round($count->review_rating * $count->total, 2);
+            $ratingCount += $count->total;
         }
 
-        $rating_info = [
-            'rating_count' => $rating_count,
-            'average_rating' => round(divnum($total_rating, $rating_count), 2),
-            'rating_group_count' => $rating_group_count,
+        $ratingInfo = [
+            'rating_count' => $ratingCount,
+            'average_rating' => round(divnum($totalRating, $ratingCount), 2),
+            'rating_group_count' => $ratingGroupCount,
         ];
 
         if ($reviews->count() > 0) {
-            return response()->json(response_formatter(DEFAULT_200, ['reviews' => $reviews, 'rating' => $rating_info]), 200);
+            return response()->json(response_formatter(DEFAULT_200, ['reviews' => $reviews, 'rating' => $ratingInfo]), 200);
         }
 
         return response()->json(response_formatter(DEFAULT_404), 200);
+    }
+
+
+    /**
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function changeLanguage(Request $request): JsonResponse
+    {
+        if (auth('api')->user()) {
+            $customer = $this->user::find(auth('api')->user()->id);
+            $customer->current_language_key = $request->header('X-localization') ?? 'en';
+            $customer->save();
+            return response()->json(response_formatter(DEFAULT_200), 200);
+        }
+        return response()->json(response_formatter(DEFAULT_404), 200);
+    }
+
+    public function adjust(Request $request): JsonResponse
+    {
+        $provider = Provider::where('user_id', $request->user()->id)->first();
+        $account = $this->account->where('user_id', $request->user()->id)->first();
+        $receivable = $account->account_receivable;
+        $payable = $account->account_payable;
+
+        if ($receivable == $payable){
+
+            withdrawRequestAcceptForAdjustTransaction($request->user()->id, $receivable);
+            collectCashTransaction($provider->id, $payable);
+
+            return response()->json(response_formatter(ADJUST_AMOUNT_SUCCESS_200), 200);
+        }
+
+        return response()->json(response_formatter(DEFAULT_404), 200);
+
+    }
+    public function transaction(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'transaction_type' => 'nullable|in:paid_commission,paid_amount,all',
+            'limit' => 'required|numeric|min:1|max:200',
+            'offset' => 'required|numeric|min:1|max:100000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
+        }
+        $filteredTransactions = $this->transaction
+            ->with(['booking', 'from_user.provider', 'to_user.provider'])
+            ->when($request->transaction_type !== 'all', function ($query) use ($request) {
+                return $query->where('trx_type', $request->transaction_type);
+            })
+            ->when($request->transaction_type === 'all', function ($query) {
+                return $query->whereIn('trx_type', ['paid_commission', 'paid_amount']);
+            })
+            ->latest()
+            ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+
+        return response()->json(response_formatter(DEFAULT_200, $filteredTransactions, 200));
     }
 
 }

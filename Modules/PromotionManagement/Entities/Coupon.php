@@ -32,7 +32,6 @@ class Coupon extends Model
     {
         return $this->hasMany(CouponCustomer::class, 'coupon_id');
     }
-
     protected static function booted()
     {
         static::addGlobalScope('zone_wise_data', function (Builder $builder) {

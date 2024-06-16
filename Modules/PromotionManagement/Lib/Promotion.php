@@ -1,171 +1,168 @@
 <?php
+use Illuminate\Support\Facades\Http;
+
+
+ function sendNotificationToHttp(array|null $data): bool
+ {
+    $config = business_config('push_notification', 'third_party');
+    $config = collect($config->live_values);
+
+    $key = data_get($config, 'service_file_content', null);
+    if (is_null($key)) return false;
+    $project_id = data_get(collect(json_decode($key, true)), 'project_id', null);
+    $clientEmail = data_get(collect(json_decode($key, true)), 'client_email', null);
+    $privateKey = data_get(collect(json_decode($key, true)), 'private_key', null);
+    if (is_null($project_id) || is_null($clientEmail) || is_null($privateKey)) return false;
+
+    $url = 'https://fcm.googleapis.com/v1/projects/'. $project_id .'/messages:send';
+    $headers = [
+        'Authorization' => 'Bearer ' . getAccessToken($clientEmail, $privateKey),
+        'Content-Type' => 'application/json',
+    ];
+    try {
+        Http::withHeaders($headers)->post($url, $data);
+        return true;
+    }catch (\Exception){
+        return false;
+    }
+}
+
+ function getAccessToken($clientEmail, $privateKey):String
+{
+    $jwtToken = [
+        'iss' => $clientEmail,
+        'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
+        'aud' => 'https://oauth2.googleapis.com/token',
+        'exp' => time() + 3600,
+        'iat' => time(),
+    ];
+    $jwtHeader = base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT']));
+    $jwtPayload = base64_encode(json_encode($jwtToken));
+    $unsignedJwt = $jwtHeader . '.' . $jwtPayload;
+    openssl_sign($unsignedJwt, $signature, $privateKey, OPENSSL_ALGO_SHA256);
+    $jwt = $unsignedJwt . '.' . base64_encode($signature);
+
+    $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
+        'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        'assertion' => $jwt,
+    ]);
+    return $response->json('access_token');
+}
 
 if (!function_exists('device_notification')) {
-    function device_notification($fcm_token, $title, $description, $image, $booking_id, $type='status', $channel_id = null, $user_id = null): bool|string
+    function device_notification($fcm_token, $title, $description, $image, $booking_id, $type='status', $channel_id = null, $user_id = null, $data=null, $advertisement_id=null)
     {
-        $config = business_config('push_notification', 'third_party');
-        $url = "https://fcm.googleapis.com/fcm/send";
-        $header = array("authorization: key=" . $config->live_values['server_key'],
-            "content-type: application/json"
-        );
+        $title = text_variable_data_format($title, $booking_id, $type, $data);
 
-        $image = asset('storage/app/public/push-notification') . '/' . $image;
+        $postData = [
+            'message' => [
+                "token" => $fcm_token,
+                "data" => [
+                    "title" => (string)$title,
+                    "body" => (string)$description,
+                    "booking_id" => (string)$booking_id,
+                    "channel_id" => (string)$channel_id,
+                    "user_id" => (string)$user_id,
+                    "type" => (string)$type,
+                    "image" => (string)$image,
+                    "advertisement_id" => (string)$advertisement_id,
+                ],
+                "notification" => [
+                    'title' => (string)$title,
+                    'body' => (string)$description,
+                ],
+            ]
+        ];
 
-        $postdata = '{
-            "to" : "' . $fcm_token . '",
-            "notification" : {
-                    "title":"' . $title . '",
-                    "body" : "' . $description . '",
-                    "booking_id": "' . $booking_id . '",
-                    "channel_id": "' . $channel_id . '",
-                    "user_id": "' . $user_id . '",
-                    "type": "' . $type . '",
-                    "title_loc_key": "' . $booking_id . '",
-                    "body_loc_key": "status",
-                    "image": "' . $image . '",
-                    "sound": "notification.wav",
-                    "android_channel_id": "ondemand"
-                },
-                "data": {
-                    "title":"' . $title . '",
-                    "body" : "' . $description . '",
-                    "booking_id": "' . $booking_id . '",
-                    "channel_id": "' . $channel_id . '",
-                    "user_id": "' . $user_id . '",
-                    "type": "' . $type . '",
-                    "image": "' . $image . '",
-                }
-             }';
-
-        return send_curl_request($url, $postdata, $header);
+        return sendNotificationToHttp($postData);
     }
 }
 
 if (!function_exists('topic_notification')) {
-    function topic_notification($topic, $title, $description, $image, $booking_id, $type='status'): bool|string
+    function topic_notification($topic, $title, $description, $image, $booking_id, $type='status')
     {
-        $config = business_config('push_notification', 'third_party');
+        $image = asset('storage/app/public/push-notification') . '/' . $image;
 
-        $url = "https://fcm.googleapis.com/fcm/send";
-        $header = ["authorization: key=" . $config->live_values['server_key'],
-            "content-type: application/json",
+        $postData = [
+            'message' => [
+                "topic" => $topic,
+                "data" => [
+                    "title" => (string)$title,
+                    "body" => (string)$description,
+                    "booking_id" => (string)$booking_id,
+                    "type" => (string)$type,
+                    "image" => (string)$image
+                ],
+                "notification" => [
+                    "title" => (string)$title,
+                    "body" => (string)$description,
+                ],
+            ]
         ];
 
-        $image = asset('storage/app/public/push-notification') . '/' . $image;
-        $topic_str = "/topics/" . $topic;
-
-        $postdata = '{
-             "to":"' . $topic_str . '",
-             "notification" : {
-                    "title":"' . $title . '",
-                    "body" : "' . $description . '",
-                    "booking_id": "' . $booking_id . '",
-                    "type": "' . $type . '",
-                    "title_loc_key": "' . $booking_id . '",
-                    "body_loc_key": "status",
-                    "image": "' . $image . '",
-                    "sound": "notification.wav",
-                    "android_channel_id": "ondemand"
-                },
-                "data": {
-                    "title":"' . $title . '",
-                    "body" : "' . $description . '",
-                    "booking_id": "' . $booking_id . '",
-                    "type": "' . $type . '",
-                    "image": "' . $image . '",
-                }
-              }';
-
-        return send_curl_request($url, $postdata, $header);
+        return sendNotificationToHttp($postData);
     }
 }
 
 //bidding notification
 if (!function_exists('device_notification_for_bidding')) {
-    function device_notification_for_bidding($fcm_token, $title, $description, $image, $type='bidding', $booking_id = null, $post_id = null, $provider_id = null): bool|string
+    function device_notification_for_bidding($fcm_token, $title, $description, $image, $type='bidding', $booking_id = null, $post_id = null, $provider_id = null, $data=null)
     {
-        $config = business_config('push_notification', 'third_party');
-        $url = "https://fcm.googleapis.com/fcm/send";
-        $header = array("authorization: key=" . $config->live_values['server_key'],
-            "content-type: application/json"
-        );
-
+        $title = text_variable_data_format($title, $booking_id, $type, $data);
         $image = asset('storage/app/public/push-notification') . '/' . $image;
 
-        $postdata = '{
-            "to" : "' . $fcm_token . '",
-            "notification" : {
-                    "title":"' . $title . '",
-                    "body" : "' . $description . '",
-                    "booking_id": "' . $booking_id . '",
-                    "post_id": "' . $post_id . '",
-                    "provider_id": "' . $provider_id . '",
-                    "type": "' . $type . '",
-                    "title_loc_key": "' . $booking_id . '",
-                    "body_loc_key": "status",
-                    "image": "' . $image . '",
-                    "sound": "notification.wav",
-                    "android_channel_id": "ondemand"
-                },
-                "data": {
-                    "title":"' . $title . '",
-                    "body" : "' . $description . '",
-                    "booking_id": "' . $booking_id . '",
-                    "post_id": "' . $post_id . '",
-                    "provider_id": "' . $provider_id . '",
-                    "type": "' . $type . '",
-                    "image": "' . $image . '",
-                }
-             }';
+        $postData = [
+            'message' => [
+                "token" => $fcm_token,
+                "data" => [
+                    "title" => (string)$title,
+                    "body" => (string)$description,
+                    "booking_id" => (string)$booking_id,
+                    "post_id" => (string)$post_id,
+                    "provider_id" => (string)$provider_id,
+                    "type" => (string)$type,
+                    "image" => (string)$image
+                ],
+                "notification" => [
+                    "title" => (string)$title,
+                    "body" => (string)$description,
+                ],
+            ]
+        ];
 
-        return send_curl_request($url, $postdata, $header);
+        return sendNotificationToHttp($postData);
     }
 }
 
 //chatting notification
 
 if (!function_exists('device_notification_for_chatting')) {
-    function device_notification_for_chatting($fcm_token, $title, $description, $image, $channel_id, $user_name, $user_image, $user_phone, $user_type, $type = 'status'): bool|string
+    function device_notification_for_chatting($fcm_token, $title, $description, $image, $channel_id, $user_name, $user_image, $user_phone, $user_type, $type = 'status')
     {
-        $config = business_config('push_notification', 'third_party');
-        $url = "https://fcm.googleapis.com/fcm/send";
-        $header = array("authorization: key=" . $config->live_values['server_key'],
-            "content-type: application/json"
-        );
-
         $image = asset('storage/app/public/push-notification') . '/' . $image;
 
-        $postdata = '{
-            "to" : "' . $fcm_token . '",
-            "notification" : {
-                    "title":"' . $title . '",
-                    "body" : "' . $description . '",
-                    "image": "' . $image . '",
-                    "type": "' . $type . '",
-                    "channel_id": "' . $channel_id . '",
-                    "user_name": "' . $user_name . '",
-                    "user_image": "' . $user_image . '",
-                    "user_phone": "' . $user_phone . '",
-                    "user_type": "' . $user_type . '",
-                    "title_loc_key": "",
-                    "body_loc_key": "status",
-                    "sound": "notification.wav",
-                    "android_channel_id": "ondemand"
-                },
-                "data": {
-                    "title":"' . $title . '",
-                    "body" : "' . $description . '",
-                    "image": "' . $image . '",
-                    "type": "' . $type . '",
-                    "channel_id": "' . $channel_id . '",
-                    "user_name": "' . $user_name . '",
-                    "user_image": "' . $user_image . '",
-                    "user_phone": "' . $user_phone . '",
-                    "user_type": "' . $user_type . '",
-                }
-             }';
+        $postData = [
+            'message' => [
+                "token" => $fcm_token,
+                "data" => [
+                    "title" => (string)$title,
+                    "body" => (string)$description,
+                    "image" => (string)$image,
+                    "type" => (string)$type,
+                    "channel_id" => (string)$channel_id,
+                    "user_name" => (string)$user_name,
+                    "user_image"=> (string)$user_image,
+                    "user_phone"=> (string)$user_phone,
+                    "user_type"=> (string)$user_type,
+                ],
+                "notification" => [
+                    "title" => (string)$title,
+                    "body" => (string)$description,
+                ],
+            ]
+        ];
 
-        return send_curl_request($url, $postdata, $header);
+        return sendNotificationToHttp($postData);
     }
 }
 if (!function_exists('basic_discount_calculation')) {

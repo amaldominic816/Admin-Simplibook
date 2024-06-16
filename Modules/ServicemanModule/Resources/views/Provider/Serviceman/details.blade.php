@@ -2,10 +2,6 @@
 
 @section('title',translate('Serviceman_Details'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
     <div class="container-fluid">
         <div class="row">
@@ -21,7 +17,7 @@
                     <div class="col-lg-3 mb-30 mb-lg-0">
                         <div class="d-flex flex-column gap-2">
                             <div class="statistics-serviceman statistics-serviceman__total-assigned">
-                                <h2>{{$total_assigned_bookings}}</h2>
+                                <h2>{{$totalAssignedBookings}}</h2>
                                 <h3>{{translate('Assigned_Bookings')}}</h3>
                             </div>
 
@@ -44,22 +40,20 @@
                     <div class="col-lg-9">
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-2">
                             <h4 class="c1">{{translate('Booking_History')}}</h4>
-
                             <select class="js-select form-control max-w320" id="date-range" name="date_range">
-                                <option value="0" disabled selected>{{translate('Date_Range')}}</option>
-                                <option value="all_time">{{translate('All_Time')}}</option>
-                                {{--<option value="this_week">{{translate('This_Week')}}</option>
-                                <option value="last_week">{{translate('Last_Week')}}</option>--}}
-                                <option value="this_month">{{translate('This_Month')}}</option>
-                                <option value="last_month">{{translate('Last_Month')}}</option>
-                                <option value="last_15_days">{{translate('Last_15_Days')}}</option>
-                                <option value="this_year">{{translate('This_Year')}}</option>
-                                <option value="last_year">{{translate('Last_Year')}}</option>
-                                <option value="last_6_month">{{translate('Last_6_Month')}}</option>
-                                <option value="this_year_1st_quarter">{{translate('This_Year_1st_Quarter')}}</option>
-                                <option value="this_year_2nd_quarter">{{translate('This_Year_2nd_Quarter')}}</option>
-                                <option value="this_year_3rd_quarter">{{translate('This_Year_3rd_Quarter')}}</option>
-                                <option value="this_year_4th_quarter">{{translate('this_year_4th_quarter')}}</option>
+                                <option value="0" disabled {{ $dateRange == '0' ? 'selected' : '' }}>{{ translate('Date_Range') }}</option>
+                                <option value="all_time" {{ $dateRange == 'all_time' ? 'selected' : '' }}>{{ translate('All_Time') }}</option>
+                                <option value="this_month" {{ $dateRange == 'this_month' ? 'selected' : '' }}>{{ translate('This_Month') }}</option>
+                                <option value="last_month" {{ $dateRange == 'last_month' ? 'selected' : '' }}>{{ translate('Last_Month') }}</option>
+                                <option value="last_15_days" {{ $dateRange == 'last_15_days' ? 'selected' : '' }}>{{ translate('Last_15_Days') }}</option>
+                                <option value="this_year" {{ $dateRange == 'this_year' ? 'selected' : '' }}>{{ translate('This_Year') }}</option>
+                                <option value="last_year" {{ $dateRange == 'last_year' ? 'selected' : '' }}>{{ translate('Last_Year') }}</option>
+                                <option value="last_6_month" {{ $dateRange == 'last_6_month' ? 'selected' : '' }}>{{ translate('Last_6_Month') }}</option>
+                                <option value="this_year_1st_quarter" {{ $dateRange == 'this_year_1st_quarter' ? 'selected' : '' }}>{{ translate('This_Year_1st_Quarter') }}</option>
+                                <option value="this_year_2nd_quarter" {{ $dateRange == 'this_year_2nd_quarter' ? 'selected' : '' }}>{{ translate('This_Year_2nd_Quarter') }}</option>
+                                <option value="this_year_3rd_quarter" {{ $dateRange == 'this_year_3rd_quarter' ? 'selected' : '' }}>{{ translate('This_Year_3rd_Quarter') }}</option>
+                                <option value="this_year_4th_quarter" {{ $dateRange == 'this_year_4th_quarter' ? 'selected' : '' }}>{{ translate('This_Year_4th_Quarter') }}</option>
+
                             </select>
                         </div>
 
@@ -78,15 +72,17 @@
 
                             <div class="d-flex gap-3 align-items-center justify-content-end">
                                 <label class="switcher">
-                                    <input class="switcher_input"
-                                           onclick="route_alert('{{route('provider.serviceman.status-update',[$serviceman->user->id])}}','{{translate('want_to_update_status')}}')"
-                                           type="checkbox" {{$serviceman->user->is_active?'checked':''}}>
+                                    <input class="switcher_input service-man-update"
+                                           type="checkbox" {{$serviceman->user->is_active?'checked':''}} data-route="{{route('provider.serviceman.status-update',[$serviceman->user->id])}}" data-message="{{translate('want_to_update_status')}}">
                                     <span class="switcher_control"></span>
                                 </label>
-                                <a type="button" class="bg-transparent border-0 p-0 lh-1" href="{{route('provider.serviceman.edit', [$serviceman->id])}}">
+                                <a type="button" class="bg-transparent border-0 p-0 lh-1"
+                                   href="{{route('provider.serviceman.edit', [$serviceman->id])}}">
                                     <span class="material-icons text-info">edit</span>
                                 </a>
-                                <button type="button" class="bg-transparent border-0 p-0 lh-1" onclick="form_alert('delete-{{$serviceman->id}}','{{translate('want_to_delete_this_serviceman')}}?')">
+                                <button type="button" class="bg-transparent border-0 p-0 lh-1 form-alert"
+                                        data-id="delete-{{$serviceman->id}}"
+                                        data-nessage="{{translate('want_to_delete_this_serviceman')}}?">
                                     <span class="material-icons text-danger">delete</span>
                                 </button>
                                 <form
@@ -105,9 +101,14 @@
                                 <h4 class="c1 mb-3">{{translate('Service_Man_Information')}}</h4>
 
                                 <div class="media flex-wrap gap-3">
-                                    <img width="116" src="{{asset('storage/app/public/serviceman/profile')}}/{{$serviceman->user->profile_image}}"
-                                         onerror="this.src='{{asset('public/assets/admin-module')}}/img/placeholder.png'"
-                                         alt="">
+                                    <img width="116"
+                                         src="{{onErrorImage(
+                                        $serviceman->user->profile_image,
+                                        asset('storage/app/public/serviceman/profile').'/' . $serviceman->user->profile_image,
+                                        asset('public/assets/admin-module/img/placeholder.png') ,
+                                        'serviceman/profile/')}}"
+
+                                         alt="{{ translate('serviceman') }}">
 
                                     <div class="media-body">
                                         <ul class="serviceman_info-list">
@@ -124,8 +125,6 @@
                                                 <a href="tel:{{$serviceman->user->phone}}">{{$serviceman->user->phone}}</a>
                                             </li>
                                             <li>
-{{--                                                <span class="material-icons">location_on</span>--}}
-{{--                                                {{$serviceman->user->addresses[0]->address ?? translate('Address_Unavailable')}}--}}
                                             </li>
                                         </ul>
                                     </div>
@@ -135,42 +134,53 @@
                     </div>
                 </div>
 
-                {{-- Information Details --}}
                 <div class="information-details-box p-3 mt-4">
                     <div class="row g-4">
                         <div class="col-lg-3">
                             <h2 class="information-details-box__title c1 mb-3">{{translate('Business_Info')}}</h2>
-                            <p><span>{{translate($serviceman->user->identification_type)}}: </span> {{$serviceman->user->identification_number}}</p>
+                            <p>
+                                <span>{{translate($serviceman->user->identification_type)}}: </span> {{$serviceman->user->identification_number}}
+                            </p>
                         </div>
                         <div class="col-lg-9">
                             <div class="d-flex flex-wrap gap-3 justify-content-lg-end">
                                 @foreach($serviceman->user->identification_image as $img)
-                                    <img src="{{asset('storage/app/public/serviceman/identity').'/'.$img}}" width="400"
-                                         onerror="this.src='{{asset('public/assets/admin-module')}}/img/media/provider-id.png'">
+                                    <img width="400"
+                                         src="{{onErrorImage($img,asset('storage/app/public/serviceman/identity').'/' . $img,
+                                        asset('public/assets/admin-module/img/media/provider-id.png') ,
+                                        'serviceman/identity/')}}"
+                                         alt="{{ translate('identity-image') }}">
                                 @endforeach
                             </div>
                         </div>
                     </div>
                 </div>
-                {{-- End Information Details --}}
             </div>
         </div>
     </div>
 @endsection
 
 @push('script')
+    <script src="{{asset('public/assets/admin-module')}}/plugins/apex/apexcharts.min.js"></script>
+
     <script>
-        $("#date-range").change( function() {
+        "use strict";
+
+        $('.service-man-update').on('click', function () {
+            let route = $(this).data('route');
+            let message = $(this).data('message');
+            route_alert(route,message)
+        })
+
+
+        $("#date-range").change(function () {
             location.href = "{{route('provider.serviceman.show', [$serviceman->id])}}?date_range=" + $(this).val();
         });
-    </script>
 
-    <script src="{{asset('public/assets/admin-module')}}/plugins/apex/apexcharts.min.js"></script>
-    <script>
         var options = {
             series: [{
                 name: "{{translate('Total_Bookings')}}",
-                data: {{json_encode($chart_data['total_booking'])}}
+                data: {{json_encode($chartdata['total_booking'])}}
             }],
             chart: {
                 height: 392,
@@ -189,7 +199,7 @@
             },
             yaxis: {
                 labels: {
-                    formatter: function(value) {
+                    formatter: function (value) {
                         return Math.round(value);
                     }
                 },
@@ -222,7 +232,7 @@
                 mode: 'light',
             },
             xaxis: {
-                categories: {{json_encode($chart_data['timeline'])}}
+                categories: {{json_encode($chartdata['timeline'])}}
             },
             legend: {
                 show: true,

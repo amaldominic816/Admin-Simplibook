@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Modules\PromotionManagement\Entities\PushNotification;
+use Modules\PromotionManagement\Entities\PushNotificationUser;
 use Modules\ProviderManagement\Entities\Provider;
 use Modules\UserManagement\Entities\Serviceman;
 use Modules\UserManagement\Entities\User;
@@ -16,8 +18,8 @@ class RegisterController extends Controller
 {
     protected Provider $provider;
     protected User $owner;
-    protected $user;
-    protected $serviceman;
+    protected User $user;
+    protected Serviceman $serviceman;
 
     public function __construct(Provider $provider, User $owner, User $user, Serviceman $serviceman)
     {
@@ -32,21 +34,28 @@ class RegisterController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function customer_register(Request $request): JsonResponse
+    public function customerRegister(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'first_name' => 'required',
             'last_name' => 'required',
-            'email' => 'required|email|unique:users',
-            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10|unique:users',
+            'email' => 'required|email',
+            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10',
             'password' => 'required|min:8',
             'gender' => 'in:male,female,others',
             'confirm_password' => 'required|same:password',
-            'profile_image' =>  'image|mimes:jpeg,jpg,png,gif|max:10000',
+            'profile_image' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
         ]);
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 403);
+        }
+
+        if (User::where('email', $request['email'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code" => "email", "message" => translate('Email already taken')]]), 400);
+        }
+        if (User::where('phone', $request['phone'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code" => "phone", "message" => translate('Phone already taken')]]), 400);
         }
 
         $user = $this->user;
@@ -56,25 +65,46 @@ class RegisterController extends Controller
         $user->phone = $request->phone;
         $user->profile_image = $request->has('profile_image') ? file_uploader('user/profile_image/', 'png', $request->profile_image) : 'default.png';
         $user->date_of_birth = $request->date_of_birth;
-        $user->gender = $request->gender??'male';
+        $user->gender = $request->gender ?? 'male';
         $user->password = bcrypt($request->password);
         $user->user_type = 'customer';
         $user->is_active = 1;
 
-        //referral earning calculation
         if ($request->has('referral_code')) {
-            $customer_referral_earning = business_config('customer_referral_earning', 'customer_config')->live_values??0;
-            $amount = business_config('referral_value_per_currency_unit', 'customer_config')->live_values??0;
-            $user_who_referred = User::where('ref_code', $request['referral_code'])->first();
+            $customerReferralEarning = business_config('customer_referral_earning', 'customer_config')->live_values ?? 0;
+            $amount = business_config('referral_value_per_currency_unit', 'customer_config')->live_values ?? 0;
+            $userWhoRerreded = User::where('ref_code', $request['referral_code'])->first();
 
-            if (is_null($user_who_referred)) {
+            if (is_null($userWhoRerreded)) {
                 return response()->json(response_formatter(REFERRAL_CODE_INVALID_400), 404);
             }
 
-            if($customer_referral_earning == 1 && isset($user_who_referred)) referral_earning_transaction_during_registration($user_who_referred, $amount);
+            if ($customerReferralEarning == 1 && isset($userWhoRerreded)){
+
+                referralEarningTransactionDuringRegistration($userWhoRerreded, $amount);
+
+                $title = get_push_notification_message('referral_code_used', 'customer_notification', $user?->current_language_key);
+                if ($title && $userWhoRerreded->fcm_token) {
+                    device_notification($userWhoRerreded->fcm_token, $title, null, null, null, 'general', null, $userWhoRerreded->id);
+                }
+
+                $pushNotification = new PushNotification();
+                $pushNotification->title = translate('Your Referral Code Has Been Used!');
+                $pushNotification->description = translate("Congratulations! Your referral code was used by a new user. Get ready to earn rewards when they complete their first booking.");
+                $pushNotification->to_users = ['customer'];
+                $pushNotification->zone_ids = [config('zone_id') == null ? $request['zone_id'] : config('zone_id')];
+                $pushNotification->is_active = 1;
+                $pushNotification->cover_image = asset('/public/assets/admin/img/referral_2.png');
+                $pushNotification->save();
+
+                $pushNotificationUser = new PushNotificationUser();
+                $pushNotificationUser->push_notification_id = $pushNotification->id;
+                $pushNotificationUser->user_id = $userWhoRerreded->id;
+                $pushNotificationUser->save();
+            }
         }
 
-        $user->referred_by = $user_who_referred->id??null;
+        $user->referred_by = $userWhoRerreded->id ?? null;
         $user->save();
 
         return response()->json(response_formatter(REGISTRATION_200), 200);
@@ -86,25 +116,25 @@ class RegisterController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function provider_register(Request $request): JsonResponse
+    public function providerRegister(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'contact_person_name' => 'required',
             'contact_person_phone' => 'required',
             'contact_person_email' => 'required',
 
-            'account_first_name' => 'required',
-            'account_last_name' => 'required',
+            'account_first_name' => 'nullable|max:191',
+            'account_last_name' => 'nullable|max:191',
             'zone_id' => 'required|uuid',
-            'account_email' => 'required|email|unique:users,email',
-            'account_phone' => 'required|unique:users,phone',
+            'account_email' => 'required|email',
+            'account_phone' => 'required',
             'password' => 'required|min:8',
             'confirm_password' => 'required|same:password',
 
             'company_name' => 'required',
-            'company_phone' => 'required|unique:providers',
+            'company_phone' => 'required',
             'company_address' => 'required',
-            'company_email' => 'required|email|unique:providers',
+            'company_email' => 'required|email',
             'logo' => 'required|image|mimes:jpeg,jpg,png,gif|max:10000',
 
             'identity_type' => 'required|in:passport,driving_license,nid,trade_license,company_id',
@@ -120,9 +150,16 @@ class RegisterController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $identity_images = [];
+        if (User::where('email', $request['account_email'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code" => "account_email", "message" => translate('Email already taken')]]), 400);
+        }
+        if (User::where('phone', $request['account_phone'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code" => "account_phone", "message" => translate('Phone already taken')]]), 400);
+        }
+
+        $identityImages = [];
         foreach ($request->identity_images as $image) {
-            $identity_images[] = file_uploader('provider/identity/', 'png', $image);
+            $identityImages[] = file_uploader('provider/identity/', 'png', $image);
         }
 
         $provider = $this->provider;
@@ -147,7 +184,7 @@ class RegisterController extends Controller
         $owner->phone = $request->account_phone;
         $owner->identification_number = $request->identity_number;
         $owner->identification_type = $request->identity_type;
-        $owner->identification_image = $identity_images;
+        $owner->identification_image = $identityImages;
         $owner->password = bcrypt($request->password);
         $owner->user_type = 'provider-admin';
         $owner->is_active = 0;

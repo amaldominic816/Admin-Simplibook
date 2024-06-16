@@ -73,11 +73,11 @@ class ZoneController extends Controller
         }
 
         $value = $request->coordinates;
-        foreach (explode('),(', trim($value, '()')) as $index => $single_array) {
+        foreach (explode('),(', trim($value, '()')) as $index => $singleArray) {
             if ($index == 0) {
-                $lastcord = explode(',', $single_array);
+                $lastcord = explode(',', $singleArray);
             }
-            $coords = explode(',', $single_array);
+            $coords = explode(',', $singleArray);
             $polygon[] = new Point($coords[0], $coords[1]);
         }
         $polygon[] = new Point($lastcord[0], $lastcord[1]);
@@ -125,7 +125,7 @@ class ZoneController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',
@@ -159,11 +159,11 @@ class ZoneController extends Controller
         }
 
         $value = $request->coordinates;
-        foreach (explode('),(', trim($value, '()')) as $index => $single_array) {
+        foreach (explode('),(', trim($value, '()')) as $index => $singleArray) {
             if ($index == 0) {
-                $lastcord = explode(',', $single_array);
+                $lastcord = explode(',', $singleArray);
             }
-            $coords = explode(',', $single_array);
+            $coords = explode(',', $singleArray);
             $polygon[] = new Point($coords[0], $coords[1]);
         }
         $polygon[] = new Point($lastcord[0], $lastcord[1]);

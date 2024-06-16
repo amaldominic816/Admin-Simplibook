@@ -3,8 +3,8 @@
 namespace Modules\PromotionManagement\Http\Controllers\Web\Admin;
 
 use Brian2694\Toastr\Facades\Toastr;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -12,16 +12,18 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
-use Modules\PromotionManagement\Entities\Banner;
 use Modules\PromotionManagement\Entities\PushNotification;
 use Modules\ZoneManagement\Entities\Zone;
 use Rap2hpoutre\FastExcel\FastExcel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class PushNotificationController extends Controller
 {
     private PushNotification $pushNotification;
     private Zone $zone;
+
+    use AuthorizesRequests;
 
     public function __construct(PushNotification $pushNotification, Zone $zone)
     {
@@ -74,12 +76,14 @@ class PushNotificationController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function create(Request $request): View|Factory|Application
     {
+        $this->authorize('push_notification_view');
         $search = $request->has('search') ? $request['search'] : '';
-        $to_user_type = $request->has('to_user_type') ? $request['to_user_type'] : 'all';
-        $query_param = ['search' => $search, 'to_user_type' => $to_user_type];
+        $toUserType = $request->has('to_user_type') ? $request['to_user_type'] : 'all';
+        $queryParam = ['search' => $search, 'to_user_type' => $toUserType];
 
         $zones = $this->zone->ofStatus(1)->latest()->get();
 
@@ -94,22 +98,24 @@ class PushNotificationController extends Controller
             })
             ->when($request->has('to_user_type') && $request['to_user_type'] != 'all', function ($query) use ($request) {
                 return $query->whereJsonContains('to_users', $request['to_user_type']);
-            })->orderBy('created_at', 'desc')->paginate(pagination_limit())->appends($query_param);
+            })->orderBy('created_at', 'desc')->paginate(pagination_limit())->appends($queryParam);
 
         $pushNotification->map(function ($query) {
             $query->zone_ids = $this->zone->select('id', 'name')->whereIn('id', $query->zone_ids)->get();
         });
 
-        return view('promotionmanagement::admin.push-notification.create', compact('zones', 'pushNotification', 'to_user_type', 'search'));
+        return view('promotionmanagement::admin.push-notification.create', compact('zones', 'pushNotification', 'toUserType', 'search'));
     }
 
     /**
      * Store a newly created resource in storage.
      * @param Request $request
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('push_notification_add');
         $request->validate([
             'title' => 'required',
             'description' => 'required',
@@ -143,7 +149,7 @@ class PushNotificationController extends Controller
             }
         }
 
-        Toastr::success(BANNER_CREATE_200['message']);
+        Toastr::success(translate(BANNER_CREATE_200['message']));
         return back();
     }
 
@@ -152,20 +158,22 @@ class PushNotificationController extends Controller
      * Show the form for editing the specified resource.
      * @param string $id
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function edit(string $id): View|Factory|Application
     {
+        $this->authorize('push_notification_update');
         $pushNotification = $this->pushNotification->where('id', $id)->first();
         $zones = $this->zone->ofStatus(1)->latest()->get();
-        $zone_array = [];
+        $zoneArray = [];
         if ($pushNotification->zone_ids != null) {
             foreach ($pushNotification->zone_ids as $id) {
                 $zone = $this->zone::select('id', 'name')->find($id);
                 if (!is_null($zone)) {
-                    $zone_array[] = $zone;
+                    $zoneArray[] = $zone;
                 }
             }
-            $pushNotification->zone_ids = $zone_array;
+            $pushNotification->zone_ids = $zoneArray;
         }
         return view('promotionmanagement::admin.push-notification.edit', compact('pushNotification','zones'));
     }
@@ -175,9 +183,11 @@ class PushNotificationController extends Controller
      * @param Request $request
      * @param $id
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function update(Request $request, $id): RedirectResponse
     {
+        $this->authorize('push_notification_update');
         $request->validate([
             'title' => 'required',
             'description' => 'required',
@@ -193,31 +203,34 @@ class PushNotificationController extends Controller
         $pushNotification->description = $request['description'];
         $pushNotification->to_users = $request['to_users'];
         $pushNotification->zone_ids = $request['zone_ids'];
+
         if ($request->has('cover_image')) {
             $pushNotification->cover_image = file_uploader('push-notification/', 'png', $request->file('cover_image'), $pushNotification->cover_image);
         }
+
         $pushNotification->save();
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
-
 
     /**
      * Remove the specified resource from storage.
      * @param Request $request
      * @param $id
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function destroy(Request $request, $id): RedirectResponse
     {
-        $pushNotification = $this->pushNotification->where('id', $id)->first();
+        $this->authorize('push_notification_delete');
+        $pushNotification = $this->pushNotification->where('id', $id)->withoutGlobalScope('translate')->first();
         if (isset($pushNotification)){
             file_remover('push-notification/', $pushNotification['cover_image']);
-            $this->pushNotification->where('id', $id)->delete();
+            $this->pushNotification->where('id', $id)->withoutGlobalScope('translate')->delete();
         }
 
-        Toastr::success(DEFAULT_DELETE_200['message']);
+        Toastr::success(translate(DEFAULT_DELETE_200['message']));
         return back();
     }
 
@@ -226,13 +239,15 @@ class PushNotificationController extends Controller
      * @param Request $request
      * @param $id
      * @return JsonResponse
+     * @throws AuthorizationException
      */
-    public function status_update(Request $request, $id): JsonResponse
+    public function statusUpdate(Request $request, $id): JsonResponse
     {
+        $this->authorize('push_notification_manage_status');
         $pushNotification = $this->pushNotification->where('id', $id)->first();
         $this->pushNotification->where('id', $id)->update(['is_active' => !$pushNotification->is_active]);
 
-        return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+        return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
     }
 
     /**
@@ -242,6 +257,7 @@ class PushNotificationController extends Controller
      */
     public function download(Request $request): string|StreamedResponse
     {
+        $this->authorize('push_notification_delete');
         $items = $this->pushNotification
             ->when($request->has('string'), function ($query) use ($request) {
                 $keys = explode(' ', base64_decode($request['string']));

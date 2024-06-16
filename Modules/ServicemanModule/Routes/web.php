@@ -23,7 +23,7 @@ Route::group(['prefix' => 'provider', 'as' => 'provider.', 'namespace' => 'Web\P
         Route::get('show/{id}', [ServicemanController::class, 'show'])->name('show');
         Route::get('edit/{id}', 'ServicemanController@edit')->name('edit');
         Route::put('update/{id}', 'ServicemanController@update')->name('update');
-        Route::any('status-update/{id}', 'ServicemanController@status_update')->name('status-update');
+        Route::any('status-update/{id}', 'ServicemanController@statusUpdate')->name('status-update');
         Route::delete('delete/{id}', 'ServicemanController@destroy')->name('delete');
         Route::any('download', 'ServicemanController@download')->name('download');
     });

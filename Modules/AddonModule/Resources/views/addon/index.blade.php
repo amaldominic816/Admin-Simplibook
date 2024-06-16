@@ -4,18 +4,12 @@
 
 @push('css_or_js')
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <style>
-        .form-group {
-            margin-bottom: 10px;
-        }
-    </style>
-       {{-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.css" /> --}}
-       <link rel="stylesheet" href="{{ asset('public/assets/admin-module/swiper/swiper-bundle.min.css')}}" />
+    <link rel="stylesheet" href="{{ asset('public/assets/admin-module/swiper/swiper-bundle.min.css')}}"/>
+    <link rel="stylesheet" href="{{ asset('public/assets/admin-module/css/addon-module.css')}}"/>
 @endpush
 
 @section('content')
     <div class="content container-fluid">
-        <!-- Page Header -->
         <div class="page-header d-flex justify-content-between">
             <h1 class="page-header-title mb-3">
                 <span class="page-header-icon">
@@ -32,8 +26,8 @@
         </div>
 
 
-
-        <div class="modal fade" id="settingModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="settingModal" aria-hidden="true">
+        <div class="modal fade" id="settingModal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="settingModal"
+             aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header border-0 pb-0 d-flex justify-content-end">
@@ -51,7 +45,8 @@
                                     <div class="swiper-wrapper">
                                         <div class="swiper-slide">
                                             <div class="d-flex flex-column align-items-center mx-w450 mx-auto">
-                                                <img src="{{asset('public/assets/admin-module/img/addon-setting.png')}}" loading="lazy"
+                                                <img src="{{asset('public/assets/admin-module/img/addon-setting.png')}}"
+                                                     loading="lazy"
                                                      alt="" class="dark-support rounded mb-4">
                                             </div>
 
@@ -68,7 +63,8 @@
                                             </div>
 
                                             <div class="d-flex flex-column align-items-end mx-w450 mx-auto">
-                                                <button class="btn btn-primary px-10 mt-3" data-bs-dismiss="modal">{{ translate('Got_It') }}</button>
+                                                <button class="btn btn-primary px-10 mt-3"
+                                                        data-bs-dismiss="modal">{{ translate('Got_It') }}</button>
                                             </div>
                                         </div>
                                     </div>
@@ -80,20 +76,19 @@
                 </div>
             </div>
         </div>
-        <!-- End Page Header -->
 
-        <!-- File Upload Card -->
         <div class="card mb-5">
             <div class="card-body pl-md-10">
                 <h4 class="mb-3 text-capitalize d-flex align-items-center">{{translate('upload_Payment_Module')}}</h4>
                 <form enctype="multipart/form-data" id="theme_form">
                     <div class="row g-3">
                         <div class="col-sm-6 col-lg-5 col-xl-4 col-xxl-3">
-                            <!-- Drag & Drop Upload -->
                             <div class="uploadDnD">
                                 <div class="form-group inputDnD">
-                                    <input type="file" name="file_upload" class="form-control-file text--primary font-weight-bold"
-                                    id="inputFile" onchange="readUrl(this)" accept=".zip" data-title="Drag & drop file or Browse file">
+                                    <input type="file" name="file_upload"
+                                           class="form-control-file text--primary font-weight-bold"
+                                           id="inputFile" onchange="readUrl(this)" accept=".zip"
+                                           data-title="{{translate('Drag & drop file or Browse file')}}">
                                 </div>
                             </div>
 
@@ -136,76 +131,86 @@
                             </div>
                         </div>
 
-                        <div class="col-12">
-                            @if($condition_one && $condition_two)
+                        @can('addon_add')
+                            <div class="col-12">
                                 <div class="d-flex justify-content-end mt-3">
                                     <button type="button"
-                                        onclick="zip_upload()"
-                                        class="btn btn--primary px-4" id="upload_theme">{{translate('upload')}}</button>
+                                            class="btn btn--primary px-4"
+                                            id="upload_theme">{{translate('upload')}}</button>
                                 </div>
-                            @endif
-                        </div>
+                            </div>
+                        @endcan
                     </div>
                 </form>
             </div>
         </div>
 
-        <!-- Modal Buttons Card -->
-        {{-- <div class="card my-5">
-            <div class="card-body">
-                <!-- Activated Theme trigger -->
-                <button type="button" class="btn btn--primary" data-toggle="modal" data-target="#activatedThemeModal">
-                Activated Theme modal
-                </button>
-            </div>
-        </div> --}}
-
-        <!-- Theme Items -->
         <div class="row g-1 g-sm-2">
             @foreach($addons as $key => $addon)
-            @php($data= include $addon.'/Addon/info.php')
-            <div class="col-6 col-md-5 col-xxl-3">
-                <div class="card theme-card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h3 class="card-title m-0">
-                            {{$data['name']}}
-                        </h3>
+                @php($data= include $addon.'/Addon/info.php')
+                <div class="col-6 col-md-5 col-xxl-3">
+                    <div class="card theme-card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h3 class="card-title m-0">
+                                {{$data['name']}}
+                            </h3>
 
-                        <div class="d-flex align-items-center">
-                            @if ($data['is_published'] == 0)
-                                <button class="text-danger bg-transparent p-0 border-0 me-2" data-bs-toggle="modal" data-bs-target="#deleteThemeModal_{{$key}}"><img src="{{asset('public/assets/admin-module/img/delete.svg')}}" class="svg" alt=""></button>
-                                <!-- Delete Theme Modal -->
-                                <div class="modal fade" id="deleteThemeModal_{{$key}}" tabindex="-1" aria-labelledby="deleteThemeModal_{{$key}}" aria-hidden="true">
-                                    <div class="modal-dialog modal-dialog-centered">
-                                        <div class="modal-content">
-                                            <div class="modal-header border-0 pb-0 d-flex justify-content-end">
-                                                <button
-                                                    type="button"
-                                                    class="btn-close border-0"
-                                                    data-bs-dismiss="modal"
-                                                    aria-label="Close"
-                                                ><i class="tio-clear"></i></button>
-                                            </div>
-                                            <div class="modal-body px-4 px-sm-5 text-center">
-                                                <div class="mb-3 text-center">
-                                                    <img width="75" src="{{asset('public/assets/admin-module/img/delete.png')}}" alt="">
+                            <div class="d-flex align-items-center">
+                                @if ($data['is_published'] == 0)
+                                    @can('addon_delete')
+                                        <button class="text-danger bg-transparent p-0 border-0 me-2"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#deleteThemeModal_{{$key}}"><img
+                                                src="{{asset('public/assets/admin-module/img/delete.svg')}}" class="svg"
+                                                alt=""></button>
+                                    @endcan
+
+                                    <div class="modal fade" id="deleteThemeModal_{{$key}}" tabindex="-1"
+                                         aria-labelledby="deleteThemeModal_{{$key}}" aria-hidden="true">
+                                        <div class="modal-dialog modal-dialog-centered">
+                                            <div class="modal-content">
+                                                <div class="modal-header border-0 pb-0 d-flex justify-content-end">
+                                                    <button
+                                                        type="button"
+                                                        class="btn-close border-0"
+                                                        data-bs-dismiss="modal"
+                                                        aria-label="Close"
+                                                    ><i class="tio-clear"></i></button>
                                                 </div>
+                                                <div class="modal-body px-4 px-sm-5 text-center">
+                                                    <div class="mb-3 text-center">
+                                                        <img width="75"
+                                                             src="{{asset('public/assets/admin-module/img/delete.png')}}"
+                                                             alt="">
+                                                    </div>
 
-                                                <h3>{{ translate('are_you_sure_you_want_to_delete_the_payment_module') }}?</h3>
-                                                <p class="mb-5">{{ translate('once_you_delete') }}, {{ translate('you_will_lost_the_this_payment_module') }}</p>
-                                                <div class="d-flex justify-content-center gap-3 mb-3">
-                                                    <button type="button" class="fs-16 btn btn-secondary px-sm-5" data-bs-dismiss="modal">{{ translate('cancel') }}</button>
-                                                    <button type="submit" class="fs-16 btn btn-danger px-sm-5" data-bs-dismiss="modal" onclick="theme_delete('{{$addon}}')">{{ translate('delete') }}</button>
+                                                    <h3>{{ translate('are_you_sure_you_want_to_delete_the_payment_module') }}
+                                                        ?</h3>
+                                                    <p class="mb-5">{{ translate('once_you_delete') }}
+                                                        , {{ translate('you_will_lost_the_this_payment_module') }}</p>
+                                                    <div class="d-flex justify-content-center gap-3 mb-3">
+                                                        <button type="button" class="fs-16 btn btn-secondary px-sm-5"
+                                                                data-bs-dismiss="modal">{{ translate('cancel') }}</button>
+                                                        <button type="submit"
+                                                                class="fs-16 btn btn-danger px-sm-5 delete-addon"
+                                                                data-bs-dismiss="modal"
+                                                                data-value="{{ $addon }}">{{ translate('delete') }}</button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            @endif
-
-                                <button class="{{$data['is_published'] == 1 ? 'checkbox-color-primary' : 'text-muted'}} bg-transparent p-0 border-0" data-bs-toggle="modal" data-bs-target="#shiftThemeModal_{{$key}}"><img src="{{asset('public/assets/admin-module/img/check.svg')}}" class="svg" alt=""></button>
-
-                                <div class="modal fade" id="shiftThemeModal_{{$key}}" tabindex="-1" aria-labelledby="shiftThemeModalLabel_{{$key}}" aria-hidden="true">
+                                @endif
+                                @can('addon_manage_status')
+                                    <button
+                                        class="{{$data['is_published'] == 1 ? 'checkbox-color-primary' : 'text-muted'}} bg-transparent p-0 border-0"
+                                        data-bs-toggle="modal" data-bs-target="#shiftThemeModal_{{$key}}"><img
+                                            src="{{asset('public/assets/admin-module/img/check.svg')}}" class="svg"
+                                            alt="">
+                                    </button>
+                                @endcan
+                                <div class="modal fade" id="shiftThemeModal_{{$key}}" tabindex="-1"
+                                     aria-labelledby="shiftThemeModalLabel_{{$key}}" aria-hidden="true">
                                     <div class="modal-dialog modal-dialog-centered">
                                         <div class="modal-content">
                                             <div class="modal-header border-0 pb-0 d-flex justify-content-end">
@@ -218,57 +223,66 @@
                                             </div>
                                             <div class="modal-body px-4 px-sm-5 text-center">
                                                 <div class="mb-3 text-center">
-                                                    <img width="75" src="{{asset('public/assets/admin-module/img/shift.png')}}" alt="">
+                                                    <img width="75"
+                                                         src="{{asset('public/assets/admin-module/img/shift.png')}}"
+                                                         alt="">
                                                 </div>
 
                                                 <h3 class="mb-3">{{ translate('are_you_sure?') }}</h3>
-                                                @if ($published_status)
+                                                @if ($publishedStatus)
                                                     <p class="mb-5">{{ translate('want_to_change_status') }}</p>
-                                                    @else
+                                                @else
                                                     <p class="mb-5">{{ translate('want_to_active_this_payment_module') }}</p>
                                                 @endif
                                                 <div class="d-flex justify-content-center gap-3 mb-3">
-                                                    <button type="button" class="fs-16 btn btn-secondary px-sm-5" data-bs-dismiss="modal">{{ translate('no') }}</button>
-                                                    <button type="button" class="fs-16 btn btn--primary px-sm-5" data-bs-dismiss="modal" onclick="publish_addon('{{$addon}}')">{{ translate('yes') }}</button>
+                                                    <button type="button" class="fs-16 btn btn-secondary px-sm-5"
+                                                            data-bs-dismiss="modal">{{ translate('no') }}</button>
+                                                    <button type="button"
+                                                            class="fs-16 btn btn--primary px-sm-5 publish-addon"
+                                                            data-publish="{{$addon}}"
+                                                            data-bs-dismiss="modal"
+                                                    >{{ translate('yes') }}</button>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                        </div>
-                    </div>
-
-                    <div class="p-2 p-sm-3">
-                        <div class="mb-2" id="activate_{{$key}}" style="display: none!important;">
-                            <form action="" method="post">
-                                @csrf
-                                <div class="form-group">
-                                    <input type="text" name="username" value=""
-                                            class="form-control" placeholder="{{ translate('codecanyon_username') }}">
-                                </div>
-                                <div class="form-group">
-                                    <input type="text" name="purchase_code" value=""
-                                            class="form-control" placeholder="{{ translate('purchase_code') }}">
-                                    <input type="text" name="path" class="form-control" value="" hidden>
-                                </div>
-
-                                <div>
-                                    <input type="hidden" value="key" name="theme">
-                                    <button type="submit" class="btn btn--primary radius-button text-end">{{translate('activate')}}</button>
-                                </div>
-                            </form>
+                            </div>
                         </div>
 
-                        <div class="aspect-ration-3:2 border border-color-primary-light radius-10">
-                            <img class="img-fit radius-10"
-                                onerror='this.src="{{asset('public/assets/admin/img/placeholder.png')}}"'
-                                src="{{asset($addon.'/public/addon.png')}}">
+                        <div class="p-2 p-sm-3">
+                            <div class="mb-2 d-none" id="activate_{{$key}}">
+                                <form action="" method="post">
+                                    @csrf
+                                    <div class="form-group">
+                                        <input type="text" name="username" value=""
+                                               class="form-control"
+                                               placeholder="{{ translate('codecanyon_username') }}">
+                                    </div>
+                                    <div class="form-group">
+                                        <input type="text" name="purchase_code" value=""
+                                               class="form-control" placeholder="{{ translate('purchase_code') }}">
+                                        <input type="text" name="path" class="form-control" value="" hidden>
+                                    </div>
+
+                                    <div>
+                                        <input type="hidden" value="key" name="theme">
+                                        <button type="submit"
+                                                class="btn btn--primary radius-button text-end">{{translate('activate')}}</button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <div class="aspect-ration-3:2 border border-color-primary-light radius-10">
+                                <img class="img-fit radius-10"
+                                     onerror='this.src="{{asset('public/assets/admin/img/placeholder.png')}}"'
+                                     src="{{asset($addon.'/public/addon.png')}}">
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
             @endforeach
-            <!-- Activated Theme Modal -->
+
             @include('addonmodule::addon.partials.activation-modal')
         </div>
     </div>
@@ -276,55 +290,51 @@
 @endsection
 
 @push('script')
-// <script src="https://cdn.jsdelivr.net/npm/swiper@9/swiper-bundle.min.js"></script>
-<script href="{{ asset('public/assets/admin-module/swiper/swiper-bundle.min.js')}}"></script>
-
-<script>
-    $("img.svg").each(function () {
-    var $img = jQuery(this);
-    var imgID = $img.attr("id");
-    var imgClass = $img.attr("class");
-    var imgURL = $img.attr("src");
-
-    jQuery.get(
-      imgURL,
-      function (data) {
-        // Get the SVG tag, ignore the rest
-        var $svg = jQuery(data).find("svg");
-
-        // Add replaced image's ID to the new SVG
-        if (typeof imgID !== "undefined") {
-          $svg = $svg.attr("id", imgID);
-        }
-        // Add replaced image's classes to the new SVG
-        if (typeof imgClass !== "undefined") {
-          $svg = $svg.attr("class", imgClass + " replaced-svg");
-        }
-
-        // Remove any invalid XML tags as per http://validator.w3.org
-        $svg = $svg.removeAttr("xmlns:a");
-
-        // Check if the viewport is set, else we gonna set it if we can.
-        if (
-          !$svg.attr("viewBox") &&
-          $svg.attr("height") &&
-          $svg.attr("width")
-        ) {
-          $svg.attr(
-            "viewBox",
-            "0 0 " + $svg.attr("height") + " " + $svg.attr("width")
-          );
-        }
-
-        // Replace image with new SVG
-        $img.replaceWith($svg);
-      },
-      "xml"
-    );
-  });
-</script>
+    <script href="{{ asset('public/assets/admin-module/swiper/swiper-bundle.min.js')}}"></script>
 
     <script>
+        'use strict';
+
+        $("img.svg").each(function () {
+            var $img = jQuery(this);
+            var imgID = $img.attr("id");
+            var imgClass = $img.attr("class");
+            var imgURL = $img.attr("src");
+
+            jQuery.get(
+                imgURL,
+                function (data) {
+                    var $svg = jQuery(data).find("svg");
+
+                    if (typeof imgID !== "undefined") {
+                        $svg = $svg.attr("id", imgID);
+                    }
+
+                    if (typeof imgClass !== "undefined") {
+                        $svg = $svg.attr("class", imgClass + " replaced-svg");
+                    }
+
+
+                    $svg = $svg.removeAttr("xmlns:a");
+
+
+                    if (
+                        !$svg.attr("viewBox") &&
+                        $svg.attr("height") &&
+                        $svg.attr("width")
+                    ) {
+                        $svg.attr(
+                            "viewBox",
+                            "0 0 " + $svg.attr("height") + " " + $svg.attr("width")
+                        );
+                    }
+
+                    $img.replaceWith($svg);
+                },
+                "xml"
+            );
+        });
+
         function readUrl(input) {
             if (input.files && input.files[0]) {
                 let reader = new FileReader();
@@ -332,22 +342,35 @@
                     let imgData = e.target.result;
                     let imgName = input.files[0].name;
                     input.setAttribute("data-title", imgName);
-                    // console.log(e.target.result);
                 }
                 reader.readAsDataURL(input.files[0]);
             }
         }
-    </script>
-    <script>
 
-        function zip_upload(){
-            var fileInput = document.getElementById('inputFile'); // Replace 'file_input' with your actual file input ID
+        $('#upload_theme').on('click', function () {
+            zip_upload()
+        })
 
-            // Check if a file has been selected
+        function zip_upload() {
+            var fileInput = document.getElementById('inputFile');
+            let maxFileSize = "{{$condition_one}}";
+            let maxPostSize = "{{$condition_two}}";
+
             if (!fileInput.files || !fileInput.files[0]) {
                 toastr.warning('Please choose a file for upload.');
-                return; // Return without making the AJAX call
+                return;
             }
+
+            if (!maxFileSize) {
+                toastr.warning('Your server php "upload_max_filesize" is must be grater or equal to 20MB');
+                return;
+            }
+
+            if (!maxPostSize) {
+                toastr.warning('Your server php "post_max_size" is must be grater or equal to 20MB');
+                return;
+            }
+
             $.ajaxSetup({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -361,12 +384,12 @@
                 data: formData,
                 processData: false,
                 contentType: false,
-                xhr: function() {
+                xhr: function () {
                     var xhr = new window.XMLHttpRequest();
                     $('#progress-bar').show();
 
-                    // Listen to the upload progress event
-                    xhr.upload.addEventListener("progress", function(e) {
+
+                    xhr.upload.addEventListener("progress", function (e) {
                         if (e.lengthComputable) {
                             var percentage = Math.round((e.loaded * 100) / e.total);
                             $("#uploadProgress").val(percentage);
@@ -379,14 +402,14 @@
                 beforeSend: function () {
                     $('#upload_theme').attr('disabled');
                 },
-                success: function(response) {
+                success: function (response) {
                     if (response.status == 'error') {
                         $('#progress-bar').hide();
                         toastr.error(response.message, {
                             CloseButton: true,
                             ProgressBar: true
                         });
-                    }else if(response.status == 'success'){
+                    } else if (response.status == 'success') {
                         toastr.success(response.message, {
                             CloseButton: true,
                             ProgressBar: true
@@ -400,6 +423,11 @@
             });
         }
 
+        $('.publish-addon').on('click', function () {
+            let filePath = $(this).data('publish')
+            publish_addon(filePath)
+        })
+
         function publish_addon(path) {
             $.ajaxSetup({
                 headers: {
@@ -407,39 +435,43 @@
                 }
             });
             $.post({
-                    url: '{{route('admin.addon.publish')}}',
-                    data: {
-                        'path': path
-                    },
-                    success: function (data) {
-                        if (data.flag === 'inactive') {
-                            // console.log(data.view)
-                            $('#activatedThemeModal').modal('show');
-                            $('#activateData').empty().html(data.view);
-                        } else {
-                            if (data.errors) {
-                                for (var i = 0; i < data.errors.length; i++) {
-                                    toastr.error(data.errors[i].message, {
-                                        CloseButton: true,
-                                        ProgressBar: true
-                                    });
-                                }
-                            } else {
-                                toastr.success('{{ translate("updated successfully!") }}', {
+                url: '{{route('admin.addon.publish')}}',
+                data: {
+                    'path': path
+                },
+                success: function (data) {
+                    if (data.flag === 'inactive') {
+                        $('#activatedThemeModal').modal('show');
+                        $('#activateData').empty().html(data.view);
+                    } else {
+                        if (data.errors) {
+                            for (var i = 0; i < data.errors.length; i++) {
+                                toastr.error(data.errors[i].message, {
                                     CloseButton: true,
                                     ProgressBar: true
                                 });
-                                setTimeout(function () {
-                                    location.reload()
-                                }, 2000);
                             }
+                        } else {
+                            toastr.success('{{ translate("updated successfully!") }}', {
+                                CloseButton: true,
+                                ProgressBar: true
+                            });
+                            setTimeout(function () {
+                                location.reload()
+                            }, 2000);
                         }
                     }
-                });
-            }
+                }
+            });
+        }
 
-            function theme_delete(path){
-                $.ajaxSetup({
+        $('.delete-addon').on('click', function () {
+            let path = $(this).data('value')
+            theme_delete(path)
+        })
+
+        function theme_delete(path) {
+            $.ajaxSetup({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
                 }
@@ -462,7 +494,7 @@
                             CloseButton: true,
                             ProgressBar: true
                         });
-                    }else if(data.status === 'error'){
+                    } else if (data.status === 'error') {
                         toastr.error(data.message, {
                             CloseButton: true,
                             ProgressBar: true

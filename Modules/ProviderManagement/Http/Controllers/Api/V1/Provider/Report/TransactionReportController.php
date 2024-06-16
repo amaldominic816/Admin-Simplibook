@@ -36,6 +36,7 @@ class TransactionReportController extends Controller
     protected Service $service;
     protected User $user;
     protected Transaction $transaction;
+    protected BookingDetailsAmount $booking_details_amount;
 
     public function __construct(Zone $zone, Provider $provider, Category $categories, Service $service, Booking $booking, Account $account, User $user, Transaction $transaction, BookingDetailsAmount $booking_details_amount)
     {
@@ -51,17 +52,14 @@ class TransactionReportController extends Controller
         $this->booking_details_amount = $booking_details_amount;
     }
 
-
     /**
      * Display a listing of the resource.
      * @param Request $request
      * @return JsonResponse
      */
-    public function get_transaction_report(Request $request): JsonResponse
+    public function getTransactionReport(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-//            'zone_ids' => isset($request['zone_ids'][0]) ? 'array' : '',
-//            'zone_ids.*' => isset($request['zone_ids'][0]) ? 'uuid' : '',
             'date_range' => 'in:all_time,this_week,last_week,this_month,last_month,last_15_days,this_year,last_year,last_6_month,this_year_1st_quarter,this_year_2nd_quarter,this_year_3rd_quarter,this_year_4th_quarter,custom_date',
             'from' => $request['date_range'] == 'custom_date' ? 'required' : '',
             'to' => $request['date_range'] == 'custom_date' ? 'required' : '',
@@ -76,27 +74,27 @@ class TransactionReportController extends Controller
         }
 
         //Dropdown data
-        $provider_zones = $this->booking->where('provider_id', $request->user()->provider->id)->distinct('zone_id')->pluck('zone_id')->toArray();
-        $zones = $this->zone->ofStatus(1)->select('id', 'name')->whereIn('id', $provider_zones)->get();
+        $providerZones = $this->booking->where('provider_id', $request->user()->provider->id)->distinct('zone_id')->pluck('zone_id')->toArray();
+        $zones = $this->zone->ofStatus(1)->select('id', 'name')->whereIn('id', $providerZones)->get();
 
         //params
-        $query_params = [];
+        $queryParams = [];
         $transaction_type = $request->has('transaction_type') ? $request->transaction_type : 'all';
-        $query_params['transaction_type'] = $transaction_type;
+        $queryParams['transaction_type'] = $transaction_type;
         $search = $request['search'];
-        $query_params['search'] = $search;
+        $queryParams['search'] = $search;
         if($request->has('zone_ids')) {
-            $query_params['zone_ids'] = $request['zone_ids'];
+            $queryParams['zone_ids'] = $request['zone_ids'];
         }
         if ($request->has('date_range')) {
-            $query_params['date_range'] = $request['date_range'];
+            $queryParams['date_range'] = $request['date_range'];
         }
         if ($request->has('date_range') && $request['date_range'] == 'custom_date') {
-            $query_params['from'] = $request['from'];
-            $query_params['to'] = $request['to'];
+            $queryParams['from'] = $request['from'];
+            $queryParams['to'] = $request['to'];
         }
 
-        $filtered_transactions = $this->transaction
+        $filteredTransactions = $this->transaction
             ->with(['booking', 'from_user.provider', 'to_user.provider'])
             ->when($request->has('transaction_type') && $request->transaction_type != 'all', function ($query) use($request) {
                 if ($request->transaction_type == 'debit') {
@@ -105,15 +103,6 @@ class TransactionReportController extends Controller
                     $query->where('credit', '!=', 0);
                 }
             })
-//            ->when($request->has('zone_ids'), function ($query) use ($request) {
-//                $query->whereHas('booking', function ($query) use ($request) {
-//                    $query->whereIn('zone_id', $request['zone_ids']);
-//                })->orWhereHas('to_user.provider', function ($query) use ($request) {
-//                    $query->whereIn('zone_id', $request['zone_ids']);
-//                })->orWhereHas('from_user.provider', function ($query) use ($request) {
-//                    $query->whereIn('zone_id', $request['zone_ids']);
-//                });
-//            })
             ->where(function ($query) use ($request) {
                 $query->where('to_user_id', $request->user()->id)->orWhere('from_user_id', $request->user()->id);
             })
@@ -182,15 +171,15 @@ class TransactionReportController extends Controller
             ->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $account_info = Account::where('user_id', $request->user()->id)->first();
+        $accountInfo = Account::where('user_id', $request->user()->id)->first();
 
 
         return response()->json(response_formatter(DEFAULT_200, [
             'zones' => $zones,
-            'filtered_transactions' => $filtered_transactions,
+            'filtered_transactions' => $filteredTransactions,
             'transaction_type' => $transaction_type,
-            'account_info' => $account_info,
-            'query_params' => $query_params
+            'account_info' => $accountInfo,
+            'query_params' => $queryParams
         ]), 200);
     }
 
@@ -203,11 +192,9 @@ class TransactionReportController extends Controller
      * @throws \Box\Spout\Common\Exception\UnsupportedTypeException
      * @throws \Box\Spout\Writer\Exception\WriterNotOpenedException
      */
-    public function download_transaction_report(Request $request): StreamedResponse|string
+    public function downloadTransactionReport(Request $request): StreamedResponse|string
     {
         Validator::make($request->all(), [
-//            'zone_ids' => !is_null($request['zone_ids'][0]) ? 'array' : '',
-//            'zone_ids.*' => !is_null($request['zone_ids'][0]) ? 'uuid' : '',
             'date_range' => 'in:all_time, this_week, last_week, this_month, last_month, last_15_days, this_year, last_year, last_6_month, this_year_1st_quarter, this_year_2nd_quarter, this_year_3rd_quarter, this_year_4th_quarter, custom_date',
             'from' => $request['date_range'] == 'custom_date' ? 'required' : '',
             'to' => $request['date_range'] == 'custom_date' ? 'required' : '',
@@ -215,7 +202,7 @@ class TransactionReportController extends Controller
             'transaction_type' => 'in:all,debit,credit'
         ]);
 
-        $filtered_transactions = $this->transaction
+        $filteredTransactions = $this->transaction
             ->with(['booking', 'from_user', 'to_user'])
             ->when($request->has('transaction_type') && $request->transaction_type != 'all', function ($query) use($request) {
                 if ($request->transaction_type == 'debit') {
@@ -294,7 +281,7 @@ class TransactionReportController extends Controller
             ->latest()->get();
 
 
-        return (new FastExcel($filtered_transactions))->download(time().'-provider-report.xlsx', function ($transaction) {
+        return (new FastExcel($filteredTransactions))->download(time().'-provider-report.xlsx', function ($transaction) {
             return [
                 'Transaction ID' => $transaction->id,
                 'Transaction Date' => date('d-M-Y h:ia',strtotime($transaction->created_at)),

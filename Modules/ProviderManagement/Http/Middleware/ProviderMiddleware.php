@@ -20,7 +20,7 @@ class ProviderMiddleware
         if (auth()->check() && in_array(auth()->user()->user_type, PROVIDER_USER_TYPES)) {
             return $next($request);
         }
-        Toastr::info(ACCESS_DENIED['message']);
+        Toastr::info(translate(ACCESS_DENIED['message']));
         return redirect('provider/auth/login');
     }
 }

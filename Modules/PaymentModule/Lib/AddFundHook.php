@@ -11,13 +11,16 @@ if (!function_exists('add_fund_success')) {
     {
         $customer_user_id = $data['payer_id'];
         $amount = $data['payment_amount'];
-        add_fund_transactions($customer_user_id, $amount);
+        addFundTransactions($customer_user_id, $amount);
 
         //send notification
-        $customer_fcm = User::find($customer_user_id)->fcm_token;
-        $title = with_currency_symbol($amount) . ' ' . translate('has been credited to your wallet');
-        if ($customer_fcm) {
-            device_notification($customer_fcm, $title, null, null, null, NOTIFICATION_TYPE['wallet'], null, $customer_user_id);
+        $user = User::find($customer_user_id);
+        $title =  with_currency_symbol($amount) . ' ' . get_push_notification_message('add_fund_wallet', 'customer_notification', $user?->current_language_key);
+        $data_info = [
+            'user_name' => $user?->first_name . ' '. $user->last_name
+        ];
+        if ($user->fcm_token && $title) {
+            device_notification($user->fcm_token, $title, null, null, null, NOTIFICATION_TYPE['wallet'], null, $customer_user_id, $data_info);
         }
     }
 }

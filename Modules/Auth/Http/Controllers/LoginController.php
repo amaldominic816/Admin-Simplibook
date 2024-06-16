@@ -42,7 +42,7 @@ class LoginController extends Controller
      * Display a listing of the resource.
      * @return Application|Factory|View
      */
-    public function login_form(): Application|Factory|View
+    public function loginForm(): Application|Factory|View
     {
         return view('auth::admin-login');
     }
@@ -52,7 +52,7 @@ class LoginController extends Controller
      * @param Request $request
      * @return RedirectResponse
      */
-    public function admin_login(Request $request): RedirectResponse
+    public function adminLogin(Request $request): RedirectResponse
     {
         $request->validate($this->validation_array);
 
@@ -67,11 +67,11 @@ class LoginController extends Controller
                 }
             }
 
-            Toastr::error(ACCOUNT_DISABLED['message']);
+            Toastr::error(translate(ACCOUNT_DISABLED['message']));
             return back();
         }
 
-        Toastr::error(AUTH_LOGIN_401['message']);
+        Toastr::error(translate(AUTH_LOGIN_401['message']));
         return back();
     }
 
@@ -79,7 +79,7 @@ class LoginController extends Controller
      * Display a listing of the resource.
      * @return Application|Factory|View
      */
-    public function provider_login_form(): Application|Factory|View
+    public function providerLoginForm(): Application|Factory|View
     {
         return view('auth::provider-login');
     }
@@ -87,9 +87,10 @@ class LoginController extends Controller
     /**
      * Display a listing of the resource.
      * @param Request $request
-     * @return JsonResponse
+     * @return RedirectResponse
+     * @throws \Exception
      */
-    public function provider_login(Request $request): RedirectResponse
+    public function providerLogin(Request $request): RedirectResponse
     {
         $request->validate($this->validation_array);
 
@@ -100,43 +101,37 @@ class LoginController extends Controller
             ->ofType(PROVIDER_USER_TYPES)
             ->first();
 
-        if(!isset($user)) {
-            Toastr::error(AUTH_LOGIN_404['message']);
+        if (!isset($user)) {
+            Toastr::error(translate(AUTH_LOGIN_404['message']));
             return back();
         }
 
-        //not found
         if (!isset($user)) {
-            Toastr::error(AUTH_LOGIN_404['message']);
+            Toastr::error(translate(AUTH_LOGIN_404['message']));
             return redirect(route('provider.auth.login'));
         }
 
-        $temp_block_time = business_config('temporary_login_block_time', 'otp_login_setup')?->live_values ?? 600; // seconds
+        $temp_block_time = business_config('temporary_login_block_time', 'otp_login_setup')?->live_values ?? 600;
 
-        //if temporarily blocked
         if ($user->is_temp_blocked) {
-            //if 'temporary block period' has not expired
-            if(isset($user->temp_block_time) && Carbon::parse($user->temp_block_time)->DiffInSeconds() <= $temp_block_time){
+            if (isset($user->temp_block_time) && Carbon::parse($user->temp_block_time)->DiffInSeconds() <= $temp_block_time) {
                 $time = $temp_block_time - Carbon::parse($user->temp_block_time)->DiffInSeconds();
-                Toastr::error(translate('Your account is temporarily blocked. Please_try_again_after_'). CarbonInterval::seconds($time)->cascade()->forHumans());
+                Toastr::error(translate('Your account is temporarily blocked. Please_try_again_after_') . CarbonInterval::seconds($time)->cascade()->forHumans());
                 return redirect(route('provider.auth.login'));
             }
 
-            //reset
             $user->login_hit_count = 0;
             $user->is_temp_blocked = 0;
             $user->temp_block_time = null;
             $user->save();
         }
 
-        //credentials mismatch
         if (!Hash::check($request['password'], $user['password'])) {
             self::update_user_hit_count($user);
-            Toastr::error(AUTH_LOGIN_401['message']);
+            Toastr::error(translate(AUTH_LOGIN_401['message']));
             return redirect(route('provider.auth.login'));
         }
 
-        //phone verification
         $phone_verification = business_config('phone_verification', 'service_setup')?->live_values ?? 0;
         if ($phone_verification && !$user->is_phone_verified) {
             self::update_user_hit_count($user);
@@ -144,7 +139,6 @@ class LoginController extends Controller
             return redirect(route('provider.auth.verification.index'));
         }
 
-        //email verification
         $email_verification = business_config('email_verification', 'service_setup')?->live_values ?? 0;
         if ($email_verification && !$user->is_email_verified) {
             self::update_user_hit_count($user);
@@ -152,30 +146,39 @@ class LoginController extends Controller
             return redirect(route('provider.auth.verification.index'));
         }
 
-        //not active
-        if (!$user->is_active || !$user->provider->is_approved || !$user->provider->is_active) {
+        if ($user->provider->is_approved == '2') {
             self::update_user_hit_count($user);
-            Toastr::error(ACCOUNT_DISABLED['message']);
+            Toastr::error(translate(PROVIDER_ACCOUNT_NOT_APPROVED['message']));
             return redirect(route('provider.auth.login'));
         }
 
-        //req within blocking
-        if(isset($user->temp_block_time) && Carbon::parse($user->temp_block_time)->DiffInSeconds() <= $temp_block_time){
+        if ($user->provider->is_approved == '0') {
+            self::update_user_hit_count($user);
+            Toastr::error(translate(ACCOUNT_REJECTED['message']));
+            return redirect(route('provider.auth.login'));
+        }
+
+        if (!$user->is_active || !$user->provider->is_active) {
+            self::update_user_hit_count($user);
+            Toastr::error(translate(ACCOUNT_DISABLED['message']));
+            return redirect(route('provider.auth.login'));
+        }
+
+        if (isset($user->temp_block_time) && Carbon::parse($user->temp_block_time)->DiffInSeconds() <= $temp_block_time) {
             $time = $temp_block_time - Carbon::parse($user->temp_block_time)->DiffInSeconds();
             Toastr::error(translate('Try_again_after') . ' ' . CarbonInterval::seconds($time)->cascade()->forHumans());
             return redirect()->route('provider.dashboard');
         }
 
-        //login success
         if (auth()->attempt(['email' => $request->email_or_phone, 'password' => $request->password])) {
             return redirect()->route('provider.dashboard');
         } else {
-            Toastr::error(ACCESS_DENIED['message']);
+            Toastr::error(translate(ACCESS_DENIED['message']));
             return back();
         }
     }
 
-    public function update_user_hit_count($user)
+    public function update_user_hit_count($user): void
     {
         $max_login_hit = business_config('maximum_login_hit', 'otp_login_setup')?->live_values ?? 5;
 
@@ -193,7 +196,7 @@ class LoginController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function customer_login(Request $request): JsonResponse
+    public function customerLogin(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), $this->validation_array);
         if ($validator->fails()) return response()->json(response_formatter(AUTH_LOGIN_403, null, error_processor($validator)), 403);
@@ -219,7 +222,7 @@ class LoginController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function serviceman_login(Request $request): JsonResponse
+    public function servicemanLogin(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'phone' => 'required',
@@ -241,7 +244,7 @@ class LoginController extends Controller
     }
 
 
-    public function social_customer_login(Request $request): JsonResponse
+    public function socialCustomerLogin(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'token' => 'required',
@@ -308,9 +311,11 @@ class LoginController extends Controller
 
     /**
      * Show the form for creating a new resource.
+     * @param $user
+     * @param $access_type
      * @return array
      */
-    protected function authenticate($user, $access_type)
+    protected function authenticate($user, $access_type): array
     {
         return ['token' => $user->createToken($access_type)->accessToken, 'is_active' => $user['is_active']];
     }
@@ -318,15 +323,16 @@ class LoginController extends Controller
     /**
      * Show the form for creating a new resource.
      * @param Request $request
-     * @return JsonResponse
+     * @return RedirectResponse
      */
     public function logout(Request $request): RedirectResponse
     {
-        if(auth()->user()) {
+        if (auth()->user()) {
             $redirect_route = in_array(auth()->user()->user_type, ADMIN_USER_TYPES) ? 'admin.auth.login' : 'provider.auth.login';
             auth()->guard('web')->logout();
             return redirect()->route($redirect_route);
         }
+
         return redirect()->back();
     }
 }

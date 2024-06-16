@@ -1,11 +1,6 @@
 @extends('providermanagement::layouts.master')
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="row">
@@ -16,17 +11,11 @@
 
                     <div class="card">
                         <div class="card-body">
-                            Coming soon
+                            {{translate('Coming soon')}}
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <!-- End Main Content -->
 @endsection
-
-@push('script')
-
-
-@endpush

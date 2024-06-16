@@ -21,13 +21,12 @@ class InstallController extends Controller
 {
     use ActivationClass, UnloadedHelpers;
 
-    public function step0()
+    public function step0(): Factory|View|Application
     {
         return view('installation.step0');
     }
 
-
-    public function step1(Request $request)
+    public function step1(Request $request): View|Factory|RedirectResponse|Application
     {
         if (Hash::check('step_1', $request['token'])) {
             $permission['curl_enabled'] = function_exists('curl_version');
@@ -39,7 +38,7 @@ class InstallController extends Controller
         return redirect()->route('step0');
     }
 
-    public function step2(Request $request)
+    public function step2(Request $request): View|Factory|RedirectResponse|Application
     {
         if (Hash::check('step_2', $request['token'])) {
             return view('installation.step2');
@@ -48,7 +47,7 @@ class InstallController extends Controller
         return redirect()->route('step0');
     }
 
-    public function step3(Request $request)
+    public function step3(Request $request): View|Factory|RedirectResponse|Application
     {
         if (Hash::check('step_3', $request['token'])) {
             return view('installation.step3');
@@ -57,7 +56,7 @@ class InstallController extends Controller
         return redirect()->route('step0');
     }
 
-    public function step4(Request $request)
+    public function step4(Request $request): View|Factory|RedirectResponse|Application
     {
         if (Hash::check('step_4', $request['token'])) {
             return view('installation.step4');
@@ -66,7 +65,7 @@ class InstallController extends Controller
         return redirect()->route('step0');
     }
 
-    public function step5(Request $request)
+    public function step5(Request $request): View|Factory|RedirectResponse|Application
     {
         if (Hash::check('step_5', $request['token'])) {
             return view('installation.step5');
@@ -77,8 +76,6 @@ class InstallController extends Controller
 
     public function purchase_code(Request $request): RedirectResponse
     {
-          $response = 'active';
-          /**
         $this->setEnvironmentValue('SOFTWARE_ID', 'NDAyMjQ3NzI=');
         $this->setEnvironmentValue('BUYER_USERNAME', $request['username']);
         $this->setEnvironmentValue('PURCHASE_CODE', $request['purchase_key']);
@@ -91,22 +88,11 @@ class InstallController extends Controller
             'domain' => preg_replace("#^[^:/.]*[:/]+#i", "", url('/')),
         ];
         $response = $this->dmvf($post);
-        */
 
-        try {
-            if ($response=='active') {
-                session()->flash('success', 'Your software has been activated for this domain "' . $post['domain'] . '".');
-                return redirect()->route(base64_decode('c3RlcDM='), ['token' => $request['token']]);//s3
-            }
-            session()->flash('error', 'The purchase code you provided is invalid. Please buy one from codecanyon.');
-            return redirect()->route(base64_decode('c3RlcDM='), ['token' => $request['token']]);//s3
-        } catch (\Exception $exception) {
-            session()->flash('error', 'The purchase code you provided is invalid. Please buy one from codecanyon.');
-            return redirect()->route(base64_decode('c3RlcDM='), ['token' => $request['token']]);//s3
-        }
+        return redirect($response . '?token=' . bcrypt('step_3'));
     }
 
-    public function system_settings(Request $request)
+    public function system_settings(Request $request): View|Factory|RedirectResponse|Application
     {
         if (!Hash::check('step_6', $request['token'])) {
             session()->flash('error', 'Access denied!');
@@ -131,11 +117,10 @@ class InstallController extends Controller
         copy($newRouteServiceProvier, $previousRouteServiceProvier);
 
         Artisan::call('module:enable');
-        //sleep(5);
         return view('installation.step6');
     }
 
-    public function database_installation(Request $request)
+    public function database_installation(Request $request): Redirector|Application|RedirectResponse
     {
         if (self::check_database_connection($request->DB_HOST, $request->DB_DATABASE, $request->DB_USERNAME, $request->DB_PASSWORD)) {
 
@@ -180,7 +165,7 @@ class InstallController extends Controller
                     BUYER_USERNAME=' . session('username') . '
                     SOFTWARE_ID=NDAyMjQ3NzI=
 
-                    SOFTWARE_VERSION=2.1
+                    SOFTWARE_VERSION=2.6
                     ';
             $file = fopen(base_path('.env'), 'w');
             fwrite($file, $output);
@@ -199,11 +184,12 @@ class InstallController extends Controller
         }
     }
 
-    public function import_sql()
+    public function import_sql(): Redirector|RedirectResponse|Application
     {
         try {
             $sql_path = base_path('installation/backup/database.sql');
             DB::unprepared(file_get_contents($sql_path));
+
             return redirect()->route('step5', ['token' => bcrypt('step_5')]);
         } catch (\Exception $exception) {
             session()->flash('error', 'Your database is not clean, do you want to clean database then import?');
@@ -211,12 +197,13 @@ class InstallController extends Controller
         }
     }
 
-    public function force_import_sql()
+    public function force_import_sql(): Redirector|RedirectResponse|Application
     {
         try {
             Artisan::call('db:wipe');
             $sql_path = base_path('installation/backup/database.sql');
             DB::unprepared(file_get_contents($sql_path));
+
             return redirect()->route('step5', ['token' => bcrypt('step_5')]);
         } catch (\Exception $exception) {
             session()->flash('error', 'Check your database permission!');
@@ -232,7 +219,7 @@ class InstallController extends Controller
             } else {
                 return false;
             }
-        }catch(\Exception $exception){
+        } catch (\Exception $exception) {
             return false;
         }
     }

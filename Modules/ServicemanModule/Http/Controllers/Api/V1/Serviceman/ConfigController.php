@@ -23,6 +23,7 @@ class ConfigController extends Controller
         $this->google_map_base_api = 'https://maps.googleapis.com/maps/api';
     }
 
+
     /**
      * Display a listing of the resource.
      * @param Request $request
@@ -32,19 +33,36 @@ class ConfigController extends Controller
     {
         $location = Location::get($request->ip());
 
+        $advancedBooking =  [
+            'advanced_booking_restriction_value' => (int) business_config('advanced_booking_restriction_value', 'booking_setup')?->live_values,
+            'advanced_booking_restriction_type' => business_config('advanced_booking_restriction_type', 'booking_setup')?->live_values,
+        ];
+
+        $countryData = business_config('system_language', 'business_information')?->live_values;
+
+        $country = [];
+
+        foreach ($countryData as $item) {
+            if ($item['status'] == 1) {
+                $country[] = $item;
+            }
+        }
+
         return response()->json(response_formatter(DEFAULT_200, [
             'currency_symbol_position' => (business_config('currency_symbol_position', 'business_information'))->live_values ?? null,
             'serviceman_can_cancel_booking' => (int)(business_config('serviceman_can_cancel_booking', 'serviceman_config'))?->live_values,
             'serviceman_can_edit_booking' => (int)(business_config('serviceman_can_edit_booking', 'serviceman_config'))?->live_values,
             'business_name' => (business_config('business_name', 'business_information'))->live_values ?? null,
             'logo' => (business_config('business_logo', 'business_information'))->live_values ?? null,
+            'favicon' => (business_config('business_favicon', 'business_information'))->live_values ?? null,
             'country_code' => (business_config('country_code', 'business_information'))->live_values ?? null,
             'business_address' => (business_config('business_address', 'business_information'))->live_values ?? null,
             'business_phone' => (business_config('business_phone', 'business_information'))->live_values ?? null,
             'business_email' => (business_config('business_email', 'business_information'))->live_values ?? null,
-            'base_url' => url('/') . 'api/v1/',
+            'base_url' => rtrim(url('/'), '/') . '/api/v1/',
             'currency_decimal_point' => (business_config('currency_decimal_point', 'business_information'))->live_values ?? null,
             'currency_code' => (business_config('currency_code', 'business_information'))->live_values ?? null,
+            'currency_symbol' => currency_symbol() ?? '',
             'about_us' => route('about-us'),
             'privacy_policy' => route('privacy-policy'),
             'terms_and_conditions' => (business_config('terms_and_conditions', 'pages_setup'))->is_active ? route('terms-and-conditions') : "",
@@ -54,17 +72,10 @@ class ConfigController extends Controller
                 'lat' => $location->latitude ?? null,
                 'lon' => $location->longitude ?? null
             ]],
-            'user_location_info' => $location,
-            'app_url_android' => '',
-            'app_url_ios' => '',
             'sms_verification' => (business_config('sms_verification', 'service_setup'))->live_values ?? null,
-            'map_api_key' => $this->google_map,
             'image_base_url' => asset('storage/app/public'),
-            'pagination_limit' => 20,
-            'languages' => LANGUAGES,
-            'currencies' => CURRENCIES,
-            'countries' => COUNTRIES,
-            'time_zones' => DateTimeZone::listIdentifiers(),
+            'pagination_limit' => (int)pagination_limit(),
+            'time_format' => (business_config('time_format', 'business_information'))->live_values ?? '24h',
             'footer_text' => (business_config('footer_text', 'business_information'))->live_values ?? null,
             'min_versions' => json_decode((business_config('serviceman_app_settings', 'app_settings'))->live_values ?? null),
             'phone_verification' => (int)((business_config('phone_verification', 'service_setup'))->live_values ?? 0),
@@ -76,10 +87,15 @@ class ConfigController extends Controller
             'booking_additional_charge' => (int)(business_config('booking_additional_charge', 'booking_setup'))?->live_values ?? null,
             'additional_charge_label_name' => (string)(business_config('additional_charge_label_name', 'booking_setup'))?->live_values ?? null,
             'additional_charge_fee_amount' => (int)(business_config('additional_charge_fee_amount', 'booking_setup'))?->live_values ?? null,
+            'system_language' => $country,
+            'instant_booking' => (int) business_config('instant_booking', 'booking_setup')?->live_values,
+            'schedule_booking' => (int) business_config('schedule_booking', 'booking_setup')?->live_values,
+            'schedule_booking_time_restriction' => (int) business_config('schedule_booking_time_restriction', 'booking_setup')?->live_values,
+            'advanced_booking' => $advancedBooking,
         ]), 200);
     }
 
-    public function get_zone(Request $request): JsonResponse
+    public function getZone(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'lat' => 'required',
@@ -100,7 +116,7 @@ class ConfigController extends Controller
         return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
-    public function place_api_autocomplete(Request $request): JsonResponse
+    public function placeApiAutocomplete(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'search_text' => 'required',
@@ -113,7 +129,7 @@ class ConfigController extends Controller
         return response()->json(response_formatter(DEFAULT_200, $response->json()), 200);
     }
 
-    public function distance_api(Request $request): JsonResponse
+    public function distanceApi(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'origin_lat' => 'required',
@@ -131,7 +147,7 @@ class ConfigController extends Controller
         return response()->json(response_formatter(DEFAULT_200, $response->json()), 200);
     }
 
-    public function place_api_details(Request $request): JsonResponse
+    public function placeApiDetails(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'placeid' => 'required',
@@ -146,7 +162,7 @@ class ConfigController extends Controller
         return response()->json(response_formatter(DEFAULT_200, $response->json()), 200);
     }
 
-    public function geocode_api(Request $request): JsonResponse
+    public function geocodeApi(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'lat' => 'required',
@@ -160,7 +176,7 @@ class ConfigController extends Controller
         return response()->json(response_formatter(DEFAULT_200, $response->json()), 200);
     }
 
-    public function get_routes(Request $request): JsonResponse
+    public function getRoutes(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'origin_latitude' => 'required',

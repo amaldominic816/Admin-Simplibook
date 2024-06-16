@@ -5,6 +5,8 @@ namespace Modules\ProviderManagement\Http\Controllers\Api\V1\Provider;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Modules\UserManagement\Entities\User;
 use Stevebauman\Location\Facades\Location;
@@ -20,7 +22,7 @@ class ConfigController extends Controller
         $this->google_map = business_config('google_map', 'third_party');
     }
 
-    public function get_routes(Request $request): JsonResponse
+    public function getRoutes(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'origin_latitude' => 'required',
@@ -50,20 +52,57 @@ class ConfigController extends Controller
     public function config(Request $request): JsonResponse
     {
         $location = Location::get($request->ip());
+
+        $advancedBooking =  [
+            'advanced_booking_restriction_value' => (int) business_config('advanced_booking_restriction_value', 'booking_setup')?->live_values,
+            'advanced_booking_restriction_type' => business_config('advanced_booking_restriction_type', 'booking_setup')?->live_values,
+        ];
+
+        //payment gateways
+        $isPublished = 0;
+        try {
+            $fullData = include('Modules/Gateways/Addon/info.php');
+            $isPublished = $fullData['is_published'] == 1 ? 1 : 0;
+        } catch (\Exception $exception) {}
+
+        $payment_gateways = collect($this->getPaymentMethods())
+            ->filter(function ($query) use ($isPublished) {
+                if (!$isPublished) {
+                    return in_array($query['gateway'], array_column(PAYMENT_METHODS, 'key'));
+                } else return $query;
+            })->map(function ($query) {
+                $query['label'] = ucwords(str_replace('_', ' ', $query['gateway']));
+                return $query;
+            })->values();
+
+        $countryData = business_config('system_language', 'business_information')?->live_values;
+
+        $country = [];
+
+        foreach ($countryData as $item) {
+            if ($item['status'] == 1) {
+                $country[] = $item;
+            }
+        }
+
         return response()->json(response_formatter(DEFAULT_200, [
             'provider_can_cancel_booking' => (int)((business_config('provider_can_cancel_booking', 'provider_config'))->live_values ?? null),
             'provider_self_registration' => (int)((business_config('provider_self_registration', 'provider_config'))->live_values ?? null),
+            'provider_self_delete' => (int)((business_config('provider_self_delete', 'provider_config'))->live_values ?? null),
+            'min_payable_amount' => (int)((business_config('min_payable_amount', 'provider_config'))->live_values ?? null),
             'provider_can_edit_booking' => (int)((business_config('provider_can_edit_booking', 'provider_config'))->live_values ?? null),
             'currency_symbol_position' => (business_config('currency_symbol_position', 'business_information'))->live_values ?? null,
             'business_name' => (business_config('business_name', 'business_information'))->live_values ?? null,
             'logo' => (business_config('business_logo', 'business_information'))->live_values ?? null,
+            'favicon' => (business_config('business_favicon', 'business_information'))->live_values ?? null,
             'country_code' => (business_config('country_code', 'business_information'))->live_values ?? null,
             'business_address' => (business_config('business_address', 'business_information'))->live_values ?? null,
             'business_phone' => (business_config('business_phone', 'business_information'))->live_values ?? null,
             'business_email' => (business_config('business_email', 'business_information'))->live_values ?? null,
-            'base_url' => url('/') . 'api/v1/',
+            'base_url' => rtrim(url('/'), '/') . '/api/v1/',
             'currency_decimal_point' => (business_config('currency_decimal_point', 'business_information'))->live_values ?? null,
             'currency_code' => (business_config('currency_code', 'business_information'))->live_values ?? null,
+            'currency_symbol' => currency_symbol() ?? '',
             'about_us' => route('about-us'),
             'privacy_policy' => route('privacy-policy'),
             'terms_and_conditions' => (business_config('terms_and_conditions', 'pages_setup'))->is_active ? route('terms-and-conditions') : "",
@@ -73,19 +112,11 @@ class ConfigController extends Controller
                 'lat' => $location->latitude ?? null,
                 'lon' => $location->longitude ?? null
             ]],
-            'user_location_info' => $location,
-            'app_url_android' => '',
-            'app_url_ios' => '',
-            //'sms_verification' => (business_config('sms_verification', 'service_setup'))->live_values ?? null,
-            //'email_verification' => (business_config('email_verification', 'service_setup'))->live_values ?? null,
-            'map_api_key' => $this->google_map,
             'image_base_url' => asset('storage/app/public'),
             'pagination_limit' => (int)pagination_limit(),
-            'languages' => LANGUAGES,
-            'currencies' => CURRENCIES,
-            'countries' => COUNTRIES,
-            'time_zones' => DateTimeZone::listIdentifiers(),
-            'recaptcha' => (business_config('recaptcha', 'third_party'))->live_values ?? null,
+            'time_format' => (business_config('time_format', 'business_information'))->live_values ?? '24h',
+            'max_cash_in_hand_limit_provider' => (business_config('max_cash_in_hand_limit_provider', 'provider_config'))->live_values ?? 0,
+            'suspend_on_exceed_cash_limit_provider' => (business_config('suspend_on_exceed_cash_limit_provider', 'provider_config'))->live_values ?? 0,
             'default_commission' => (business_config('default_commission', 'business_information'))->live_values,
             'admin_details' => User::select('id', 'first_name', 'last_name', 'profile_image')->where('user_type', ADMIN_USER_TYPES[0])->first(),
             'footer_text' => (business_config('footer_text', 'business_information'))->live_values ?? null,
@@ -104,6 +135,37 @@ class ConfigController extends Controller
             'booking_additional_charge' => (int)(business_config('booking_additional_charge', 'booking_setup'))?->live_values ?? null,
             'additional_charge_label_name' => (string)(business_config('additional_charge_label_name', 'booking_setup'))?->live_values ?? null,
             'additional_charge_fee_amount' => (int)(business_config('additional_charge_fee_amount', 'booking_setup'))?->live_values ?? null,
+            'payment_gateways' => $payment_gateways,
+            'system_language' => $country,
+            'instant_booking' => (int) business_config('instant_booking', 'booking_setup')?->live_values,
+            'schedule_booking' => (int) business_config('schedule_booking', 'booking_setup')?->live_values,
+            'schedule_booking_time_restriction' => (int) business_config('schedule_booking_time_restriction', 'booking_setup')?->live_values,
+            'advanced_booking' => $advancedBooking,
         ]), 200);
+    }
+
+    private function getPaymentMethods(): array
+    {
+        // Check if the addon_settings table exists
+        if (!Schema::hasTable('addon_settings')) {
+            return [];
+        }
+
+        $methods = DB::table('addon_settings')->where('settings_type', 'payment_config')->get();
+        $env = env('APP_ENV') == 'live' ? 'live' : 'test';
+        $credentials = $env . '_values';
+
+        $data = [];
+        foreach ($methods as $method) {
+            $credentialsData = json_decode($method->$credentials);
+            $additionalData = json_decode($method->additional_data);
+            if ($credentialsData->status == 1) {
+                $data[] = [
+                    'gateway' => $method->key_name,
+                    'gateway_image' => $additionalData?->gateway_image
+                ];
+            }
+        }
+        return $data;
     }
 }

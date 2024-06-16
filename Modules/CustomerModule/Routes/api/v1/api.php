@@ -15,11 +15,10 @@ use Modules\CustomerModule\Http\Controllers\Api\V1\Customer\CustomerController;
 |
 */
 
-//admin section
 Route::group(['prefix' => 'admin', 'as'=>'admin.', 'namespace' => 'Api\V1\Admin','middleware'=>['auth:api']], function () {
     Route::resource('customer', 'CustomerController', ['only' => ['index', 'store', 'edit', 'update']]);
     Route::group(['prefix' => 'customer', 'as' => 'customer.',], function () {
-        Route::put('status/update', 'CustomerController@status_update');
+        Route::put('status/update', 'CustomerController@statusUpdate');
         Route::delete('delete', 'CustomerController@destroy');
 
         Route::group(['prefix' => 'data', 'as' => 'data.',], function () {
@@ -27,38 +26,39 @@ Route::group(['prefix' => 'admin', 'as'=>'admin.', 'namespace' => 'Api\V1\Admin'
             Route::get('bookings/{id}', 'CustomerController@bookings');
             Route::get('reviews/{id}', 'CustomerController@reviews');
 
-            Route::post('store-address', 'CustomerController@store_address');
-            Route::get('edit-address/{id}', 'CustomerController@edit_address');
-            Route::put('update-address/{id}', 'CustomerController@update_address');
-            Route::delete('delete/{id}', 'CustomerController@destroy_address');
+            Route::post('store-address', 'CustomerController@storeAddress');
+            Route::get('edit-address/{id}', 'CustomerController@editAddress');
+            Route::put('update-address/{id}', 'CustomerController@updateAddress');
+            Route::delete('delete/{id}', 'CustomerController@destroyAddress');
         });
 
     });
 });
 
-//customer section
 Route::group(['prefix' => 'customer', 'as' => 'customer.', 'namespace' => 'Api\V1\Customer'], function () {
 
     Route::group(['prefix' => 'config'], function () {
         Route::get('/', 'ConfigController@configuration');
         Route::get('pages', 'ConfigController@pages');
-        Route::get('get-zone-id', 'ConfigController@get_zone');
-        Route::get('place-api-autocomplete', 'ConfigController@place_api_autocomplete');
-        Route::get('distance-api', 'ConfigController@distance_api');
-        Route::get('place-api-details', 'ConfigController@place_api_details');
-        Route::get('geocode-api', 'ConfigController@geocode_api');
+        Route::get('get-zone-id', 'ConfigController@getZone');
+        Route::get('place-api-autocomplete', 'ConfigController@placeApiAutocomplete');
+        Route::get('distance-api', 'ConfigController@distanceApi');
+        Route::get('place-api-details', 'ConfigController@placeApiDetails');
+        Route::get('geocode-api', 'ConfigController@geocodeApi');
     });
 
     Route::resource('address', 'AddressController', ['only' => ['index', 'store', 'edit', 'update', 'destroy']])->withoutMiddleware(['api:auth']);
     Route::group(['middleware' => ['auth:api']], function () {
         Route::get('info', [CustomerController::class, 'index']);
-        Route::put('update/profile',[CustomerController::class, 'update_profile']);
-        Route::put('update/fcm-token',[CustomerController::class, 'update_fcm_token']);
-        Route::delete('remove-account', [CustomerController::class, 'remove_account']);
+        Route::put('update/profile',[CustomerController::class, 'updateProfile']);
+        Route::put('update/fcm-token',[CustomerController::class, 'updateFcmToken']);
+        Route::delete('remove-account', [CustomerController::class, 'removeAccount']);
 
-        Route::post('loyalty-point/wallet-transfer', [CustomerController::class, 'transfer_loyalty_point_to_wallet']);
-        Route::get('wallet-transaction', [CustomerController::class, 'wallet_transaction']);
-        Route::get('loyalty-point-transaction', [CustomerController::class, 'loyalty_point_transaction']);
+        Route::post('loyalty-point/wallet-transfer', [CustomerController::class, 'transferLoyaltyPointToWallet']);
+        Route::get('wallet-transaction', [CustomerController::class, 'walletTransaction']);
+        Route::get('loyalty-point-transaction', [CustomerController::class, 'loyaltyPointTransaction']);
     });
+
+    Route::post('change-language', [CustomerController::class, 'changeLanguage']);
 });
 

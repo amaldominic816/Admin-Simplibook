@@ -4,7 +4,6 @@ namespace Modules\ProviderManagement\Http\Controllers\Api\V1\Provider\Report;
 
 use Auth;
 use Carbon\Carbon;
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -36,6 +35,7 @@ class BookingReportController extends Controller
     protected Service $service;
     protected User $user;
     protected Transaction $transaction;
+    protected BookingDetailsAmount $booking_details_amount;
 
     public function __construct(Zone $zone, Provider $provider, Category $categories, Service $service, Booking $booking, Account $account, User $user, Transaction $transaction, BookingDetailsAmount $booking_details_amount)
     {
@@ -57,7 +57,7 @@ class BookingReportController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function get_booking_report(Request $request)
+    public function getBookingReport(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'zone_ids' => $request->has('zone_ids') && !is_null($request['zone_ids'][0]) ? 'array' : '',
@@ -82,30 +82,30 @@ class BookingReportController extends Controller
         //Dropdown data
         $zones = $this->zone->ofStatus(1)->select('id', 'name')->get();
         $categories = $this->categories->ofType('main')->select('id', 'name')->get();
-        $sub_categories = $this->categories->ofType('sub')->select('id', 'name')->get();
+        $subCategories = $this->categories->ofType('sub')->select('id', 'name')->get();
 
         //params
         $search = $request['search'];
-        $query_params = ['search' => $search];
+        $queryParams = ['search' => $search];
         if($request->has('zone_ids')) {
-            $query_params['zone_ids'] = $request['zone_ids'];
+            $queryParams['zone_ids'] = $request['zone_ids'];
         }
         if ($request->has('category_ids')) {
-            $query_params['category_ids'] = $request['category_ids'];
+            $queryParams['category_ids'] = $request['category_ids'];
         }
         if ($request->has('sub_category_ids')) {
-            $query_params['sub_category_ids'] = $request['sub_category_ids'];
+            $queryParams['sub_category_ids'] = $request['sub_category_ids'];
         }
         if ($request->has('date_range')) {
-            $query_params['date_range'] = $request['date_range'];
+            $queryParams['date_range'] = $request['date_range'];
         }
         if ($request->has('date_range') && $request['date_range'] == 'custom_date') {
-            $query_params['from'] = $request['from'];
-            $query_params['to'] = $request['to'];
+            $queryParams['from'] = $request['from'];
+            $queryParams['to'] = $request['to'];
         }
 
         //** Table Data **
-        $filtered_bookings = self::filter_query($this->booking, $request)
+        $filteredBookings = self::filterQuery($this->booking, $request)
             ->with(['customer', 'provider.owner'])
             ->when($request->has('booking_status') && $request['booking_status'] != 'all' , function ($query) use($request) {
                 $query->where('booking_status', $request['booking_status']);
@@ -119,40 +119,40 @@ class BookingReportController extends Controller
                 });
             })
             ->latest()->paginate(pagination_limit())
-            ->appends($query_params);
+            ->appends($queryParams);
 
 
         //** Card Data **
-        $bookings_for_amount = self::filter_query($this->booking, $request)
+        $bookingsForAmount = self::filterQuery($this->booking, $request)
             ->with(['customer', 'provider.owner'])
             ->whereIn('booking_status', ['accepted', 'ongoing', 'completed', 'canceled'])
             ->get();
 
-        $bookings_count = [];
-        $bookings_count['total_bookings'] = $bookings_for_amount->count();
-        $bookings_count['accepted'] = $bookings_for_amount->where('booking_status', 'accepted')->count();
-        $bookings_count['ongoing'] = $bookings_for_amount->where('booking_status', 'ongoing')->count();
-        $bookings_count['completed'] = $bookings_for_amount->where('booking_status', 'completed')->count();
-        $bookings_count['canceled'] = $bookings_for_amount->where('booking_status', 'canceled')->count();
+        $bookingsCount = [];
+        $bookingsCount['total_bookings'] = $bookingsForAmount->count();
+        $bookingsCount['accepted'] = $bookingsForAmount->where('booking_status', 'accepted')->count();
+        $bookingsCount['ongoing'] = $bookingsForAmount->where('booking_status', 'ongoing')->count();
+        $bookingsCount['completed'] = $bookingsForAmount->where('booking_status', 'completed')->count();
+        $bookingsCount['canceled'] = $bookingsForAmount->where('booking_status', 'canceled')->count();
 
-        $booking_amount = [];
-        $booking_amount['total_booking_amount'] = $bookings_for_amount->sum('total_booking_amount');
-        $booking_amount['total_paid_booking_amount'] = $bookings_for_amount->where('booking_status', 'completed')->where('is_paid', 1)->sum('total_booking_amount');
-        $booking_amount['total_unpaid_booking_amount'] = $bookings_for_amount->where('payment_method', '!=', 'cash_after_service')->sum('total_booking_amount');
+        $bookingAmount = [];
+        $bookingAmount['total_booking_amount'] = $bookingsForAmount->sum('total_booking_amount');
+        $bookingAmount['total_paid_booking_amount'] = $bookingsForAmount->where('booking_status', 'completed')->where('is_paid', 1)->sum('total_booking_amount');
+        $bookingAmount['total_unpaid_booking_amount'] = $bookingsForAmount->where('payment_method', '!=', 'cash_after_service')->sum('total_booking_amount');
 
         //** Chart Data **
 
         //deterministic
-        $date_range = $request['date_range'];
-        if(is_null($date_range) || $date_range == 'all_time') {
+        $dateRange = $request['date_range'];
+        if(is_null($dateRange) || $dateRange == 'all_time') {
             $deterministic = 'year';
-        } elseif ($date_range == 'this_week' || $date_range == 'last_week') {
+        } elseif ($dateRange == 'this_week' || $dateRange == 'last_week') {
             $deterministic = 'week';
-        } elseif ($date_range == 'this_month' || $date_range == 'last_month' || $date_range == 'last_15_days') {
+        } elseif ($dateRange == 'this_month' || $dateRange == 'last_month' || $dateRange == 'last_15_days') {
             $deterministic = 'day';
-        } elseif ($date_range == 'this_year' || $date_range == 'last_year' || $date_range == 'last_6_month' || $date_range == 'this_year_1st_quarter' || $date_range == 'this_year_2nd_quarter' || $date_range == 'this_year_3rd_quarter' || $date_range == 'this_year_4th_quarter') {
+        } elseif ($dateRange == 'this_year' || $dateRange == 'last_year' || $dateRange == 'last_6_month' || $dateRange == 'this_year_1st_quarter' || $dateRange == 'this_year_2nd_quarter' || $dateRange == 'this_year_3rd_quarter' || $dateRange == 'this_year_4th_quarter') {
             $deterministic = 'month';
-        } elseif($date_range == 'custom_date') {
+        } elseif($dateRange == 'custom_date') {
             $from = Carbon::parse($request['from'])->startOfDay();
             $to = Carbon::parse($request['to'])->endOfDay();
             $diff = Carbon::parse($from)->diffInDays($to);
@@ -167,74 +167,74 @@ class BookingReportController extends Controller
                 $deterministic = 'year';
             }
         }
-        $group_by_deterministic = $deterministic=='week'?'day':$deterministic;
+        $groupByDeterministic = $deterministic=='week'?'day':$deterministic;
 
         $amounts = $this->booking_details_amount
             ->whereHas('booking', function ($query) use ($request) {
-                self::filter_query($query, $request)->whereIn('booking_status', ['accepted', 'ongoing', 'completed', 'canceled']);
+                self::filterQuery($query, $request)->whereIn('booking_status', ['accepted', 'ongoing', 'completed', 'canceled']);
             })
-            ->when(isset($group_by_deterministic), function ($query) use ($group_by_deterministic) {
+            ->when(isset($groupByDeterministic), function ($query) use ($groupByDeterministic) {
                 $query->select(
                     DB::raw('sum(admin_commission) as admin_commission'),
 
-                    DB::raw($group_by_deterministic.'(created_at) '.$group_by_deterministic)
+                    DB::raw($groupByDeterministic.'(created_at) '.$groupByDeterministic)
                 );
             })
-            ->groupby($group_by_deterministic)
+            ->groupby($groupByDeterministic)
             ->get()->toArray();
 
-        $bookings = self::filter_query($this->booking, $request)
+        $bookings = self::filterQuery($this->booking, $request)
             ->whereIn('booking_status', ['accepted', 'ongoing', 'completed', 'canceled'])
-            ->when(isset($group_by_deterministic), function ($query) use ($group_by_deterministic) {
+            ->when(isset($groupByDeterministic), function ($query) use ($groupByDeterministic) {
                 $query->select(
                     DB::raw('sum(total_booking_amount) as total_booking_amount'),
                     DB::raw('sum(total_tax_amount) as total_tax_amount'),
 
-                    DB::raw($group_by_deterministic.'(created_at) '.$group_by_deterministic)
+                    DB::raw($groupByDeterministic.'(created_at) '.$groupByDeterministic)
                 );
             })
-            ->groupby($group_by_deterministic)
+            ->groupby($groupByDeterministic)
             ->get()->toArray();
 
-        $chart_data = ['booking_amount'=>array(), 'tax_amount'=>array(), 'admin_commission'=>array(), 'timeline'=>array()];
+        $chartData = ['booking_amount'=>array(), 'tax_amount'=>array(), 'admin_commission'=>array(), 'timeline'=>array()];
         //data filter for deterministic
         if($deterministic == 'month') {
             $months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
             foreach ($months as $month) {
                 $found=0;
-                $chart_data['timeline'][] = $month;
+                $chartData['timeline'][] = $month;
                 foreach ($bookings as $key=>$item) {
                     if ($item['month'] == $month) {
-                        $chart_data['booking_amount'][] = $item['total_booking_amount'];
-                        $chart_data['tax_amount'][] = $item['total_tax_amount'];
+                        $chartData['booking_amount'][] = $item['total_booking_amount'];
+                        $chartData['tax_amount'][] = $item['total_tax_amount'];
 
-                        $chart_data['admin_commission'][] = $amounts[$key]['admin_commission']??0;
+                        $chartData['admin_commission'][] = $amounts[$key]['admin_commission']??0;
                         $found=1;
                     }
                 }
                 if(!$found){
-                    $chart_data['booking_amount'][] = 0;
-                    $chart_data['tax_amount'][] = 0;
-                    $chart_data['admin_commission'][] = 0;
+                    $chartData['booking_amount'][] = 0;
+                    $chartData['tax_amount'][] = 0;
+                    $chartData['admin_commission'][] = 0;
                 }
             }
 
         }
         elseif ($deterministic == 'year') {
             foreach ($bookings as $key=>$item) {
-                $chart_data['booking_amount'][] = $item['total_booking_amount'];
-                $chart_data['tax_amount'][] = $item['total_tax_amount'];
-                $chart_data['timeline'][] = $item[$deterministic];
+                $chartData['booking_amount'][] = $item['total_booking_amount'];
+                $chartData['tax_amount'][] = $item['total_tax_amount'];
+                $chartData['timeline'][] = $item[$deterministic];
 
-                $chart_data['admin_commission'][] = $amounts[$key]['admin_commission']??0;
+                $chartData['admin_commission'][] = $amounts[$key]['admin_commission']??0;
             }
         }
         elseif ($deterministic == 'day') {
-            if ($date_range == 'this_month') {
+            if ($dateRange == 'this_month') {
                 $to = Carbon::now()->lastOfMonth();
-            } elseif ($date_range == 'last_month') {
+            } elseif ($dateRange == 'last_month') {
                 $to = Carbon::now()->subMonth()->endOfMonth();
-            } elseif ($date_range == 'last_15_days') {
+            } elseif ($dateRange == 'last_15_days') {
                 $to = Carbon::now();
             }
 
@@ -242,48 +242,48 @@ class BookingReportController extends Controller
 
             for ($i = 1; $i <= $number; $i++) {
                 $found=0;
-                $chart_data['timeline'][] = $i;
+                $chartData['timeline'][] = $i;
                 foreach ($bookings as $key=>$item) {
                     if ($item['day'] == $i) {
-                        $chart_data['booking_amount'][] = $item['total_booking_amount'];
-                        $chart_data['tax_amount'][] = $item['total_tax_amount'];
+                        $chartData['booking_amount'][] = $item['total_booking_amount'];
+                        $chartData['tax_amount'][] = $item['total_tax_amount'];
 
-                        $chart_data['admin_commission'][] = $amounts[$key]['admin_commission']??0;
+                        $chartData['admin_commission'][] = $amounts[$key]['admin_commission']??0;
                         $found=1;
                     }
                 }
                 if(!$found){
-                    $chart_data['booking_amount'][] = 0;
-                    $chart_data['tax_amount'][] = 0;
-                    $chart_data['admin_commission'][] = 0;
+                    $chartData['booking_amount'][] = 0;
+                    $chartData['tax_amount'][] = 0;
+                    $chartData['admin_commission'][] = 0;
                 }
             }
         }
         elseif ($deterministic == 'week') {
-            if ($date_range == 'this_week') {
+            if ($dateRange == 'this_week') {
                 $from = Carbon::now()->startOfWeek();
                 $to = Carbon::now()->endOfWeek();
-            } elseif ($date_range == 'last_week') {
+            } elseif ($dateRange == 'last_week') {
                 $from = Carbon::now()->subWeek()->startOfWeek();
                 $to = Carbon::now()->subWeek()->endOfWeek();
             }
 
             for ($i = (int)$from->format('d'); $i <= (int)$to->format('d'); $i++) {
                 $found=0;
-                $chart_data['timeline'][] = $i;
+                $chartData['timeline'][] = $i;
                 foreach ($bookings as $key=>$item) {
                     if ($item['day'] == $i) {
-                        $chart_data['booking_amount'][] = $item['total_booking_amount'];
-                        $chart_data['tax_amount'][] = $item['total_tax_amount'];
+                        $chartData['booking_amount'][] = $item['total_booking_amount'];
+                        $chartData['tax_amount'][] = $item['total_tax_amount'];
 
-                        $chart_data['admin_commission'][] = $amounts[$key]['admin_commission']??0;
+                        $chartData['admin_commission'][] = $amounts[$key]['admin_commission']??0;
                         $found=1;
                     }
                 }
                 if(!$found) {
-                    $chart_data['booking_amount'][] = 0;
-                    $chart_data['tax_amount'][] = 0;
-                    $chart_data['admin_commission'][] = 0;
+                    $chartData['booking_amount'][] = 0;
+                    $chartData['tax_amount'][] = 0;
+                    $chartData['admin_commission'][] = 0;
                 }
             }
         }
@@ -292,12 +292,12 @@ class BookingReportController extends Controller
         return response()->json(response_formatter(DEFAULT_200, [
             'zones' => $zones,
             'categories' => $categories,
-            'sub_categories' => $sub_categories,
+            'sub_categories' => $subCategories,
 
-            'filtered_bookings' => $filtered_bookings,
-            'bookings_count' => $bookings_count,
-            'booking_amount' => $booking_amount,
-            'chart_data' => $chart_data,
+            'filtered_bookings' => $filteredBookings,
+            'bookings_count' => $bookingsCount,
+            'booking_amount' => $bookingAmount,
+            'chart_data' => $chartData,
         ]), 200);
     }
 
@@ -310,7 +310,7 @@ class BookingReportController extends Controller
      * @throws \Box\Spout\Common\Exception\UnsupportedTypeException
      * @throws \Box\Spout\Writer\Exception\WriterNotOpenedException
      */
-    public function get_booking_report_download(Request $request): string|StreamedResponse
+    public function getBookingReportDownload(Request $request): string|StreamedResponse
     {
         Validator::make($request->all(), [
             'zone_ids' => 'array',
@@ -323,7 +323,7 @@ class BookingReportController extends Controller
             'booking_status' => 'in:' . implode(',', array_column(BOOKING_STATUSES, 'key')) . ',all',
         ]);
 
-        $filtered_bookings = self::filter_query($this->booking, $request)
+        $filteredBookings = self::filterQuery($this->booking, $request)
             ->with(['customer', 'provider.owner', ])
             ->ofBookingStatus('completed')
             ->when($request->has('booking_status'), function ($query) use($request) {
@@ -339,7 +339,7 @@ class BookingReportController extends Controller
             })
             ->latest()->get();
 
-        return (new FastExcel($filtered_bookings))->download(time().'-booking-report.xlsx', function ($booking) {
+        return (new FastExcel($filteredBookings))->download(time().'-booking-report.xlsx', function ($booking) {
             return [
                 'Booking ID' => $booking->readable_id,
                 'Customer Name' => isset($booking->customer) ? ($booking->customer->first_name . ' ' . $booking->customer->last_name) : '',
@@ -362,7 +362,7 @@ class BookingReportController extends Controller
      * @param $request
      * @return mixed
      */
-    function filter_query($instance, $request): mixed
+    function filterQuery($instance, $request): mixed
     {
         return $instance
             ->where('provider_id', $request->user()->provider->id)

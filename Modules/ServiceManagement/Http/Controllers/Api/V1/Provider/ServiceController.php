@@ -86,26 +86,26 @@ class ServiceController extends Controller
         $reviews = $this->review->with(['provider', 'customer'])->where('service_id', $service_id)->ofStatus(1)->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $rating_group_count = DB::table('reviews')->where('service_id', $service_id)
+        $ratingGroupCount = DB::table('reviews')->where('service_id', $service_id)
             ->select('review_rating', DB::raw('count(*) as total'))
             ->groupBy('review_rating')
             ->get();
 
-        $total_rating = 0;
-        $rating_count = 0;
-        foreach ($rating_group_count as $count) {
-            $total_rating += round($count->review_rating * $count->total, 2);
-            $rating_count += $count->total;
+        $totalRating = 0;
+        $ratingCount = 0;
+        foreach ($ratingGroupCount as $count) {
+            $totalRating += round($count->review_rating * $count->total, 2);
+            $ratingCount += $count->total;
         }
 
-        $rating_info = [
-            'rating_count' => $rating_count,
-            'average_rating' => round(divnum($total_rating, $rating_count), 2),
-            'rating_group_count' => $rating_group_count,
+        $ratingInfo = [
+            'rating_count' => $ratingCount,
+            'average_rating' => round(divnum($totalRating, $ratingCount), 2),
+            'rating_group_count' => $ratingGroupCount,
         ];
 
         if ($reviews->count() > 0) {
-            return response()->json(response_formatter(DEFAULT_200, ['reviews' => $reviews, 'rating' => $rating_info]), 200);
+            return response()->json(response_formatter(DEFAULT_200, ['reviews' => $reviews, 'rating' => $ratingInfo]), 200);
         }
 
         return response()->json(response_formatter(DEFAULT_404), 200);
@@ -121,7 +121,7 @@ class ServiceController extends Controller
     {
         $service = $this->service->where('id', $id)->with(['category.children', 'variations'])->first();
         if (isset($service)) {
-            $service = self::variations_react_format($service);
+            $service = self::variationsReactFormat($service);
             return response()->json(response_formatter(DEFAULT_200, $service), 200);
         }
         return response()->json(response_formatter(DEFAULT_204), 200);
@@ -142,7 +142,7 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',
@@ -180,7 +180,7 @@ class ServiceController extends Controller
         //
     }
 
-    private function variations_react_format($service)
+    private function variationsReactFormat($service)
     {
         $variants = collect($service['variations'])->pluck('variant_key')->unique();
         $storage = [];
@@ -189,10 +189,10 @@ class ServiceController extends Controller
             $filtered = $service['variations']->where('variant_key', $variant);
             $formatting['variationName'] = $variant;
             $formatting['variationPrice'] = $filtered->first()->price;
-            foreach ($filtered as $single_variant) {
+            foreach ($filtered as $singleVariant) {
                 $formatting['zoneWiseVariations'][] = [
-                    'id' => $single_variant['zone_id'],
-                    'price' => $single_variant['price']
+                    'id' => $singleVariant['zone_id'],
+                    'price' => $singleVariant['price']
                 ];
             }
             $storage[] = $formatting;
@@ -245,7 +245,7 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function services_by_subcategory(Request $request): JsonResponse
+    public function servicesBySubcategory(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -257,11 +257,19 @@ class ServiceController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        //user check
         if (!request()?->user()?->provider) return response()->json(response_formatter(DEFAULT_403), 403);
 
         $services = $this->service->with(['variations', 'category.zonesBasicInfo'])->latest()
             ->whereHas('subCategory', fn ($query) => $query->where('sub_category_id', $request['sub_category_id']))
+            ->when($request->has('search'), function ($query) use ($request){
+                $keys = explode(' ', $request['search']);
+                $query->where(function ($query) use ($keys) {
+                    foreach ($keys as $key) {
+                        $query->where('name', 'LIKE', '%' . $key . '%');
+                    }
+                });
+            })
+            ->active()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])
             ->withPath('');
 

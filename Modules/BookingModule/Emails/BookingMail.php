@@ -30,6 +30,6 @@ class BookingMail extends Mailable
      */
     public function build(): static
     {
-        return $this->view('bookingmodule::mail-templates.booking-request-sent', ['booking' => $this->booking]);
+        return $this->subject(translate('Booking Place'))->view('bookingmodule::mail-templates.booking-request-sent', ['booking' => $this->booking]);
     }
 }

@@ -1,4 +1,4 @@
-{{--for add variants--}}
+
 @if(session()->has('variations'))
     @foreach(session('variations') as $key=>$item)
         <tr>
@@ -17,8 +17,9 @@
                 </td>
             @endforeach
             <td>
-                <a class="btn btn--danger"
-                   onclick="ajax_remove_variant('{{route('admin.service.ajax-remove-variant',[$item['variant_key']])}}','variation-table')">
+                <a class="btn btn--danger service-ajax-remove-variant"
+                   data-id="variation-table"
+                   data-route="{{route('admin.service.ajax-remove-variant',[$item['variant_key']])}}">
                     <span class="material-icons m-0">delete</span>
                 </a>
             </td>
@@ -27,9 +28,21 @@
 @endif
 
 <script>
-    "use strict"
+    "use strict";
+
+    // Equivalent JavaScript code
+    document.querySelectorAll('.service-ajax-remove-variant').forEach(function(element) {
+        element.addEventListener('click', function() {
+            var route = this.getAttribute('data-route');
+            var id = this.getAttribute('data-id');
+            ajax_remove_variant(route, id);
+        });
+    });
 
     function set_values(key) {
-        $('.default-get-' + key).val($('#default-set-' + key).val())
+        document.querySelectorAll('.default-get-' + key).forEach(function(element) {
+            element.value = document.getElementById('default-set-' + key).value;
+        });
     }
+
 </script>

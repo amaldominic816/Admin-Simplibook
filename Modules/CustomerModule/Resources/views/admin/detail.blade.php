@@ -2,10 +2,6 @@
 
 @section('title',translate('customer_details'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
     <div class="main-content">
         <div class="container-fluid">
@@ -17,64 +13,59 @@
                 <div class="col-xl-10">
                     <div class="row mb-4 g-4">
                         <div class="col-lg-4 col-sm-12">
-                            <!-- Business Summary -->
                             <div class="statistics-card statistics-card__total-orders">
                                 <h2>{{$customer->bookings_count}}</h2>
                                 <h3>{{translate('total_bookings')}}</h3>
                                 <img src="{{asset('public/assets/admin-module')}}/img/icons/total-orders.png"
                                      class="absolute-img" alt="">
                             </div>
-                            <!-- End Business Summary -->
                         </div>
                         <div class="col-lg-4 col-sm-6">
-                            <!-- Business Summary -->
                             <div class="statistics-card statistics-card__ongoing">
                                 <h2>{{$customer->ongoing??0}}</h2>
                                 <h3>{{translate('ongoing')}}</h3>
                                 <img src="{{asset('public/assets/admin-module')}}/img/icons/ongoing.png"
                                      class="absolute-img" alt="">
                             </div>
-                            <!-- End Business Summary -->
                         </div>
                         <div class="col-lg-4 col-sm-6">
-                            <!-- Business Summary -->
                             <div class="statistics-card statistics-card__canceled">
                                 <h2>{{$customer->canceled??0}}</h2>
                                 <h3>{{translate('canceled')}}</h3>
                                 <img src="{{asset('public/assets/admin-module')}}/img/icons/canceled.png"
                                      class="absolute-img" alt="">
                             </div>
-                            <!-- End Business Summary -->
                         </div>
                     </div>
                 </div>
             </div>
 
 
-            <!-- Nav Tabs -->
             <div class="mb-3">
                 <ul class="nav nav--tabs nav--tabs__style2">
                     <li class="nav-item">
-                        <button class="nav-link {{!isset($web_page) || $web_page=='overview'?'active':''}}" data-bs-toggle="tab"
+                        <button class="nav-link {{!isset($web_page) || $web_page=='overview'?'active':''}}"
+                                data-bs-toggle="tab"
                                 data-bs-target="#overview-tab-pane">{{translate('overview')}}
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link {{isset($web_page) && $web_page=='bookings'?'active':''}}" data-bs-toggle="tab"
+                        <button class="nav-link {{isset($web_page) && $web_page=='bookings'?'active':''}}"
+                                data-bs-toggle="tab"
                                 data-bs-target="#bookings-tab-pane">{{translate('bookings')}}</button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link {{isset($web_page) && $web_page=='reviews'?'active':''}}" data-bs-toggle="tab"
+                        <button class="nav-link {{isset($web_page) && $web_page=='reviews'?'active':''}}"
+                                data-bs-toggle="tab"
                                 data-bs-target="#reviews-tab-pane">{{translate('reviews')}}
                         </button>
                     </li>
                 </ul>
             </div>
-            <!-- End Nav Tabs -->
 
-            <!-- Tab Content -->
             <div class="tab-content">
-                <div class="tab-pane fade {{!isset($web_page) || $web_page=='general'?'show active':''}}" id="general-tab-pane">
+                <div class="tab-pane fade {{!isset($web_page) || $web_page=='general'?'show active':''}}"
+                     id="general-tab-pane">
                     <div class="card">
                         <div class="card-body p-30">
                             <div class="media flex-column flex-md-row gap-3 mb-3">
@@ -97,7 +88,6 @@
                                 </div>
                             </div>
 
-                            <!-- Nav Tabs -->
                             <div class="mb-3">
                                 <ul class="nav nav--tabs">
                                     <li class="nav-item">
@@ -112,9 +102,7 @@
                                     </li>
                                 </ul>
                             </div>
-                            <!-- End Nav Tabs -->
 
-                            <!-- Tab Content -->
                             <div class="tab-content">
                                 <div class="tab-pane fade show active" id="long-description-tab-pane">
                                     {!! $customer->description !!}
@@ -122,7 +110,6 @@
                                 <div class="tab-pane fade" id="price-table-tab-pane">
                                     <div class="row justify-content-center">
                                         <div class="col-lg-10">
-                                            <!-- Nav Tabs -->
                                             <div class="mt-3 mb-4">
                                                 <ul class="nav nav--tabs nav--tabs__style3">
                                                     @php($count=0)
@@ -137,9 +124,7 @@
                                                     @endforeach
                                                 </ul>
                                             </div>
-                                            <!-- End Nav Tabs -->
 
-                                            <!-- Tab Content -->
                                             <div class="tab-content">
                                                 @php($count=0)
                                                 @foreach($customer->variations->unique('zone_id')->all() as $index=>$zone)
@@ -149,7 +134,6 @@
                                                                 class="c1 me-1">{{$customer->variations->where('zone_id',$zone->zone_id)->count()}}</strong>
                                                             {{translate('available_variants')}}
                                                         </p>
-                                                        <!-- customer Price List -->
                                                         <div class="customer-price-list">
                                                             @foreach($customer->variations->where('zone_id',$zone->zone_id)->all() as $variant)
                                                                 <div class="customer-price-list-item">
@@ -158,17 +142,14 @@
                                                                 </div>
                                                             @endforeach
                                                         </div>
-                                                        <!-- End customer Price List -->
                                                     </div>
                                                     @php($count++)
                                                 @endforeach
                                             </div>
-                                            <!-- End Tab Content -->
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <!-- End Tab Content -->
                         </div>
                     </div>
                 </div>
@@ -206,7 +187,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="tab-pane fade {{isset($web_page) && $web_page=='review'?'show active':''}}" id="review-tab-pane">
+                <div class="tab-pane fade {{isset($web_page) && $web_page=='review'?'show active':''}}"
+                     id="review-tab-pane">
                     <div class="card mb-30">
                         <div class="card-body p-30">
                             <div class="row">
@@ -349,7 +331,6 @@
                                         <th>{{translate('reviewer')}}</th>
                                         <th>{{translate('ratings')}}</th>
                                         <th>{{translate('reviews')}}</th>
-                                        {{--<th>{{translate('status')}}</th>--}}
                                     </tr>
                                     </thead>
                                     <tbody>
@@ -362,13 +343,6 @@
                                                     {{$review->review_comment}}
                                                 </p>
                                             </td>
-                                            {{--<td>
-                                                <label class="switcher">
-                                                    <input class="switcher_input" onclick="route_alert('{{route('admin.review.status-update',[$review->id])}}','{{translate('want_to_update_status')}}')"
-                                                           type="checkbox" {{$review->is_active?'checked':''}}>
-                                                    <span class="switcher_control"></span>
-                                                </label>
-                                            </td>--}}
                                         </tr>
                                     @endforeach
                                     </tbody>
@@ -381,11 +355,6 @@
                     </div>
                 </div>
             </div>
-            <!-- End Tab Content -->
         </div>
     </div>
 @endsection
-
-@push('script')
-
-@endpush

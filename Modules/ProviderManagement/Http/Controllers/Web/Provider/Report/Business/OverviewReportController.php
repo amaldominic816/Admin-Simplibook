@@ -45,13 +45,12 @@ class OverviewReportController extends Controller
         $this->booking_details_amount = $booking_details_amount;
     }
 
-
     /**
      * Display a listing of the resource.
      * @param Request $request
      * @return Renderable
      */
-    public function get_business_overview_report(Request $request)
+    public function getBusinessOverviewReport(Request $request)
     {
         Validator::make($request->all(), [
             'zone_ids' => 'array',
@@ -68,39 +67,39 @@ class OverviewReportController extends Controller
         //Dropdown data
         $zones = $this->zone->ofStatus(1)->select('id', 'name')->get();
         $categories = $this->categories->ofType('main')->select('id', 'name')->get();
-        $sub_categories = $this->categories->ofType('sub')->select('id', 'name')->get();
+        $subCategories = $this->categories->ofType('sub')->select('id', 'name')->get();
 
         //params
         $search = $request['search'];
-        $query_params = ['search' => $search];
+        $queryParams = ['search' => $search];
         if($request->has('zone_ids')) {
-            $query_params['zone_ids'] = $request['zone_ids'];
+            $queryParams['zone_ids'] = $request['zone_ids'];
         }
         if ($request->has('category_ids')) {
-            $query_params['category_ids'] = $request['category_ids'];
+            $queryParams['category_ids'] = $request['category_ids'];
         }
         if ($request->has('sub_category_ids')) {
-            $query_params['sub_category_ids'] = $request['sub_category_ids'];
+            $queryParams['sub_category_ids'] = $request['sub_category_ids'];
         }
         if ($request->has('date_range')) {
-            $query_params['date_range'] = $request['date_range'];
+            $queryParams['date_range'] = $request['date_range'];
         }
         if ($request->has('date_range') && $request['date_range'] == 'custom_date') {
-            $query_params['from'] = $request['from'];
-            $query_params['to'] = $request['to'];
+            $queryParams['from'] = $request['from'];
+            $queryParams['to'] = $request['to'];
         }
 
 
-        $date_range = $request['date_range'];
-        if(is_null($date_range) || $date_range == 'all_time') {
+        $dateRange = $request['date_range'];
+        if(is_null($dateRange) || $dateRange == 'all_time') {
             $deterministic = 'year';
-        } elseif ($date_range == 'this_week' || $date_range == 'last_week') {
+        } elseif ($dateRange == 'this_week' || $dateRange == 'last_week') {
             $deterministic = 'week';
-        } elseif ($date_range == 'this_month' || $date_range == 'last_month' || $date_range == 'last_15_days') {
+        } elseif ($dateRange == 'this_month' || $dateRange == 'last_month' || $dateRange == 'last_15_days') {
             $deterministic = 'day';
-        } elseif ($date_range == 'this_year' || $date_range == 'last_year' || $date_range == 'last_6_month' || $date_range == 'this_year_1st_quarter' || $date_range == 'this_year_2nd_quarter' || $date_range == 'this_year_3rd_quarter' || $date_range == 'this_year_4th_quarter') {
+        } elseif ($dateRange == 'this_year' || $dateRange == 'last_year' || $dateRange == 'last_6_month' || $dateRange == 'this_year_1st_quarter' || $dateRange == 'this_year_2nd_quarter' || $dateRange == 'this_year_3rd_quarter' || $dateRange == 'this_year_4th_quarter') {
             $deterministic = 'month';
-        } elseif($date_range == 'custom_date') {
+        } elseif($dateRange == 'custom_date') {
             $from = Carbon::parse($request['from'])->startOfDay();
             $to = Carbon::parse($request['to'])->endOfDay();
             $diff = Carbon::parse($from)->diffInDays($to);
@@ -115,13 +114,13 @@ class OverviewReportController extends Controller
                 $deterministic = 'year';
             }
         }
-        $group_by_deterministic = $deterministic=='week'?'day':$deterministic;
+        $groupByDeterministic = $deterministic=='week'?'day':$deterministic;
 
         $amounts = $this->booking_details_amount
             ->whereHas('booking', function ($query) use ($request) {
-                self::filter_query($query, $request)->ofBookingStatus('completed');
+                self::filterQuery($query, $request)->ofBookingStatus('completed');
             })
-            ->when(isset($group_by_deterministic), function ($query) use ($group_by_deterministic) {
+            ->when(isset($groupByDeterministic), function ($query) use ($groupByDeterministic) {
                 $query->select(
                     DB::raw('sum(service_unit_cost) as service_unit_cost'),
                     DB::raw('sum(service_unit_cost) as service_quantity'),
@@ -135,57 +134,57 @@ class OverviewReportController extends Controller
                     DB::raw('sum(admin_commission) as admin_commission'),
                     DB::raw('sum(provider_earning) as provider_earning'),
 
-                    DB::raw($group_by_deterministic.'(created_at) '.$group_by_deterministic)
+                    DB::raw($groupByDeterministic.'(created_at) '.$groupByDeterministic)
                 );
             })
-            ->groupby($group_by_deterministic)
+            ->groupby($groupByDeterministic)
             ->get()->toArray();
 
 
-        $chart_data = ['earnings'=>array(), 'expenses'=>array(), 'timeline'=>array()];
-        $total_promotional_cost = ['discount' => 0, 'coupon' => 0, 'campaign' => 0];
+        $chartData = ['earnings'=>array(), 'expenses'=>array(), 'timeline'=>array()];
+        $totalPromotionalCost = ['discount' => 0, 'coupon' => 0, 'campaign' => 0];
 
         //data filter for deterministic
         if($deterministic == 'month') {
             $months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
             foreach ($months as $month) {
                 $found=0;
-                $chart_data['timeline'][] = $month;
+                $chartData['timeline'][] = $month;
                 foreach ($amounts as $item) {
                     if ($item['month'] == $month) {
-                        $chart_data['earnings'][] = with_decimal_point($item['provider_earning']);
-                        $chart_data['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
+                        $chartData['earnings'][] = with_decimal_point($item['provider_earning']);
+                        $chartData['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
                         $found=1;
                     }
                 }
                 if(!$found){
-                    $chart_data['earnings'][] = with_decimal_point(0);
-                    $chart_data['expenses'][] = with_decimal_point(0);
+                    $chartData['earnings'][] = with_decimal_point(0);
+                    $chartData['expenses'][] = with_decimal_point(0);
                 }
 
-                $total_promotional_cost['discount'] += $item['discount_by_provider']??0;
-                $total_promotional_cost['coupon'] += $item['coupon_discount_by_provider']??0;
-                $total_promotional_cost['campaign'] += $item['campaign_discount_by_provider']??0;
+                $totalPromotionalCost['discount'] += $item['discount_by_provider']??0;
+                $totalPromotionalCost['coupon'] += $item['coupon_discount_by_provider']??0;
+                $totalPromotionalCost['campaign'] += $item['campaign_discount_by_provider']??0;
             }
 
         }
         elseif ($deterministic == 'year') {
             foreach ($amounts as $item) {
-                $chart_data['earnings'][] = with_decimal_point($item['provider_earning']);
-                $chart_data['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
-                $chart_data['timeline'][] = $item[$deterministic];
+                $chartData['earnings'][] = with_decimal_point($item['provider_earning']);
+                $chartData['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
+                $chartData['timeline'][] = $item[$deterministic];
 
-                $total_promotional_cost['discount'] += $item['discount_by_provider']??0;
-                $total_promotional_cost['coupon'] += $item['coupon_discount_by_provider']??0;
-                $total_promotional_cost['campaign'] += $item['campaign_discount_by_provider']??0;
+                $totalPromotionalCost['discount'] += $item['discount_by_provider']??0;
+                $totalPromotionalCost['coupon'] += $item['coupon_discount_by_provider']??0;
+                $totalPromotionalCost['campaign'] += $item['campaign_discount_by_provider']??0;
             }
         }
         elseif ($deterministic == 'day') {
-            if ($date_range == 'this_month') {
+            if ($dateRange == 'this_month') {
                 $to = Carbon::now()->lastOfMonth();
-            } elseif ($date_range == 'last_month') {
+            } elseif ($dateRange == 'last_month') {
                 $to = Carbon::now()->subMonth()->endOfMonth();
-            } elseif ($date_range == 'last_15_days') {
+            } elseif ($dateRange == 'last_15_days') {
                 $to = Carbon::now();
             }
 
@@ -193,58 +192,58 @@ class OverviewReportController extends Controller
 
             for ($i = 1; $i <= $number; $i++) {
                 $found=0;
-                $chart_data['timeline'][] = $i;
+                $chartData['timeline'][] = $i;
                 foreach ($amounts as $item) {
                     if ($item['day'] == $i) {
-                        $chart_data['earnings'][] = with_decimal_point($item['provider_earning']);
-                        $chart_data['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
+                        $chartData['earnings'][] = with_decimal_point($item['provider_earning']);
+                        $chartData['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
                         $found=1;
                     }
                 }
                 if(!$found){
-                    $chart_data['earnings'][] = with_decimal_point(0);
-                    $chart_data['expenses'][] = with_decimal_point(0);
+                    $chartData['earnings'][] = with_decimal_point(0);
+                    $chartData['expenses'][] = with_decimal_point(0);
                 }
 
-                $total_promotional_cost['discount'] += $item['discount_by_provider']??0;
-                $total_promotional_cost['coupon'] += $item['coupon_discount_by_provider']??0;
-                $total_promotional_cost['campaign'] += $item['campaign_discount_by_provider']??0;
+                $totalPromotionalCost['discount'] += $item['discount_by_provider']??0;
+                $totalPromotionalCost['coupon'] += $item['coupon_discount_by_provider']??0;
+                $totalPromotionalCost['campaign'] += $item['campaign_discount_by_provider']??0;
             }
         }
         elseif ($deterministic == 'week') {
-            if ($date_range == 'this_week') {
+            if ($dateRange == 'this_week') {
                 $from = Carbon::now()->startOfWeek();
                 $to = Carbon::now()->endOfWeek();
-            } elseif ($date_range == 'last_week') {
+            } elseif ($dateRange == 'last_week') {
                 $from = Carbon::now()->subWeek()->startOfWeek();
                 $to = Carbon::now()->subWeek()->endOfWeek();
             }
 
             for ($i = (int)$from->format('d'); $i <= (int)$to->format('d'); $i++) {
                 $found=0;
-                $chart_data['timeline'][] = $i;
+                $chartData['timeline'][] = $i;
                 foreach ($amounts as $item) {
                     if ($item['day'] == $i) {
-                        $chart_data['earnings'][] = with_decimal_point($item['provider_earning']);
-                        $chart_data['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
+                        $chartData['earnings'][] = with_decimal_point($item['provider_earning']);
+                        $chartData['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
                         $found=1;
                     }
                 }
                 if(!$found){
-                    $chart_data['earnings'][] = with_decimal_point(0);
-                    $chart_data['expenses'][] = with_decimal_point(0);
+                    $chartData['earnings'][] = with_decimal_point(0);
+                    $chartData['expenses'][] = with_decimal_point(0);
                 }
 
-                $total_promotional_cost['discount'] += $item['discount_by_provider']??0;
-                $total_promotional_cost['coupon'] += $item['coupon_discount_by_provider']??0;
-                $total_promotional_cost['campaign'] += $item['campaign_discount_by_provider']??0;
+                $totalPromotionalCost['discount'] += $item['discount_by_provider']??0;
+                $totalPromotionalCost['coupon'] += $item['coupon_discount_by_provider']??0;
+                $totalPromotionalCost['campaign'] += $item['campaign_discount_by_provider']??0;
             }
         }
 
-        return view('providermanagement::provider.report.business.overview', compact('zones', 'categories', 'sub_categories', 'amounts', 'chart_data', 'total_promotional_cost', 'deterministic', 'query_params'));
+        return view('providermanagement::provider.report.business.overview', compact('zones', 'categories', 'subCategories', 'amounts', 'chartData', 'totalPromotionalCost', 'deterministic', 'queryParams'));
     }
 
-    public function get_business_overview_report_download(Request $request)
+    public function getBusinessOverviewReportDownload(Request $request)
     {
         Validator::make($request->all(), [
             'zone_ids' => 'array',
@@ -258,16 +257,16 @@ class OverviewReportController extends Controller
             'to' => $request['date_range'] == 'custom_date' ? 'required' : '',
         ]);
 
-        $date_range = $request['date_range'];
-        if(is_null($date_range) || $date_range == 'all_time') {
+        $dateRange = $request['date_range'];
+        if(is_null($dateRange) || $dateRange == 'all_time') {
             $deterministic = 'year';
-        } elseif ($date_range == 'this_week' || $date_range == 'last_week') {
+        } elseif ($dateRange == 'this_week' || $dateRange == 'last_week') {
             $deterministic = 'week';
-        } elseif ($date_range == 'this_month' || $date_range == 'last_month' || $date_range == 'last_15_days') {
+        } elseif ($dateRange == 'this_month' || $dateRange == 'last_month' || $dateRange == 'last_15_days') {
             $deterministic = 'day';
-        } elseif ($date_range == 'this_year' || $date_range == 'last_year' || $date_range == 'last_6_month' || $date_range == 'this_year_1st_quarter' || $date_range == 'this_year_2nd_quarter' || $date_range == 'this_year_3rd_quarter' || $date_range == 'this_year_4th_quarter') {
+        } elseif ($dateRange == 'this_year' || $dateRange == 'last_year' || $dateRange == 'last_6_month' || $dateRange == 'this_year_1st_quarter' || $dateRange == 'this_year_2nd_quarter' || $dateRange == 'this_year_3rd_quarter' || $dateRange == 'this_year_4th_quarter') {
             $deterministic = 'month';
-        } elseif($date_range == 'custom_date') {
+        } elseif($dateRange == 'custom_date') {
             $from = Carbon::parse($request['from'])->startOfDay();
             $to = Carbon::parse($request['to'])->endOfDay();
             $diff = Carbon::parse($from)->diffInDays($to);
@@ -282,13 +281,13 @@ class OverviewReportController extends Controller
                 $deterministic = 'year';
             }
         }
-        $group_by_deterministic = $deterministic=='week'?'day':$deterministic;
+        $groupByDeterministic = $deterministic=='week'?'day':$deterministic;
 
         $amounts = $this->booking_details_amount
             ->whereHas('booking', function ($query) use ($request) {
-                self::filter_query($query, $request)->ofBookingStatus('completed');
+                self::filterQuery($query, $request)->ofBookingStatus('completed');
             })
-            ->when(isset($group_by_deterministic), function ($query) use ($group_by_deterministic) {
+            ->when(isset($groupByDeterministic), function ($query) use ($groupByDeterministic) {
                 $query->select(
                     DB::raw('sum(service_unit_cost) as service_unit_cost'),
                     DB::raw('sum(service_unit_cost) as service_quantity'),
@@ -302,25 +301,25 @@ class OverviewReportController extends Controller
                     DB::raw('sum(admin_commission) as admin_commission'),
                     DB::raw('sum(provider_earning) as provider_earning'),
 
-                    DB::raw($group_by_deterministic.'(created_at) '.$group_by_deterministic)
+                    DB::raw($groupByDeterministic.'(created_at) '.$groupByDeterministic)
                 );
             })
-            ->groupby($group_by_deterministic)
+            ->groupby($groupByDeterministic)
             ->get();
 
 
         foreach ($amounts as $amount) {
-            $total_earning = $amount['provider_earning'];
-            $total_expense = $amount['discount_by_provider'] + $amount['coupon_discount_by_provider'] + $amount['campaign_discount_by_provider'];
+            $totalEarning = $amount['provider_earning'];
+            $totalExpense = $amount['discount_by_provider'] + $amount['coupon_discount_by_provider'] + $amount['campaign_discount_by_provider'];
 
-            $net_profit = $total_earning;
-            $net_profit_rate = $total_earning!=0 ? ($net_profit*100)/$total_earning : $net_profit*100;
+            $netProfit = $totalEarning;
+            $netProfitRate = $totalEarning!=0 ? ($netProfit*100)/$totalEarning : $netProfit*100;
 
 
             //set to amount object
-            $amount->total_expense = $total_expense;
-            $amount->net_profit = $net_profit;
-            $amount->net_profit_rate = $net_profit_rate;
+            $amount->total_expense = $totalExpense;
+            $amount->net_profit = $netProfit;
+            $amount->net_profit_rate = $netProfitRate;
         }
         return (new FastExcel($amounts))->download(time().'-business-overview-report.xlsx', function ($item) use ($deterministic) {
             return [
@@ -339,7 +338,7 @@ class OverviewReportController extends Controller
      * @param $request
      * @return mixed
      */
-    function filter_query($instance, $request): mixed
+    function filterQuery($instance, $request): mixed
     {
         return $instance
             ->where('provider_id', $request->user()->provider->id)

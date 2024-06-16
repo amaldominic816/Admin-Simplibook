@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Validator;
 use Modules\ProviderManagement\Entities\Provider;
 use Modules\TransactionModule\Entities\Transaction;
 use Modules\UserManagement\Entities\User;
-use function collect_cash_transaction;
+use function collectCashTransaction;
 use function get_user_id;
 use function response;
 use function response_formatter;
@@ -33,7 +33,7 @@ class CollectCashController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function collect_cash(Request $request): JsonResponse
+    public function collectCash(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'provider_id' => 'required|uuid',
@@ -44,17 +44,17 @@ class CollectCashController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $provider_user_id = get_user_id($request['provider_id'], PROVIDER_USER_TYPES[0]);
-        $provider_user = $this->user->with(['account'])->find($provider_user_id);
-        if(is_null($provider_user)) {
+        $providerUserId = get_user_id($request['provider_id'], PROVIDER_USER_TYPES[0]);
+        $providerUser = $this->user->with(['account'])->find($providerUserId);
+        if (is_null($providerUser)) {
             return response()->json(response_formatter(DEFAULT_404, null, error_processor($validator)), 404);
         }
 
-        if($request['amount'] > $provider_user->account->account_payable) {
+        if ($request['amount'] > $providerUser->account->account_payable) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 200);
         }
 
-        collect_cash_transaction($request->provider_id, $request['amount']);
+        collectCashTransaction($request->provider_id, $request['amount']);
 
         return response()->json(response_formatter(DEFAULT_200), 200);
     }
@@ -64,7 +64,7 @@ class CollectCashController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function collect_cash_transaction(Request $request)
+    public function collectCashTransaction(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -94,13 +94,13 @@ class CollectCashController extends Controller
             })
             ->latest()->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $total_collected_cash = $this->transaction
+        $totalCollectedCash = $this->transaction
             ->where('from_user_id', get_user_id($request['provider_id'], PROVIDER_USER_TYPES[0]))
             ->where('trx_type', TRANSACTION_TYPE[3]['key'])
             ->sum('debit');
 
 
-        return response()->json(response_formatter(DEFAULT_200, ['transactions' => $transactions, 'total_collected_cash' => $total_collected_cash]), 200);
+        return response()->json(response_formatter(DEFAULT_200, ['transactions' => $transactions, 'total_collected_cash' => $totalCollectedCash]), 200);
     }
 
 }

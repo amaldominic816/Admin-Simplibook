@@ -29,7 +29,7 @@ Route::group(['prefix' => 'admin', 'as'=>'admin.', 'namespace' => 'Api\V1\Admin'
 
 
 Route::group(['prefix' => 'provider', 'as'=>'provider.', 'namespace' => 'Api\V1\Provider','middleware'=>['auth:api']], function () {
-    Route::get('sub-categories', 'CategoryController@sub_category');
+    Route::get('sub-categories', 'CategoryController@subCategory');
     Route::resource('category', 'CategoryController', ['only' => ['index']]);
 
     Route::group(['prefix' => 'category', 'as'=>'category.'], function () {

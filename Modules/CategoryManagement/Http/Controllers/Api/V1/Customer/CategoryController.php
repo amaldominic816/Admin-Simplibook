@@ -2,26 +2,32 @@
 
 namespace Modules\CategoryManagement\Http\Controllers\Api\V1\Customer;
 
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Validator;
 use Modules\CategoryManagement\Entities\Category;
+use Modules\ServiceManagement\Entities\FavoriteService;
 use Modules\ServiceManagement\Entities\RecentView;
-use Modules\ZoneManagement\Entities\Zone;
 
 class CategoryController extends Controller
 {
 
-    private $category;
-    private RecentView $recent_view;
+    private Category $category;
+    private RecentView $recentView;
+    private  FavoriteService $favoriteService;
+    private bool $is_customer_logged_in;
+    private mixed $customer_user_id;
 
-    public function __construct(Category $category, RecentView $recent_view)
+    public function __construct(Category $category, RecentView $recentView, FavoriteService $favoriteService, Request $request)
     {
         $this->category = $category;
-        $this->recent_view = $recent_view;
+        $this->recentView = $recentView;
+        $this->favoriteService = $favoriteService;
+
+        $this->is_customer_logged_in = (bool)auth('api')->user();
+        $this->customer_user_id = $this->is_customer_logged_in ? auth('api')->user()->id : $request['guest_id'];
     }
 
     /**
@@ -64,7 +70,7 @@ class CategoryController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $childes = $this->category->ofStatus(1)->ofType('sub')->withoutGlobalScopes()
+        $childes = $this->category->ofStatus(1)->ofType('sub')->withoutGlobalScopes(['zone_wise_data'])
             ->withCount(['services' => function ($query) {
                 $query->where('is_active', 1);
             }])
@@ -74,13 +80,12 @@ class CategoryController extends Controller
             ->where('parent_id', $request['id'])->orderBY('name', 'asc')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        if(count($childes) > 0) {
-            //update category view count
-            $auth_user = auth('api')->user();
-            if ($auth_user) {
-                $recent_view = $this->recent_view->firstOrNew(['category_id' =>  $request->id, 'user_id' => $auth_user->id]);
-                $recent_view->total_category_view += 1;
-                $recent_view->save();
+        if (count($childes) > 0) {
+            $authUser = auth('api')->user();
+            if ($authUser) {
+                $recentView = $this->recentView->firstOrNew(['category_id' => $request->id, 'user_id' => $authUser->id]);
+                $recentView->total_category_view += 1;
+                $recentView->save();
             }
 
             return response()->json(response_formatter(DEFAULT_200, $childes), 200);
@@ -106,8 +111,8 @@ class CategoryController extends Controller
         }
 
         $categories = $this->category->with(['zones', 'services_by_category.variations', 'services_by_category' => function ($query) {
-                $query->ofStatus(1);
-            }])
+            $query->ofStatus(1);
+        }])
             ->ofStatus(1)
             ->ofFeatured(1)
             ->ofType('main')
@@ -115,22 +120,23 @@ class CategoryController extends Controller
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
         foreach ($categories as $category) {
-            $category->services_by_category = self::variation_mapper($category->services_by_category);
+            $category->services_by_category = self::variationMapper($category->services_by_category);
         }
 
         return response()->json(response_formatter(DEFAULT_200, $categories), 200);
     }
 
-    private function variation_mapper($services)
+    private function variationMapper($services)
     {
         $services->map(function ($service) {
-            $service['variations_app_format'] = self::variations_app_format($service);
+            $service['is_favorite'] = $this->favoriteService->where('customer_user_id',$this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+            $service['variations_app_format'] = self::variationsAppFormat($service);
             return $service;
         });
         return $services;
     }
 
-    private function variations_app_format($service): array
+    private function variationsAppFormat($service): array
     {
         $formatting = [];
         $filtered = $service['variations']->where('zone_id', Config::get('zone_id'));

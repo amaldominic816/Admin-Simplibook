@@ -12,6 +12,7 @@ use Illuminate\Validation\ValidationException;
 use Modules\CustomerModule\Traits\CustomerAddressTrait;
 use Illuminate\Support\Facades\Validator;
 use Modules\PaymentModule\Traits\PaymentHelperTrait;
+use Modules\ProviderManagement\Entities\Provider;
 use Modules\UserManagement\Entities\User;
 use Modules\UserManagement\Entities\UserAddress;
 use Modules\PaymentModule\Traits\Payment as PaymentTrait;
@@ -31,7 +32,7 @@ class PaymentController extends Controller
      */
     public function index(Request $request): JsonResponse|Redirector|RedirectResponse|Application
     {
-        if(is_null($request['is_add_fund'])) {
+        if (is_null($request['is_add_fund']) && !$request->has('is_pay_to_admin')) {
             $validator = Validator::make($request->all(), [
                 'access_token' => '',
                 'zone_id' => 'required|uuid',
@@ -46,31 +47,54 @@ class PaymentController extends Controller
                 'is_partial' => 'nullable:in:0,1',
                 'payment_platform' => 'nullable|in:web,app'
             ]);
+        } elseif ($request->has('is_pay_to_admin')) {
+            $validator_data = Validator::make($request->all(), [
+                'payment_method' => 'required|in:' . implode(',', array_column(GATEWAYS_PAYMENT_METHODS, 'key')),
+                'provider_id' => 'required|uuid',
+            ]);
         } else {
             $validator = Validator::make($request->all(), [
                 'access_token' => '',
                 'amount' => 'required|numeric',
-                'payment_method' => 'required|in:' . implode(',', array_column(PAYMENT_METHODS, 'key')),
+                'payment_method' => 'required|in:' . implode(',', array_column(GATEWAYS_PAYMENT_METHODS, 'key')),
                 'payment_platform' => 'nullable|in:web,app'
             ]);
         }
 
-        if ($validator->fails()) {
-            if ($request->has('callback')) return redirect($request['callback'] . '?payment_status=fail');
-            else return response()->json(response_formatter(DEFAULT_400), 400);
+        if ($request->has('is_pay_to_admin')){
+            if ($validator_data->fails()) {
+                return redirect()->back()->withErrors($validator_data);
+            }
+
+            $provider = Provider::where('id', $request['provider_id'])->first();
+
+            if ($provider){
+                $amount = $provider->owner->account->account_payable - $provider->owner->account->account_receivable;
+                $minPayableAmount = business_config('min_payable_amount', 'provider_config')->live_values ?? 0;
+                if ($minPayableAmount > 0 && $amount < $minPayableAmount){
+                    return redirect()->back()->withErrors(translate('Provider must have to pay greater than or equal to ') . $minPayableAmount);
+                }
+            }
+
+        }else{
+            if ($validator->fails()) {
+                if ($request->has('callback')) return redirect($request['callback'] . '?flag=fail');
+                else return response()->json(response_formatter(DEFAULT_400), 400);
+            }
         }
 
         //customer user
         $customer_user_id = base64_decode($request['access_token']);
         $is_guest = !User::where('id', $customer_user_id)->exists();
         $is_add_fund = $request['is_add_fund'] == 1 ? 1 : 0;
+        $is_pay_to_admin = $request['is_pay_to_admin'] == true ? 1 : 0;
 
         //==========>>>>>> IF ADD FUND <<<<<<<==============
 
         //add fund
         if ($is_add_fund) {
             $customer = User::find($customer_user_id);
-            $payer = new Payer($customer['first_name'].' '.$customer['last_name'], $customer['email'], $customer['phone'], '');
+            $payer = new Payer($customer['first_name'] . ' ' . $customer['last_name'], $customer['email'], $customer['phone'], '');
             $payment_info = new Payment(
                 success_hook: 'add_fund_success',
                 failure_hook: 'add_fund_fail',
@@ -82,8 +106,8 @@ class PaymentController extends Controller
                 additional_data: $validator->validated(),
                 payment_amount: $request['amount'],
                 external_redirect_link: $request['callback'] ?? null,
-                attribute: null,
-                attribute_id: null
+                attribute: 'booking_id',
+                attribute_id: time()
             );
 
             $receiver_info = new Receiver('receiver_name', 'example.png');
@@ -91,19 +115,59 @@ class PaymentController extends Controller
             return redirect($redirect_link);
         }
 
+        //==========>>>>>> IF Provider to Admin Pay <<<<<<<==============
+
+        if ($is_pay_to_admin) {
+
+            $provider = Provider::where('id', $request['provider_id'])->first();
+
+            if ($provider) {
+                $customer = User::find($provider->user_id);
+                if ($provider->owner->account->account_payable > $provider->owner->account->account_receivable) {
+                    $amount = $provider->owner->account->account_payable - $provider->owner->account->account_receivable;
+                    $payer = new Payer($customer['first_name'] . ' ' . $customer['last_name'], $customer['email'], $customer['phone'], '');
+                    $additional_data = ['provider_id'=> $request['provider_id']];
+
+                    $payment_info = new Payment(
+                        success_hook: 'pay_to_admin_success',
+                        failure_hook: 'pay_to_admin_fail',
+                        currency_code: currency_code(),
+                        payment_method: $request['payment_method'],
+                        payment_platform: 'web',
+                        payer_id: $customer['id'],
+                        receiver_id: null,
+                        additional_data: $additional_data,
+                        payment_amount: $amount,
+                        external_redirect_link: route('provider.account_info'),
+                        attribute: 'booking_id',
+                        attribute_id: time()
+                    );
+
+                    $receiver_info = new Receiver('receiver_name', 'example.png');
+                    $redirect_link = PaymentTrait::generate_link($payer, $payment_info, $receiver_info);
+                    return redirect($redirect_link);
+                } else {
+                    return redirect()->back()->withErrors(translate('Invalid Amount'));
+                }
+            } else {
+                return redirect()->back()->withErrors(translate('Provider Not Found'));
+            }
+
+        }
+
         //==========>>>>>> IF Booking <<<<<<<==============
 
         //service address create (if no saved address)
         $service_address = json_decode(base64_decode($request['service_address']));
         if (!collect($service_address)->has(['lat', 'lon', 'address', 'contact_person_name', 'contact_person_number', 'address_label'])) {
-            if ($request->has('callback')) return redirect($request['callback'] . '?payment_status=fail');
+            if ($request->has('callback')) return redirect($request['callback'] . '?flag=fail');
             else return response()->json(response_formatter(DEFAULT_400), 400);
         }
         if (is_null($request['service_address_id'])) {
             $request['service_address_id'] = $this->add_address($service_address, null, $is_guest);
         }
         if (is_null($request['service_address_id'])) {
-            if ($request->has('callback')) return redirect($request['callback'] . '?payment_status=fail');
+            if ($request->has('callback')) return redirect($request['callback'] . '?flag=fail');
             else return response()->json(response_formatter(DEFAULT_400), 400);
         }
         $query_params = array_merge($validator->validated(), ['service_address_id' => $request['service_address_id']]);
@@ -139,7 +203,7 @@ class PaymentController extends Controller
         }
 
         //make payment
-        $payer = new Payer($customer['first_name'].' '.$customer['last_name'], $customer['email'], $customer['phone'], '');
+        $payer = new Payer($customer['first_name'] . ' ' . $customer['last_name'], $customer['email'], $customer['phone'], '');
         $payment_info = new Payment(
             success_hook: 'digital_payment_success',
             failure_hook: 'digital_payment_fail',
@@ -151,8 +215,8 @@ class PaymentController extends Controller
             additional_data: $query_params,
             payment_amount: $amount_to_pay,
             external_redirect_link: $request['callback'] ?? null,
-            attribute: null,
-            attribute_id: null
+            attribute: 'booking_id',
+            attribute_id: time()
         );
 
         $receiver_info = new Receiver('receiver_name', 'example.png');

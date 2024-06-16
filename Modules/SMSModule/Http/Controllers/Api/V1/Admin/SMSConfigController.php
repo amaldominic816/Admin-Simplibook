@@ -23,10 +23,10 @@ class SMSConfigController extends Controller
      * Display a listing of the resource.
      * @return JsonResponse
      */
-    public function sms_config_get(): JsonResponse
+    public function smsConfigGet(): JsonResponse
     {
-        $data_values = $this->business_setting->whereIn('settings_type', ['sms_config'])->get();
-        return response()->json(response_formatter(DEFAULT_200, $data_values), 200);
+        $dataValues = $this->business_setting->whereIn('settings_type', ['sms_config'])->get();
+        return response()->json(response_formatter(DEFAULT_200, $dataValues), 200);
     }
 
     /**
@@ -35,22 +35,24 @@ class SMSConfigController extends Controller
      * @return JsonResponse
      * @throws ValidationException
      */
-    public function sms_config_set(Request $request): JsonResponse
+    public function smsConfigSet(Request $request): JsonResponse
     {
         $validation = [
             'gateway' => 'required|in:releans,twilio,nexmo,2factor,msg91',
             'mode' => 'required|in:live,test'
         ];
-        $additional_data = [];
+
+        $additionalData = [];
+
         if ($request['gateway'] == 'releans') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
                 'api_key' => 'required',
                 'from' => 'required',
                 'otp_template' => 'required'
             ];
         } elseif ($request['gateway'] == 'twilio') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
                 'sid' => 'required',
                 'messaging_service_sid' => 'required',
@@ -59,7 +61,7 @@ class SMSConfigController extends Controller
                 'otp_template' => 'required'
             ];
         } elseif ($request['gateway'] == 'nexmo') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
                 'api_key' => 'required',
                 'api_secret' => 'required',
@@ -68,18 +70,18 @@ class SMSConfigController extends Controller
                 'otp_template' => 'required'
             ];
         } elseif ($request['gateway'] == '2factor') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
                 'api_key' => 'required'
             ];
         } elseif ($request['gateway'] == 'msg91') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
                 'template_id' => 'required',
                 'auth_key' => 'required',
             ];
         }
-        $validator = Validator::make($request->all(), array_merge($validation, $additional_data));
+        $validator = Validator::make($request->all(), array_merge($validation, $additionalData));
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);

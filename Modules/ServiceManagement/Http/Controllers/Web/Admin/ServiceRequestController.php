@@ -12,14 +12,16 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
 use Modules\CategoryManagement\Entities\Category;
+use Modules\ProviderManagement\Entities\Provider;
 use Modules\ServiceManagement\Entities\ServiceRequest;
+use Modules\UserManagement\Entities\User;
 
 class ServiceRequestController extends Controller
 {
-    private ServiceRequest $service_request;
-    public function __construct(ServiceRequest $service_request)
+    private ServiceRequest $serviceRequest;
+    public function __construct(ServiceRequest $serviceRequest)
     {
-        $this->service_request = $service_request;
+       $this->serviceRequest = $serviceRequest;
     }
 
 
@@ -27,10 +29,10 @@ class ServiceRequestController extends Controller
      * Display a listing of the resource.
      * @return Application|Factory|View
      */
-    public function request_list(Request $request): View|Factory|Application
+    public function requestList(Request $request): View|Factory|Application
     {
         $search = $request['search'];
-        $requests = $this->service_request->with(['category', 'user.provider'])
+        $requests =$this->serviceRequest->with(['category', 'user.provider'])
             ->when($request->has('search'), function ($query) use ($request) {
                 $keys = explode(' ', $request['search']);
                 return $query->whereHas('category', function ($query) use ($keys) {
@@ -49,14 +51,34 @@ class ServiceRequestController extends Controller
      * Display a listing of the resource.
      * @return RedirectResponse
      */
-    public function update_status($id, Request $request): RedirectResponse
+    public function updateStatus($id, Request $request): RedirectResponse
     {
-        $service_request = $this->service_request->find($id);
-        $service_request->status = $request['review_status'] == 1 ? 'approved' : 'denied';
-        $service_request->admin_feedback = $request['admin_feedback'];
-        $service_request->save();
+        $serviceRequest =$this->serviceRequest->find($id);
+        $serviceRequest->status = $request['review_status'] == 1 ? 'approved' : 'denied';
+        $serviceRequest->admin_feedback = $request['admin_feedback'];
+        $serviceRequest->save();
 
-        Toastr::success(DEFAULT_STORE_200['message']);
+        if ($serviceRequest->user && $serviceRequest->user->provider) {
+            $userInfo = $serviceRequest?->user?->provider;
+            $languageKey = $userInfo->owner?->current_language_key;
+            if (!is_null($userInfo->owner?->fcm_token)) {
+                if ($serviceRequest->status == 'approved') {
+                    $dataInfo = [
+                        'provider_name' => $userInfo?->company_name
+                    ];
+                    $title = get_push_notification_message('service_request_approve', 'provider_notification', $languageKey);
+                    device_notification($userInfo->owner?->fcm_token, $title, null, null, null, 'service_request', null,null, $dataInfo);
+                } elseif ($serviceRequest->status == 'denied') {
+                    $dataInfo = [
+                        'provider_name' => $userInfo?->company_name
+                    ];
+                    $title = get_push_notification_message('service_request_deny', 'provider_notification', $languageKey);
+                    device_notification($userInfo?->owner?->fcm_token, $title, null, null, null, 'service_request', null, null, $dataInfo);
+                }
+            }
+        }
+
+        Toastr::success(translate(DEFAULT_STORE_200['message']));
         return back();
     }
 

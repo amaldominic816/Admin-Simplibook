@@ -83,7 +83,7 @@ trait PaymentHelperTrait
 
             $response = $this->place_booking_request_for_bidding($request['access_token'], $request, $tran_id, $data);
             if ($response['flag'] == 'success') {
-                PostBidController::accept_post_bid_offer($post_bid->id, $response['booking_id']);
+                PostBidController::acceptPostBidOffer($post_bid->id, $response['booking_id']);
             }
         }
 

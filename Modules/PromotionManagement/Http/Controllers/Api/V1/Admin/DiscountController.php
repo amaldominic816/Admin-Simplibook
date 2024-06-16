@@ -96,13 +96,13 @@ class DiscountController extends Controller
             $discount->is_active = 1;
             $discount->save();
 
-            $dis_types = ['category', 'service', 'zone'];
-            foreach ((array)$dis_types as $dis_type) {
+            $disTypes = ['category', 'service', 'zone'];
+            foreach ((array)$disTypes as $disType) {
                 $types = [];
-                foreach ((array)$request[$dis_type . '_ids'] as $id) {
+                foreach ((array)$request[$disType . '_ids'] as $id) {
                     $types[] = [
                         'discount_id' => $discount['id'],
-                        'discount_type' => $dis_type,
+                        'discount_type' => $disType,
                         'type_wise_id' => $id,
                         'created_at' => now(),
                         'updated_at' => now()
@@ -173,13 +173,13 @@ class DiscountController extends Controller
 
                 $discount->discount_types()->delete();
 
-                $dis_types = ['category', 'service', 'zone'];
-                foreach ((array)$dis_types as $dis_type) {
+                $disTypes = ['category', 'service', 'zone'];
+                foreach ((array)$disTypes as $disType) {
                     $types = [];
-                    foreach ((array)$request[$dis_type . '_ids'] as $id) {
+                    foreach ((array)$request[$disType . '_ids'] as $id) {
                         $types[] = [
                             'discount_id' => $discount['id'],
-                            'discount_type' => $dis_type,
+                            'discount_type' => $disType,
                             'type_wise_id' => $id,
                             'created_at' => now(),
                             'updated_at' => now()
@@ -218,9 +218,11 @@ class DiscountController extends Controller
                     $query->discount_types()->delete();
                 }
             });
+
             $discounts->delete();
             return response()->json(response_formatter(DEFAULT_DELETE_200), 200);
         }
+
         return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
@@ -229,7 +231,7 @@ class DiscountController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',

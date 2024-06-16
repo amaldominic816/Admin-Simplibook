@@ -1,7 +1,11 @@
 <?php
 
 use App\Http\Controllers\LandingController;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
+use Modules\BusinessSettingsModule\Entities\BusinessSettings;
+use Modules\BusinessSettingsModule\Entities\DataSetting;
 
 /*
 |--------------------------------------------------------------------------
@@ -14,14 +18,17 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
+Route::get('lang/{locale}', [LandingController::class, 'lang'])->name('lang');
 Route::get('/', [LandingController::class, 'home'])->name('home');
-Route::get('page/about-us', [LandingController::class, 'about_us'])->name('page.about-us');
-Route::get('page/privacy-policy', [LandingController::class, 'privacy_policy'])->name('page.privacy-policy');
-Route::get('page/terms-and-conditions', [LandingController::class, 'terms_and_conditions'])->name('page.terms-and-conditions');
-Route::get('page/contact-us', [LandingController::class, 'contact_us'])->name('page.contact-us');
-Route::get('page/cancellation-policy', [LandingController::class, 'cancellation_policy'])->name('page.cancellation-policy');
-Route::get('page/refund-policy', [LandingController::class, 'refund_policy'])->name('page.refund-policy');
+Route::get('page/about-us', [LandingController::class, 'aboutUs'])->name('page.about-us');
+Route::get('page/privacy-policy', [LandingController::class, 'privacyPolicy'])->name('page.privacy-policy');
+Route::get('page/terms-and-conditions', [LandingController::class, 'termsAndConditions'])->name('page.terms-and-conditions');
+Route::get('page/contact-us', [LandingController::class, 'contactUs'])->name('page.contact-us');
+Route::get('page/cancellation-policy', [LandingController::class, 'cancellationPolicy'])->name('page.cancellation-policy');
+Route::get('page/refund-policy', [LandingController::class, 'refundPolicy'])->name('page.refund-policy');
 
 Route::fallback(function () {
     return redirect('admin/auth/login');
 });
+
+

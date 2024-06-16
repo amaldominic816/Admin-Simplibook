@@ -6,8 +6,6 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Module PaymentModule</title>
 
-       {{-- Laravel Mix - CSS File --}}
-       {{-- <link rel="stylesheet" href="{{ mix('css/paymentmodule.css') }}"> --}}
         @stack('script')
     </head>
     <body>
@@ -17,7 +15,5 @@
         </script>
         @yield('content')
 
-        {{-- Laravel Mix - JS File --}}
-        {{-- <script src="{{ mix('js/paymentmodule.js') }}"></script> --}}
     </body>
 </html>

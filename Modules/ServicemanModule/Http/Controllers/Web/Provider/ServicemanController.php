@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Modules\BookingModule\Entities\Booking;
 use Modules\BookingModule\Entities\BookingDetailsAmount;
 use Modules\UserManagement\Entities\Serviceman;
@@ -24,18 +25,16 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ServicemanController extends Controller
 {
     private User $employee;
-    private User $serviceman_user;
+    private User $servicemanUser;
     private Serviceman $serviceman;
     private Booking $booking;
-    private BookingDetailsAmount $booking_details_amount;
 
-    public function __construct(Serviceman $serviceman, User $serviceman_user, User $employee, Booking $booking, BookingDetailsAmount $booking_details_amount)
+    public function __construct(Serviceman $serviceman, User $servicemanUser, User $employee, Booking $booking)
     {
         $this->serviceman = $serviceman;
         $this->employee = $employee;
-        $this->serviceman_user = $serviceman_user;
+        $this->servicemanUser = $servicemanUser;
         $this->booking = $booking;
-        $this->booking_details_amount = $booking_details_amount;
     }
 
 
@@ -54,7 +53,7 @@ class ServicemanController extends Controller
         $status = $request->has('status') ? $request['status'] : 'all';
         $query_param = ['status' => $status, 'search' => $search];
 
-        $servicemen = $this->serviceman_user->with(['serviceman'])
+        $servicemen = $this->servicemanUser->with(['serviceman'])
             ->when($request->has('search'), function ($query) use ($request) {
                 $query->where(function ($query) use ($request) {
                     $keys = explode(' ', $request['search']);
@@ -100,12 +99,12 @@ class ServicemanController extends Controller
         $request->validate([
             'first_name' => 'required',
             'last_name' => 'required',
-            'phone' => 'required|unique:users,phone',
-            'email' => 'required|email|unique:users,email',
+            'phone' => 'required',
+            'email' => 'required|email',
             'password' => 'required|min:8',
             'confirm_password' => 'required|same:password',
             'profile_image' => 'required|image|mimes:jpeg,jpg,png,gif|max:10000',
-            'identity_type' => 'required|in:passport,driving_license,company_id,nid,trade_license',
+            'identity_type' => 'required|in:passport,driving_license,nid,trade_license',
             'identity_number' => 'required',
             'identity_image' => 'required|array',
             'identity_image.*' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
@@ -116,13 +115,22 @@ class ServicemanController extends Controller
             return back();
         }
 
-        $identity_images = [];
+        if (User::where('email', $request['email'])->first()) {
+            Toastr::error(translate('Email already taken'));
+            return back();
+        }
+        if (User::where('phone', $request['phone'])->first()) {
+            Toastr::error(translate('Phone already taken'));
+            return back();
+        }
+
+        $identityImages = [];
         foreach ($request->identity_image as $image) {
-            $identity_images[] = file_uploader('serviceman/identity/', 'png', $image);
+            $identityImages[] = file_uploader('serviceman/identity/', 'png', $image);
         }
 
 
-        DB::transaction(function () use ($request, $identity_images) {
+        DB::transaction(function () use ($request, $identityImages) {
             $employee = $this->employee;
             $employee->first_name = $request->first_name;
             $employee->last_name = $request->last_name;
@@ -131,7 +139,7 @@ class ServicemanController extends Controller
             $employee->profile_image = file_uploader('serviceman/profile/', 'png', $request->file('profile_image'));
             $employee->identification_number = $request->identity_number;
             $employee->identification_type = $request->identity_type;
-            $employee->identification_image = $identity_images;
+            $employee->identification_image = $identityImages;
             $employee->password = bcrypt($request->password);
             $employee->user_type = 'provider-serviceman';
             $employee->is_active = 1;
@@ -143,15 +151,18 @@ class ServicemanController extends Controller
             $serviceman->save();
         });
 
-        Toastr::success(SERVICE_STORE_200['message']);
+        Toastr::success(translate(SERVICE_STORE_200['message']));
         return back();
     }
 
     /**
      * Show the specified resource.
+     * @param Request $request
      * @param string $id
+     * @return View|Factory|RedirectResponse|Application
+     * @throws ValidationException
      */
-    public function show(Request $request, string $id)
+    public function show(Request $request, string $id): View|Factory|RedirectResponse|Application
     {
         Validator::make($request->all(), [
             'date_range' => 'in:all_time,this_week,last_week,this_month,last_month,last_15_days,this_year,last_year,last_6_month,this_year_1st_quarter,this_year_2nd_quarter,this_year_3rd_quarter,this_year_4th_quarter,custom_date',
@@ -159,40 +170,38 @@ class ServicemanController extends Controller
 
         $serviceman = $this->serviceman::with(['user.addresses'])
             ->withCount(['bookings as total_ongoing_bookings' => function ($query) use ($request) {
-                self::filter_query($query, $request)->where('booking_status', 'ongoing');
+                self::filterQuery($query, $request)->where('booking_status', 'ongoing');
             }])
             ->withCount(['bookings as total_completed_bookings' => function ($query) use ($request) {
-                self::filter_query($query, $request)->where('booking_status', 'completed');
+                self::filterQuery($query, $request)->where('booking_status', 'completed');
             }])
             ->withCount(['bookings as total_canceled_bookings' => function ($query) use ($request) {
-                self::filter_query($query, $request)->where('booking_status', 'canceled');
+                self::filterQuery($query, $request)->where('booking_status', 'canceled');
             }])
             ->find($id);
 
-        $total_assigned_bookings = self::filter_query($this->booking, $request)->where('serviceman_id', $id)->count();
+        $totalAssignedBookings = self::filterQuery($this->booking, $request)->where('serviceman_id', $id)->count();
 
-        if(!isset($serviceman)) {
-            Toastr::error(DEFAULT_404['message']);
+        if (!isset($serviceman)) {
+            Toastr::error(translate(DEFAULT_404['message']));
             return back();
         }
 
-        //** Chart Data **
-        //deterministic
-        $date_range = $request['date_range'];
-        if(is_null($date_range) || $date_range == 'all_time') {
+        $dateRange = $request['date_range'];
+        if (is_null($dateRange) || $dateRange == 'all_time') {
             $deterministic = 'year';
-        } elseif ($date_range == 'this_week' || $date_range == 'last_week') {
+        } elseif ($dateRange == 'this_week' || $dateRange == 'last_week') {
             $deterministic = 'week';
-        } elseif ($date_range == 'this_month' || $date_range == 'last_month' || $date_range == 'last_15_days') {
+        } elseif ($dateRange == 'this_month' || $dateRange == 'last_month' || $dateRange == 'last_15_days') {
             $deterministic = 'day';
-        } elseif ($date_range == 'this_year' || $date_range == 'last_year' || $date_range == 'last_6_month' || $date_range == 'this_year_1st_quarter' || $date_range == 'this_year_2nd_quarter' || $date_range == 'this_year_3rd_quarter' || $date_range == 'this_year_4th_quarter') {
+        } elseif ($dateRange == 'this_year' || $dateRange == 'last_year' || $dateRange == 'last_6_month' || $dateRange == 'this_year_1st_quarter' || $dateRange == 'this_year_2nd_quarter' || $dateRange == 'this_year_3rd_quarter' || $dateRange == 'this_year_4th_quarter') {
             $deterministic = 'month';
-        } elseif($date_range == 'custom_date') {
+        } elseif ($dateRange == 'custom_date') {
             $from = Carbon::parse($request['from'])->startOfDay();
             $to = Carbon::parse($request['to'])->endOfDay();
             $diff = Carbon::parse($from)->diffInDays($to);
 
-            if($diff <= 7) {
+            if ($diff <= 7) {
                 $deterministic = 'week';
             } elseif ($diff <= 30) {
                 $deterministic = 'day';
@@ -202,162 +211,144 @@ class ServicemanController extends Controller
                 $deterministic = 'year';
             }
         }
-        $group_by_deterministic = $deterministic=='week'?'day':$deterministic;
+        $groupByDeterministic = $deterministic == 'week' ? 'day' : $deterministic;
 
         $bookings = $this->booking
-            //->ofBookingStatus('completed')
             ->where('serviceman_id', $id)
-            ->when($request->has('zone_ids'), function ($query) use($request) {
+            ->when($request->has('zone_ids'), function ($query) use ($request) {
                 $query->whereIn('zone_id', $request['zone_ids']);
             })
-            ->when($request->has('category_ids'), function ($query) use($request) {
+            ->when($request->has('category_ids'), function ($query) use ($request) {
                 $query->whereIn('category_id', $request['category_ids']);
             })
-            ->when($request->has('sub_category_ids'), function ($query) use($request) {
+            ->when($request->has('sub_category_ids'), function ($query) use ($request) {
                 $query->whereIn('sub_category_id', $request['sub_category_ids']);
             })
-            ->when($request->has('booking_status'), function ($query) use($request) {
+            ->when($request->has('booking_status'), function ($query) use ($request) {
                 $query->whereIn('booking_status', $request['booking_status']);
             })
-            ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use($request) {
+            ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use ($request) {
                 $query->whereBetween('created_at', [date($request['from']), date($request['to'])]);
             })
-            ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use($request) {
-                //DATE RANGE
-                if($request['date_range'] == 'this_week') {
-                    //this week
+            ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use ($request) {
+                if ($request['date_range'] == 'this_week') {
                     $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
 
                 } elseif ($request['date_range'] == 'last_week') {
-                    //last week
                     $query->whereBetween('created_at', [Carbon::now()->subWeek()->startOfWeek(), Carbon::now()->subWeek()->endOfWeek()]);
 
                 } elseif ($request['date_range'] == 'this_month') {
-                    //this month
                     $query->whereMonth('created_at', Carbon::now()->month);
 
                 } elseif ($request['date_range'] == 'last_month') {
-                    //last month
-                    $query->whereMonth('created_at', Carbon::now()->month-1);
+                    $query->whereYear('created_at', Carbon::now()->subMonth()->year)
+                        ->whereMonth('created_at', Carbon::now()->subMonth()->month);
 
                 } elseif ($request['date_range'] == 'last_15_days') {
-                    //last 15 days
                     $query->whereBetween('created_at', [Carbon::now()->subDay(15), Carbon::now()]);
 
                 } elseif ($request['date_range'] == 'this_year') {
-                    //this year
                     $query->whereYear('created_at', Carbon::now()->year);
 
                 } elseif ($request['date_range'] == 'last_year') {
-                    //last year
-                    $query->whereYear('created_at', Carbon::now()->year-1);
+                    $query->whereYear('created_at', Carbon::now()->year - 1);
 
                 } elseif ($request['date_range'] == 'last_6_month') {
-                    //last 6month
                     $query->whereBetween('created_at', [Carbon::now()->subMonth(6), Carbon::now()]);
 
                 } elseif ($request['date_range'] == 'this_year_1st_quarter') {
-                    //this year 1st quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(1)->startOfQuarter(), Carbon::now()->month(1)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_2nd_quarter') {
-                    //this year 2nd quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(4)->startOfQuarter(), Carbon::now()->month(4)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_3rd_quarter') {
-                    //this year 3rd quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(7)->startOfQuarter(), Carbon::now()->month(7)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_4th_quarter') {
-                    //this year 4th quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(10)->startOfQuarter(), Carbon::now()->month(10)->endOfQuarter()]);
                 }
             })
-
-            ->when(isset($group_by_deterministic), function ($query) use ($group_by_deterministic) {
+            ->when(isset($groupByDeterministic), function ($query) use ($groupByDeterministic) {
                 $query->select(
                     DB::raw('count(id) as total_booking'),
-                    DB::raw($group_by_deterministic.'(created_at) '.$group_by_deterministic)
+                    DB::raw($groupByDeterministic . '(created_at) ' . $groupByDeterministic)
                 );
             })
-            ->groupby($group_by_deterministic)
+            ->groupby($groupByDeterministic)
             ->get()->toArray();
 
-        $chart_data = ['total_booking'=>array(), 'timeline'=>array()];
-        //data filter for deterministic
-        if($deterministic == 'month') {
+        $chartdata = ['total_booking' => array(), 'timeline' => array()];
+        if ($deterministic == 'month') {
             $months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
             foreach ($months as $month) {
-                $found=0;
-                $chart_data['timeline'][] = $month;
-                foreach ($bookings as $key=>$item) {
+                $found = 0;
+                $chartdata['timeline'][] = $month;
+                foreach ($bookings as $key => $item) {
                     if ($item['month'] == $month) {
-                        $chart_data['total_booking'][] = $item['total_booking'];
-                        $found=1;
+                        $chartdata['total_booking'][] = $item['total_booking'];
+                        $found = 1;
                     }
                 }
-                if(!$found){
-                    $chart_data['total_booking'][] = 0;
+                if (!$found) {
+                    $chartdata['total_booking'][] = 0;
                 }
             }
 
-        }
-        elseif ($deterministic == 'year') {
-            foreach ($bookings as $key=>$item) {
-                $chart_data['total_booking'][] = $item['total_booking'];
-                $chart_data['timeline'][] = $item[$deterministic];
+        } elseif ($deterministic == 'year') {
+            foreach ($bookings as $key => $item) {
+                $chartdata['total_booking'][] = $item['total_booking'];
+                $chartdata['timeline'][] = $item[$deterministic];
             }
-        }
-        elseif ($deterministic == 'day') {
-            if ($date_range == 'this_month') {
+        } elseif ($deterministic == 'day') {
+            if ($dateRange == 'this_month') {
                 $to = Carbon::now()->lastOfMonth();
-            } elseif ($date_range == 'last_month') {
+            } elseif ($dateRange == 'last_month') {
                 $to = Carbon::now()->subMonth()->endOfMonth();
-            } elseif ($date_range == 'last_15_days') {
+            } elseif ($dateRange == 'last_15_days') {
                 $to = Carbon::now();
             }
 
-            $number = date('d',strtotime($to));
+            $number = date('d', strtotime($to));
 
             for ($i = 1; $i <= $number; $i++) {
-                $found=0;
-                $chart_data['timeline'][] = $i;
-                foreach ($bookings as $key=>$item) {
+                $found = 0;
+                $chartdata['timeline'][] = $i;
+                foreach ($bookings as $key => $item) {
                     if ($item['day'] == $i) {
-                        $chart_data['total_booking'][] = $item['total_booking'];
-                        $found=1;
+                        $chartdata['total_booking'][] = $item['total_booking'];
+                        $found = 1;
                     }
                 }
-                if(!$found){
-                    $chart_data['total_booking'][] = 0;
+                if (!$found) {
+                    $chartdata['total_booking'][] = 0;
                 }
             }
-        }
-        elseif ($deterministic == 'week') {
-            if ($date_range == 'this_week') {
+        } elseif ($deterministic == 'week') {
+            if ($dateRange == 'this_week') {
                 $from = Carbon::now()->startOfWeek();
                 $to = Carbon::now()->endOfWeek();
-            } elseif ($date_range == 'last_week') {
+            } elseif ($dateRange == 'last_week') {
                 $from = Carbon::now()->subWeek()->startOfWeek();
                 $to = Carbon::now()->subWeek()->endOfWeek();
             }
 
             for ($i = (int)$from->format('d'); $i <= (int)$to->format('d'); $i++) {
-                $found=0;
-                $chart_data['timeline'][] = $i;
-                foreach ($bookings as $key=>$item) {
+                $found = 0;
+                $chartdata['timeline'][] = $i;
+                foreach ($bookings as $key => $item) {
                     if ($item['day'] == $i) {
-                        $chart_data['total_booking'][] = $item['total_booking'];
-                        $found=1;
+                        $chartdata['total_booking'][] = $item['total_booking'];
+                        $found = 1;
                     }
                 }
-                if(!$found) {
-                    $chart_data['total_booking'][] = 0;
+                if (!$found) {
+                    $chartdata['total_booking'][] = 0;
                 }
             }
         }
 
-        return view('servicemanmodule::Provider.Serviceman.details', compact('serviceman', 'chart_data', 'date_range', 'total_assigned_bookings'));
+        return view('servicemanmodule::Provider.Serviceman.details', compact('serviceman', 'chartdata', 'dateRange', 'totalAssignedBookings'));
     }
 
     /**
@@ -391,26 +382,34 @@ class ServicemanController extends Controller
         $request->validate([
             'first_name' => 'required',
             'last_name' => 'required',
-            'phone' => 'required|unique:users,phone,' . $employee->id,
-            'email' => 'required|email|unique:users,email,' . $employee->id,
+            'phone' => 'required',
+            'email' => 'required|email',
             'password' => '',
             'confirm_password' => !is_null($request->password) ? 'required|min:8|same:password' : '',
             'profile_image' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
-            'identity_type' => 'in:passport,driving_license,company_id,nid,trade_license',
+            'identity_type' => 'in:passport,driving_license,nid,trade_license',
             'identity_number' => 'required',
             'identity_image' => 'array',
             'identity_image.*' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
         ]);
 
-        //$identity_images = (array)$employee->identification_image;
-        $identity_images = [];
+        if (User::where('email', $request['email'])->where('id', '!=', $employee->id)->exists()) {
+            Toastr::error(translate('Email already taken'));
+            return back();
+        }
+        if (User::where('phone', $request['phone'])->where('id', '!=', $employee->id)->exists()) {
+            Toastr::error(translate('Phone already taken'));
+            return back();
+        }
+
+        $identityImages = [];
         if ($request->has('identity_image')) {
             foreach ($request['identity_image'] as $image) {
-                $identity_images[] = file_uploader('serviceman/identity/', 'png', $image);
+                $identityImages[] = file_uploader('serviceman/identity/', 'png', $image);
             }
         }
 
-        DB::transaction(function () use ($request, $identity_images, $employee) {
+        DB::transaction(function () use ($request, $identityImages, $employee) {
             $employee->first_name = $request->first_name;
             $employee->last_name = $request->last_name;
             $employee->email = $request->email;
@@ -420,8 +419,8 @@ class ServicemanController extends Controller
             }
             $employee->identification_number = $request->identity_number;
             $employee->identification_type = $request->identity_type;
-            if(count($identity_images)) {
-                $employee->identification_image = $identity_images;
+            if (count($identityImages)) {
+                $employee->identification_image = $identityImages;
             }
             if (!is_null($request->password)) {
                 $employee->password = bcrypt($request->password);
@@ -430,7 +429,7 @@ class ServicemanController extends Controller
             $employee->save();
         });
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 
@@ -445,16 +444,9 @@ class ServicemanController extends Controller
         $serviceman = $this->serviceman->find($id);
         $serviceman->delete();
 
-        Toastr::success(DEFAULT_DELETE_200['message']);
-        return redirect(route('provider.serviceman.list', ['status'=>'all']));
+        Toastr::success(translate(DEFAULT_DELETE_200['message']));
+        return redirect(route('provider.serviceman.list', ['status' => 'all']));
     }
-
-    /**
-     * * Bulk status update
-     * @param Request $request
-     * @return JsonResponse
-     */
-
 
     /**
      * Update the specified resource in storage.
@@ -462,12 +454,12 @@ class ServicemanController extends Controller
      * @param $id
      * @return JsonResponse
      */
-    public function status_update(Request $request, $id): JsonResponse
+    public function statusUpdate(Request $request, $id): JsonResponse
     {
         $serviceman = $this->employee->where('id', $id)->first();
         $this->employee->where('id', $id)->update(['is_active' => !$serviceman->is_active]);
 
-        return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+        return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
     }
 
     /**
@@ -481,7 +473,7 @@ class ServicemanController extends Controller
             'status' => 'in:active,inactive,all',
         ]);
 
-        $items = $this->serviceman_user->with(['serviceman'])
+        $items = $this->servicemanUser->with(['serviceman'])
             ->when($request->has('search'), function ($query) use ($request) {
                 $query->where(function ($query) use ($request) {
                     $keys = explode(' ', $request['search']);
@@ -512,60 +504,47 @@ class ServicemanController extends Controller
      * @param $request
      * @return mixed
      */
-    function filter_query($instance, $request): mixed
+    function filterQuery($instance, $request): mixed
     {
         return $instance
-            ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use($request) {
+            ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use ($request) {
                 $query->whereBetween('created_at', [Carbon::parse($request['from'])->startOfDay(), Carbon::parse($request['to'])->endOfDay()]);
             })
-            ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use($request) {
-                //DATE RANGE
-                if($request['date_range'] == 'this_week') {
-                    //this week
+            ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use ($request) {
+                if ($request['date_range'] == 'this_week') {
                     $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
 
                 } elseif ($request['date_range'] == 'last_week') {
-                    //last week
                     $query->whereBetween('created_at', [Carbon::now()->subWeek()->startOfWeek(), Carbon::now()->subWeek()->endOfWeek()]);
 
                 } elseif ($request['date_range'] == 'this_month') {
-                    //this month
                     $query->whereMonth('created_at', Carbon::now()->month);
 
                 } elseif ($request['date_range'] == 'last_month') {
-                    //last month
-                    $query->whereMonth('created_at', Carbon::now()->subMonth()->month);
-
+                    $query->whereYear('created_at', Carbon::now()->subMonth()->year)
+                        ->whereMonth('created_at', Carbon::now()->subMonth()->month);
                 } elseif ($request['date_range'] == 'last_15_days') {
-                    //last 15 days
                     $query->whereBetween('created_at', [Carbon::now()->subDay(15), Carbon::now()]);
 
                 } elseif ($request['date_range'] == 'this_year') {
-                    //this year
                     $query->whereYear('created_at', Carbon::now()->year);
 
                 } elseif ($request['date_range'] == 'last_year') {
-                    //last year
                     $query->whereYear('created_at', Carbon::now()->subYear()->year);
 
                 } elseif ($request['date_range'] == 'last_6_month') {
-                    //last 6month
                     $query->whereBetween('created_at', [Carbon::now()->subMonth(6), Carbon::now()]);
 
                 } elseif ($request['date_range'] == 'this_year_1st_quarter') {
-                    //this year 1st quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(1)->startOfQuarter(), Carbon::now()->month(1)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_2nd_quarter') {
-                    //this year 2nd quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(4)->startOfQuarter(), Carbon::now()->month(4)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_3rd_quarter') {
-                    //this year 3rd quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(7)->startOfQuarter(), Carbon::now()->month(7)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_4th_quarter') {
-                    //this year 4th quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(10)->startOfQuarter(), Carbon::now()->month(10)->endOfQuarter()]);
                 }
             });

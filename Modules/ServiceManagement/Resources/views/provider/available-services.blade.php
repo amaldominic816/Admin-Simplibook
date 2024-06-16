@@ -2,10 +2,6 @@
 
 @section('title',translate('available_services'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
     <div class="main-content">
         <div class="container-fluid">
@@ -18,83 +14,82 @@
                     <div class="card">
                         <div class="card-body">
                             @if(count($categories) > 0)
-                            <div class="service-list-wrap">
-                                <ul class="services-tab-menu">
-                                    <li class="{{$active_category=='all'?'active':''}}">
-                                        <a href="{{url()->current()}}?active_category=all">{{translate('all')}}</a>
-                                    </li>
-
-                                    @foreach($categories as $category)
-                                        <li id="list-{{$category->id}}"
-                                            class="{{$active_category==$category->id?'active':''}}">
-                                            <a href="{{url()->current()}}?active_category={{$category->id}}">
-                                                {{$category->name}}
-                                            </a>
+                                <div class="service-list-wrap">
+                                    <ul class="services-tab-menu">
+                                        <li class="{{$activeCategory=='all'?'active':''}}">
+                                            <a href="{{url()->current()}}?active_category=all">{{translate('all')}}</a>
                                         </li>
-                                    @endforeach
-                                </ul>
 
-                                @if(count($sub_categories) > 0)
-                                <div class="service-list">
-                                    <!-- Service List Item -->
-                                    @foreach($sub_categories as $sub)
-                                        <div class="service-list-item">
-                                            <div class="service-img">
-                                                <a href="">
-                                                    <img
-                                                        onerror="this.src='{{asset('public/assets/admin-module/img/media/service-details.png')}}'"
-                                                        src="{{asset('storage/app/public/category')}}/{{$sub->image}}"
-                                                        alt="">
+                                        @foreach($categories as $category)
+                                            <li id="list-{{$category->id}}"
+                                                class="{{$activeCategory==$category->id?'active':''}}">
+                                                <a href="{{url()->current()}}?active_category={{$category->id}}">
+                                                    {{$category->name}}
                                                 </a>
-                                            </div>
-                                            <div class="service-content">
-                                                <a href="" class="service-title" data-bs-toggle="modal"
-                                                   data-bs-target="#showServiceModal">
-                                                    {{$sub->name}}
-                                                </a>
-                                                <div class="service-actions">
-                                                    <button type="button" class="btn btn-link text-capitalize"
-                                                        @if($sub->services_count > 0)
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#modal-{{$sub->id}}"
-                                                        @endif
-                                                    >
-                                                        <strong>{{$sub->services_count}}</strong>
-                                                        {{translate('services')}}
-                                                    </button>
+                                            </li>
+                                        @endforeach
+                                    </ul>
 
-                                                    <form action="javascript:void(0)" method="post" class="hide-div"
-                                                          id="form-{{$sub->id}}">
-                                                        @csrf
-                                                        @method('put')
-                                                        <input name="sub_category_id" value="{{$sub->id}}">
-                                                    </form>
+                                    @if(count($subCategories) > 0)
+                                        <div class="service-list">
+                                            @foreach($subCategories as $sub)
+                                                <div class="service-list-item">
+                                                    <div class="service-img">
+                                                        <a>
+                                                            <img
+                                                                src="{{onErrorImage(
+                                                        $sub->image,
+                                                        asset('storage/app/public/category').'/' . $sub->image,
+                                                        asset('public/assets/admin-module/img/media/service-details.png') ,
+                                                        'category/')}}"
+                                                                alt="{{translate('image')}}">
+                                                        </a>
+                                                    </div>
+                                                    <div class="service-content">
+                                                        <a href="" class="service-title cursor-auto" data-bs-toggle="modal"
+                                                           data-bs-target="#showServiceModal">
+                                                            {{$sub->name}}
+                                                        </a>
+                                                        <div class="service-actions">
+                                                            @if($sub->services_count > 0)
+                                                                <button type="button" class="btn btn-link text-capitalize"
+                                                                        data-bs-toggle="modal"
+                                                                        data-bs-target="#modal-{{$sub->id}}">
+                                                                    <strong>{{$sub->services_count}}</strong>{{translate('services')}}
+                                                                </button>
+                                                            @endif
+                                                            <form action="javascript:void(0)" method="post"
+                                                                  class="hide-div"
+                                                                  id="form-{{$sub->id}}">
+                                                                @csrf
+                                                                @method('put')
+                                                                <input name="sub_category_id" value="{{$sub->id}}">
+                                                            </form>
 
-                                                    @if(in_array($sub->id,$subscribed_ids))
-                                                        <button type="button" class="btn btn--danger"
-                                                                id="button-{{$sub->id}}"
-                                                                onclick="update_subscription('{{$sub->id}}')">
-                                                            {{translate('unsubscribe')}}
-                                                        </button>
-                                                    @else
-                                                        <button type="button" class="btn btn--primary"
-                                                                id="button-{{$sub->id}}"
-                                                                onclick="update_subscription('{{$sub->id}}')">
-                                                            {{translate('subscribe')}}
-                                                        </button>
-                                                    @endif
+                                                            @if(in_array($sub->id,$subscribedIds))
+                                                                <button type="button" class="btn btn--danger update-service-subscription"
+                                                                        id="button-{{$sub->id}}"
+                                                                        data-id="{{$sub->id}}">
+                                                                    {{translate('unsubscribe')}}
+                                                                </button>
+                                                            @else
+                                                                <button type="button" class="btn btn--primary update-service-subscription"
+                                                                        id="button-{{$sub->id}}"
+                                                                        data-id="{{$sub->id}}">
+                                                                    {{translate('subscribe')}}
+                                                                </button>
+                                                            @endif
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            @endforeach
                                         </div>
-                                    @endforeach
-                                    <!-- End Service List Item -->
+                                    @else
+                                        <div class="d-flex justify-content-center align-items-center h-100">
+                                            <span class="text-muted">{{translate('No Sub Category Available')}}</span>
+                                        </div>
+                                    @endif
                                 </div>
-                                @else
-                                    <div class="d-flex justify-content-center align-items-center h-100">
-                                        <span class="text-muted">{{translate('No Sub Category Available')}}</span>
-                                    </div>
-                                @endif
-                            </div>
                             @else
                                 <span>{{translate('No_available_services')}}</span>
                             @endif
@@ -105,7 +100,7 @@
         </div>
     </div>
 
-    @foreach($sub_categories as $sub)
+    @foreach($subCategories as $sub)
         <div class="modal fade" id="modal-{{$sub->id}}" tabindex="-1">
             <div class="modal-dialog">
                 <div class="modal-content">
@@ -114,10 +109,12 @@
 
                         <div class="text-center">
                             <div class="img-wrap-circle mx-auto mb-20">
-                                <img
-                                    onerror="this.src='{{asset('public/assets/admin-module/img/media/service-details.png')}}'"
-                                    src="{{asset('storage/app/public/category')}}/{{$sub->image}}"
-                                    alt="">
+                                <img src="{{onErrorImage(
+                                    $sub->image,
+                                    asset('storage/app/public/category').'/' . $sub->image,
+                                    asset('public/assets/admin-module/img/media/service-details.png') ,
+                                    'category/')}}"
+                                     alt="{{translate('image')}}">
                             </div>
                             <h4 class="mb-20">
                                 <strong>( {{$sub->services_count}} )</strong>
@@ -127,13 +124,15 @@
 
                         <ul class="list-unstyled d-flex flex-wrap gap-3 justify-content-center">
                             @foreach($sub->services as $service)
-                                <li class="d-flex flex-column gap-2 justify-content-center"
-                                    onclick="location.href='{{route('provider.service.detail',[$service->id])}}'"
-                                    style="cursor: pointer">
-                                    <img
-                                        onerror="this.src='{{asset('public/assets/admin-module/img/media/service-details.png')}}'"
-                                        src="{{asset('storage/app/public/service')}}/{{$service->thumbnail}}"
-                                        class="mx-auto img-square-90" width="90" alt="">
+                                <li class="d-flex flex-column gap-2 justify-content-center service_cursor_pointer provider-service-detail"
+                                    data-route="{{route('provider.service.detail',[$service->id])}}">
+                                    <img alt="{{translate('image')}}"
+                                         src="{{onErrorImage(
+                                        $service->thumbnail,
+                                        asset('storage/app/public/service').'/' . $service->thumbnail,
+                                        asset('public/assets/admin-module/img/media/service-details.png') ,
+                                        'service/')}}"
+                                         class="mx-auto img-square-90" width="90">
                                     <div class="fw-medium">
                                         {{\Illuminate\Support\Str::limit($service->name,15)}}
                                     </div>
@@ -151,6 +150,16 @@
 @push('script')
     <script>
         "use strict";
+
+        $(".provider-service-detail").on('click', function (){
+            let route = $(this).data('route')
+            location.href = route;
+        })
+
+        $(".update-service-subscription").on('click', function (){
+            let id = $(this).data('id')
+            update_subscription(id)
+        })
 
         function update_subscription(id) {
 
@@ -213,5 +222,7 @@
                 }
             });
         }
+
+
     </script>
 @endpush

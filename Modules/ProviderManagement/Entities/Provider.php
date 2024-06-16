@@ -7,9 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Modules\BookingModule\Entities\Booking;
-use Modules\BookingModule\Events\BookingRequested;
 use Modules\ReviewModule\Entities\Review;
 use Modules\UserManagement\Entities\Serviceman;
 use Modules\UserManagement\Entities\User;
@@ -20,6 +20,7 @@ class Provider extends Model
 {
     use HasFactory;
     use HasUuid;
+    use SoftDeletes;
 
     protected $casts = [
         'order_count' => 'integer',
@@ -72,6 +73,11 @@ class Provider extends Model
         return $this->hasMany(Booking::class, 'provider_id')->where('booking_status', $booking_status);
     }
 
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(FavoriteProvider::class, 'provider_id', 'id');
+    }
+
     public function subscribed_services(): HasMany
     {
         return $this->hasMany(SubscribedService::class, 'provider_id')->where('is_subscribed', 1);
@@ -114,7 +120,9 @@ class Provider extends Model
         });
 
         self::deleted(function ($model) {
-            // ... code here
+            $model->servicemen->each(function ($serviceman) {
+                $serviceman->user->update(['is_active' => 0]);
+            });
         });
     }
 }

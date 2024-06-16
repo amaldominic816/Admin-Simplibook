@@ -9,6 +9,8 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
 use Modules\BidModule\Entities\Post;
 use Modules\BidModule\Entities\PostAdditionalInstruction;
+use Modules\BidModule\Entities\PostBid;
+use Modules\CartModule\Traits\CartTrait;
 use Modules\CustomerModule\Traits\CustomerAddressTrait;
 use Modules\ProviderManagement\Entities\Provider;
 use Modules\ProviderManagement\Entities\SubscribedService;
@@ -18,11 +20,12 @@ use function response_formatter;
 
 class PostController extends Controller
 {
-    use CustomerAddressTrait;
+    use CustomerAddressTrait, CartTrait;
 
 
     public function __construct(
-        private Post $post,
+        private Post                      $post,
+        private PostBid                   $postBid,
         private PostAdditionalInstruction $post_additional_instruction,
     )
     {
@@ -46,16 +49,16 @@ class PostController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $bidding_post_validity = (int) (business_config('bidding_post_validity', 'bidding_system'))->live_values;
+        $biddingPostValidity = (int)(business_config('bidding_post_validity', 'bidding_system'))->live_values;
         $posts = $this->post
             ->with(['addition_instructions', 'service', 'category', 'sub_category', 'booking'])
             ->withCount(['bids' => function ($query) {
                 $query->where('status', 'pending');
             }])
             ->where('customer_user_id', $request->user()->id)
-            ->whereBetween('created_at', [Carbon::now()->subDays($bidding_post_validity), Carbon::now()])
+            ->whereBetween('created_at', [Carbon::now()->subDays($biddingPostValidity), Carbon::now()])
             ->when(!is_null($request['is_booked']), function ($query) use ($request) {
-                $query->where('is_booked',$request['is_booked']);
+                $query->where('is_booked', $request['is_booked']);
             })
             ->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])
@@ -71,15 +74,16 @@ class PostController extends Controller
 
     /**
      * Display a listing of the resource.
+     * @param $postId
      * @param Request $request
      * @return JsonResponse
      */
-    public function show($post_id, Request $request): JsonResponse
+    public function show($postId, Request $request): JsonResponse
     {
         $post = $this->post
             ->with(['addition_instructions', 'service', 'category', 'sub_category', 'booking', 'service_address'])
             ->withCount(['bids'])
-            ->where('id', $post_id)
+            ->where('id', $postId)
             ->where('customer_user_id', $request->user()->id)
             ->first();
 
@@ -87,7 +91,16 @@ class PostController extends Controller
             return response()->json(response_formatter(DEFAULT_404, null), 404);
         }
 
-        return response()->json(response_formatter(DEFAULT_200, $post), 200);
+        $postBid = $this->postBid->where('id', $request->post_bid_id)->first();
+        $referralAmount = 0;
+        if ($postBid){
+
+            $price = $postBid?->offered_price;
+
+            $referralAmount = $this->referralEarningEligiblityCheck($post?->customer?->id, $price);
+        }
+
+        return response()->json(response_formatter(DEFAULT_200, ['post_details' => $post, 'referral_amount' => $referralAmount]), 200);
     }
 
     /**
@@ -112,16 +125,16 @@ class PostController extends Controller
                     $decoded = json_decode($value, true);
 
                     if (json_last_error() !== JSON_ERROR_NONE) {
-                        $fail($attribute.' must be a valid JSON string.');
+                        $fail($attribute . ' must be a valid JSON string.');
                         return;
                     }
 
-                    if (is_null($decoded['lat']) || $decoded['lat'] == '') $fail($attribute.' must contain "lat" properties.');
-                    if (is_null($decoded['lon']) || $decoded['lon'] == '') $fail($attribute.' must contain "lon" properties.');
-                    if (is_null($decoded['address']) || $decoded['address'] == '') $fail($attribute.' must contain "address" properties.');
-                    if (is_null($decoded['contact_person_name']) || $decoded['contact_person_name'] == '') $fail($attribute.' must contain "contact_person_name" properties.');
-                    if (is_null($decoded['contact_person_number']) || $decoded['contact_person_number'] == '') $fail($attribute.' must contain "contact_person_number" properties.');
-                    if (is_null($decoded['address_label']) || $decoded['address_label'] == '') $fail($attribute.' must contain "address_label" properties.');
+                    if (is_null($decoded['lat']) || $decoded['lat'] == '') $fail($attribute . ' must contain "lat" properties.');
+                    if (is_null($decoded['lon']) || $decoded['lon'] == '') $fail($attribute . ' must contain "lon" properties.');
+                    if (is_null($decoded['address']) || $decoded['address'] == '') $fail($attribute . ' must contain "address" properties.');
+                    if (is_null($decoded['contact_person_name']) || $decoded['contact_person_name'] == '') $fail($attribute . ' must contain "contact_person_name" properties.');
+                    if (is_null($decoded['contact_person_number']) || $decoded['contact_person_number'] == '') $fail($attribute . ' must contain "contact_person_number" properties.');
+                    if (is_null($decoded['address_label']) || $decoded['address_label'] == '') $fail($attribute . ' must contain "address_label" properties.');
                 },
             ] : '',
         ]);
@@ -130,7 +143,6 @@ class PostController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        //service address create (if no saved address)
         if (is_null($request['service_address_id'])) {
             $request['service_address_id'] = $this->add_address(json_decode($request['service_address']), $request->user()->id);
         }
@@ -146,12 +158,14 @@ class PostController extends Controller
         $post->zone_id = $request['zone_id'] ?? config('zone_id');
         $post->save();
 
-        //notification to customer
-        device_notification_for_bidding($request->user()->fcm_token, translate('Successfully requested for new service'), null, null, 'bidding', null, $post->id, null);
+        $title = get_push_notification_message('customized_booking_request', 'customer_notification', $request->user()?->current_language_key);
+        if ($title && $request->user()?->fcm_token) {
+            device_notification_for_bidding($request->user()->fcm_token, $title, null, null, 'bidding', null, $post->id, null);
+        }
 
         if (count($request['additional_instructions']) > 0) {
             $data = [];
-            foreach ($request['additional_instructions'] as $key=>$item) {
+            foreach ($request['additional_instructions'] as $key => $item) {
                 $data[$key]['id'] = Uuid::uuid4();
                 $data[$key]['details'] = $item;
                 $data[$key]['post_id'] = $post->id;
@@ -161,12 +175,22 @@ class PostController extends Controller
             $this->post_additional_instruction->insert($data);
         }
 
-        //notification to provider
         $provider_ids = SubscribedService::where('sub_category_id', $request['sub_category_id'])->ofSubscription(1)->pluck('provider_id')->toArray();
-        $providers = Provider::with('owner')->whereIn('id', $provider_ids)->where('zone_id', $post->zone_id)->get();
+        if (business_config('suspend_on_exceed_cash_limit_provider', 'provider_config')->live_values) {
+            $providers = Provider::with('owner')->whereIn('id', $provider_ids)->where('zone_id', $post->zone_id)->where('is_suspended', 0)->get();
+        } else {
+            $providers = Provider::with('owner')->whereIn('id', $provider_ids)->where('zone_id', $post->zone_id)->get();
+        }
+
+        $bookingNotificationStatus = business_config('booking', 'notification_settings')->live_values;
+
         foreach ($providers as $provider) {
             $fcm_token = $provider->owner->fcm_token ?? null;
-            if(!is_null($fcm_token)) device_notification_for_bidding($fcm_token, translate('New service request has been arrived'), null, null, 'bidding', null, $post->id, null);
+            $title = get_push_notification_message('new_service_request_arrived', 'provider_notification', $provider?->owner?->current_language_key);
+            $data_info = [
+                'user_name' => $request->user()?->first_name . ' ' . $request->user()?->last_name,
+            ];
+            if (!is_null($fcm_token) && $provider?->service_availability && $title && isset($bookingNotificationStatus) && $bookingNotificationStatus['push_notification_booking']) device_notification_for_bidding($fcm_token, $title, null, null, 'bidding', null, $post->id, null, $data_info);
         }
 
         return response()->json(response_formatter(DEFAULT_STORE_200, null), 200);
@@ -176,7 +200,7 @@ class PostController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function update_info(Request $request): JsonResponse
+    public function updateInfo(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'post_id' => 'required',

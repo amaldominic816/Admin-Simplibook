@@ -25,7 +25,7 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function update_subscription(Request $request): JsonResponse
+    public function updateSubscription(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'sub_category_id' => 'required|array',

@@ -144,6 +144,7 @@ We may release future updates so it will overwrite this file. it's better and sa
     /*==================================
   04: togglePassword
   ====================================*/
+  $(document).ready(function () {
     $(".togglePassword").on("click", function (e) {
         const password = $(this).siblings(".form-control");
         password.attr("type") === "password"
@@ -152,6 +153,7 @@ We may release future updates so it will overwrite this file. it's better and sa
         const type = password.attr("type") === "password" ? "text" : "password";
         password.attr("type", type);
     });
+  });
 
     /*==================================
   05: Preloader
@@ -266,6 +268,30 @@ We may release future updates so it will overwrite this file. it's better and sa
                         $("#name_of_file").html(this.files[0].name);
                     }
                 });
+
+                var $uploadFile = $(this).parents(".upload-file");
+                $uploadFile.parent().find(".file_error-message").remove();
+
+                var file_size = this.files[0].size;
+
+                if (file_size > 2097152) {
+                    $uploadFile
+                        .parent()
+                        .append(
+                            "<div class='file_error-message text-danger mt-3'>File size is greater than 2MB</div>"
+                        );
+                }
+
+                // Check if any error messages are present in the form
+                var hasErrors =
+                    $(this).parents("form").find(".file_error-message").length >
+                    0;
+
+                // Enable or disable the submit button based on the presence of errors
+                $(this)
+                    .parents("form")
+                    .find('button[type="submit"]')
+                    .prop("disabled", hasErrors);
             }
         });
     });
@@ -317,12 +343,14 @@ We may release future updates so it will overwrite this file. it's better and sa
     /*============================================
   15: Enable tooltips
   ==============================================*/
-    const tooltipTriggerList = document.querySelectorAll(
-        '[data-bs-toggle="tooltip"]'
-    );
-    const tooltipList = [...tooltipTriggerList].map(
-        (tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl)
-    );
+    $(document).ready(function () {
+        const tooltipTriggerList = document.querySelectorAll(
+            '[data-bs-toggle="tooltip"]'
+        );
+        const tooltipList = [...tooltipTriggerList].map(
+            (tooltipTriggerEl) => new bootstrap.Tooltip(tooltipTriggerEl)
+        );
+    });
 
     /*==================================
   16: Changing svg color
@@ -450,4 +478,62 @@ We may release future updates so it will overwrite this file. it's better and sa
     // $(".dropdown.hover").on("mouseenter", function () {
     //     $(this).find(".dropdown-hover-toggle").dropdown("toggle");
     // });
+
+    // Switcher With Text
+    $(document).ready(function () {
+        $(".switcher.hasContent .switcher_input").on("change", function () {
+            var statusText = $(this).prop("checked") ? "Active" : "Inactive";
+            $(this)
+                .parents(".switcher.hasContent")
+                .attr("data-before", statusText);
+        });
+    });
+
+    // Menu Search
+    var $rows = $(".aside .aside-body > ul.nav > li");
+    $("#search-bar-input").on("keyup", function () {
+        let val = $.trim($(this).val()).replace(/ +/g, " ").toLowerCase();
+
+        $rows
+            .show()
+            .filter(function () {
+                let text = $(this).text().replace(/\s+/g, " ").toLowerCase();
+                return !~text.indexOf(val);
+            })
+            .hide();
+    });
+    function selectAllValue(selectedValues) {
+        if (selectedValues !== null && selectedValues.includes("all")) {
+            $(this)
+                .find("option")
+                .not(":disabled")
+                .prop("selected", "selected");
+            $(this).find('option[value="all"]').prop("selected", false);
+        }
+    }
+
+    // Select2 Dropdown Search Placeholder
+    $(".js-select").one("select2:open", function (e) {
+        $("input.select2-search__field").prop("placeholder", "Search Here...");
+        $(".select2-search.select2-search--dropdown")
+            .addClass("select2-search-has-icon")
+            .append(
+                "<span class='material-symbols-outlined select2-search__icon text-muted'>search</span>"
+            );
+    });
+    // Search Modal Open Input Focus
+    $(document).ready(function () {
+        $("#staticBackdrop").on("shown.bs.modal", function () {
+            $(this).find("#searchForm input[type=search]").val('');
+            $('#searchResults').html('<div class="text-center text-muted py-5">It appears that you have not yet searched.</div>');
+            $(this).find("#searchForm input[type=search]").focus();
+        });
+
+        const searchInput = document.getElementById('searchInput');
+        searchInput.addEventListener('search', function() {
+            if (!this.value.trim()) {
+                $('#searchResults').html('<div class="text-center text-muted py-5">It appears that you have not yet searched.</div>');
+            }
+        });
+    });
 })(jQuery);

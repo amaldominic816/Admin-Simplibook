@@ -28,31 +28,30 @@ class PaytmController extends Controller
     {
         $config = $this->payment_config('paytm', 'payment_config');
         if (!is_null($config) && $config->mode == 'live') {
-            $paytm = json_decode($config->live_values);
+            $this->config_values = json_decode($config->live_values);
         } elseif (!is_null($config) && $config->mode == 'test') {
-            $paytm = json_decode($config->test_values);
+            $this->config_values = json_decode($config->test_values);
         }
-        if (isset($paytm)) {
+        if (isset($config)) {
 
             $PAYTM_STATUS_QUERY_NEW_URL = 'https://securegw-stage.paytm.in/merchant-status/getTxnStatus';
             $PAYTM_TXN_URL = 'https://securegw-stage.paytm.in/theia/processTransaction';
-            if ( $config->mode == 'live') {
+            if ($config->mode == 'live') {
                 $PAYTM_STATUS_QUERY_NEW_URL = 'https://securegw.paytm.in/merchant-status/getTxnStatus';
                 $PAYTM_TXN_URL = 'https://securegw.paytm.in/theia/processTransaction';
             }
 
             $config = array(
-                'PAYTM_ENVIRONMENT' => (env('APP_MODE') == 'live') ? 'PROD' : 'TEST',
-                'PAYTM_MERCHANT_KEY' => env('PAYTM_MERCHANT_KEY', $paytm->merchant_key),
-                'PAYTM_MERCHANT_MID' => env('PAYTM_MERCHANT_MID', $paytm->merchant_id),
-                'PAYTM_MERCHANT_WEBSITE' => env('PAYTM_MERCHANT_WEBSITE', $paytm->merchant_website_link),
-                'PAYTM_REFUND_URL' => env('PAYTM_REFUND_URL', $paytm->refund_url ?? ''),
+                'PAYTM_ENVIRONMENT' => ($config->mode == 'test') ? 'TEST' : 'PROD',
+                'PAYTM_MERCHANT_KEY' => env('PAYTM_MERCHANT_KEY', $this->config_values->merchant_key),
+                'PAYTM_MERCHANT_MID' => env('PAYTM_MERCHANT_MID', $this->config_values->merchant_id),
+                'PAYTM_MERCHANT_WEBSITE' => env('PAYTM_MERCHANT_WEBSITE', $this->config_values->merchant_website_link),
+                'PAYTM_REFUND_URL' => env('PAYTM_REFUND_URL', $this->config_values->refund_url ?? ''),
                 'PAYTM_STATUS_QUERY_URL' => env('PAYTM_STATUS_QUERY_URL', $PAYTM_STATUS_QUERY_NEW_URL),
                 'PAYTM_STATUS_QUERY_NEW_URL' => env('PAYTM_STATUS_QUERY_NEW_URL', $PAYTM_STATUS_QUERY_NEW_URL),
                 'PAYTM_TXN_URL' => env('PAYTM_TXN_URL', $PAYTM_TXN_URL),
             );
 
-            //config_paytm
             Config::set('paytm_config', $config);
         }
         $this->payment = $payment;

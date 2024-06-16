@@ -23,7 +23,7 @@ class WithdrawController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function get_methods(Request $request): JsonResponse
+    public function getMethods(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',

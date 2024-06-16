@@ -51,7 +51,7 @@ class ExpenseReportController extends Controller
      * @param Request $request
      * @return Renderable
      */
-    public function get_business_expense_report(Request $request)
+    public function getBusinessExpenseReport(Request $request)
     {
         Validator::make($request->all(), [
             'zone_ids' => 'array',
@@ -68,39 +68,39 @@ class ExpenseReportController extends Controller
         //Dropdown data
         $zones = $this->zone->ofStatus(1)->select('id', 'name')->get();
         $categories = $this->categories->ofType('main')->select('id', 'name')->get();
-        $sub_categories = $this->categories->ofType('sub')->select('id', 'name')->get();
+        $subCategories = $this->categories->ofType('sub')->select('id', 'name')->get();
 
         //params
         $search = $request['search'];
-        $query_params = ['search' => $search];
+        $queryParams = ['search' => $search];
         if($request->has('zone_ids')) {
-            $query_params['zone_ids'] = $request['zone_ids'];
+            $queryParams['zone_ids'] = $request['zone_ids'];
         }
         if ($request->has('category_ids')) {
-            $query_params['category_ids'] = $request['category_ids'];
+            $queryParams['category_ids'] = $request['category_ids'];
         }
         if ($request->has('sub_category_ids')) {
-            $query_params['sub_category_ids'] = $request['sub_category_ids'];
+            $queryParams['sub_category_ids'] = $request['sub_category_ids'];
         }
         if ($request->has('date_range')) {
-            $query_params['date_range'] = $request['date_range'];
+            $queryParams['date_range'] = $request['date_range'];
         }
         if ($request->has('date_range') && $request['date_range'] == 'custom_date') {
-            $query_params['from'] = $request['from'];
-            $query_params['to'] = $request['to'];
+            $queryParams['from'] = $request['from'];
+            $queryParams['to'] = $request['to'];
         }
 
         //deterministic
-        $date_range = $request['date_range'];
-        if(is_null($date_range) || $date_range == 'all_time') {
+        $dateRange = $request['date_range'];
+        if(is_null($dateRange) || $dateRange == 'all_time') {
             $deterministic = 'year';
-        } elseif ($date_range == 'this_week' || $date_range == 'last_week') {
+        } elseif ($dateRange == 'this_week' || $dateRange == 'last_week') {
             $deterministic = 'week';
-        } elseif ($date_range == 'this_month' || $date_range == 'last_month' || $date_range == 'last_15_days') {
+        } elseif ($dateRange == 'this_month' || $dateRange == 'last_month' || $dateRange == 'last_15_days') {
             $deterministic = 'day';
-        } elseif ($date_range == 'this_year' || $date_range == 'last_year' || $date_range == 'last_6_month' || $date_range == 'this_year_1st_quarter' || $date_range == 'this_year_2nd_quarter' || $date_range == 'this_year_3rd_quarter' || $date_range == 'this_year_4th_quarter') {
+        } elseif ($dateRange == 'this_year' || $dateRange == 'last_year' || $dateRange == 'last_6_month' || $dateRange == 'this_year_1st_quarter' || $dateRange == 'this_year_2nd_quarter' || $dateRange == 'this_year_3rd_quarter' || $dateRange == 'this_year_4th_quarter') {
             $deterministic = 'month';
-        } elseif($date_range == 'custom_date') {
+        } elseif($dateRange == 'custom_date') {
             $from = Carbon::parse($request['from'])->startOfDay();
             $to = Carbon::parse($request['to'])->endOfDay();
             $diff = Carbon::parse($from)->diffInDays($to);
@@ -115,13 +115,13 @@ class ExpenseReportController extends Controller
                 $deterministic = 'year';
             }
         }
-        $group_by_deterministic = $deterministic=='week'?'day':$deterministic;
+        $groupByDeterministic = $deterministic=='week'?'day':$deterministic;
 
         //** Table Data **
-        $filtered_booking_amounts = $this->booking_details_amount
+        $filteredBookingAmounts = $this->booking_details_amount
             ->with(['booking'])
             ->whereHas('booking', function ($query) use ($request) {
-                self::filter_query($query, $request)
+                self::filterQuery($query, $request)
                     ->ofBookingStatus('completed')
                     ->when($request->has('search'), function ($query) use ($request) {
                         $keys = explode(' ', $request['search']);
@@ -132,14 +132,14 @@ class ExpenseReportController extends Controller
                         });
                     });
             })
-            ->latest()->paginate(pagination_limit())->appends($query_params);
+            ->latest()->paginate(pagination_limit())->appends($queryParams);
 
         //** Chart & Card Data **
         $amounts = $this->booking_details_amount
             ->whereHas('booking', function ($query) use ($request) {
-                self::filter_query($query, $request)->ofBookingStatus('completed');
+                self::filterQuery($query, $request)->ofBookingStatus('completed');
             })
-            ->when(isset($group_by_deterministic), function ($query) use ($group_by_deterministic) {
+            ->when(isset($groupByDeterministic), function ($query) use ($groupByDeterministic) {
                 $query->select(
                     DB::raw('sum(service_unit_cost) as service_unit_cost'),
                     DB::raw('sum(service_quantity) as service_quantity'),
@@ -149,68 +149,70 @@ class ExpenseReportController extends Controller
                     DB::raw('sum(campaign_discount_by_provider) as campaign_discount_by_provider'),
                     DB::raw('sum(provider_earning) as provider_earning'),
 
-                    DB::raw($group_by_deterministic.'(created_at) '.$group_by_deterministic)
+                    DB::raw($groupByDeterministic.'(created_at) '.$groupByDeterministic)
                 );
             })
-            ->groupby($group_by_deterministic)
+            ->groupby($groupByDeterministic)
             ->get()->toArray();
 
-        $chart_data = ['normal_discount'=>array(), 'campaign_discount'=>array(), 'coupon_discount'=>array(), 'expenses'=>array(), 'timeline'=>array()];
-        $total_promotional_cost = ['total_expense' => 0, 'discount' => 0, 'coupon' => 0, 'campaign' => 0];
+        $chartData = ['normal_discount'=>array(), 'campaign_discount'=>array(), 'coupon_discount'=>array(), 'expenses'=>array(), 'timeline'=>array()];
+        $totalPromotionalCost = ['total_expense' => 0, 'discount' => 0, 'coupon' => 0, 'campaign' => 0];
         //data filter for deterministic
         if($deterministic == 'month') {
             $months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
             foreach ($months as $month) {
                 $found=0;
-                $chart_data['timeline'][] = $month;
+                $chartData['timeline'][] = $month;
                 foreach ($amounts as $item) {
                     if ($item['month'] == $month) {
                         //chart
-                        $chart_data['normal_discount'][] = with_decimal_point($item['discount_by_provider']);
-                        $chart_data['campaign_discount'][] = with_decimal_point($item['campaign_discount_by_provider']);
-                        $chart_data['coupon_discount'][] = with_decimal_point($item['coupon_discount_by_provider']);
-                        $chart_data['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
+                        $chartData['normal_discount'][] = with_decimal_point($item['discount_by_provider']);
+                        $chartData['campaign_discount'][] = with_decimal_point($item['campaign_discount_by_provider']);
+                        $chartData['coupon_discount'][] = with_decimal_point($item['coupon_discount_by_provider']);
+                        $chartData['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
                         $found=1;
 
                         //card
-                        $total_promotional_cost['discount'] += $item['discount_by_provider']??0;
-                        $total_promotional_cost['coupon'] += $item['coupon_discount_by_provider']??0;
-                        $total_promotional_cost['campaign'] += $item['campaign_discount_by_provider']??0;
-                        $total_promotional_cost['total_expense'] += $total_promotional_cost['discount'] + $total_promotional_cost['coupon'] + $total_promotional_cost['campaign'];
+                        $totalPromotionalCost['discount'] += $item['discount_by_provider']??0;
+                        $totalPromotionalCost['coupon'] += $item['coupon_discount_by_provider']??0;
+                        $totalPromotionalCost['campaign'] += $item['campaign_discount_by_provider']??0;
+                        $totalPromotionalCost['total_expense'] += $totalPromotionalCost['discount'] + $totalPromotionalCost['coupon'] + $totalPromotionalCost['campaign'];
                     }
                 }
                 //chart
                 if(!$found){
-                    $chart_data['normal_discount'][] = with_decimal_point(0);
-                    $chart_data['campaign_discount'][] = with_decimal_point(0);
-                    $chart_data['coupon_discount'][] = with_decimal_point(0);
-                    $chart_data['expenses'][] = with_decimal_point(0);
+                    $chartData['normal_discount'][] = with_decimal_point(0);
+                    $chartData['campaign_discount'][] = with_decimal_point(0);
+                    $chartData['coupon_discount'][] = with_decimal_point(0);
+                    $chartData['expenses'][] = with_decimal_point(0);
                 }
             }
 
         }
         elseif ($deterministic == 'year') {
-            foreach ($amounts as $item) {
+            $totalPromotionalCost['total_expense'] = 0;
+            foreach ($amounts as $key=>$item) {
                 //chart
-                $chart_data['normal_discount'][] = with_decimal_point($item['discount_by_provider']);
-                $chart_data['campaign_discount'][] = with_decimal_point($item['campaign_discount_by_provider']);
-                $chart_data['coupon_discount'][] = with_decimal_point($item['coupon_discount_by_provider']);
-                $chart_data['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
-                $chart_data['timeline'][] = $item[$deterministic];
+                $chartData['normal_discount'][] = with_decimal_point($item['discount_by_provider']);
+                $chartData['campaign_discount'][] = with_decimal_point($item['campaign_discount_by_provider']);
+                $chartData['coupon_discount'][] = with_decimal_point($item['coupon_discount_by_provider']);
+                $chartData['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
+                $chartData['timeline'][] = $item[$deterministic];
 
                 //card
-                $total_promotional_cost['discount'] += $item['discount_by_provider']??0;
-                $total_promotional_cost['coupon'] += $item['coupon_discount_by_provider']??0;
-                $total_promotional_cost['campaign'] += $item['campaign_discount_by_provider']??0;
-                $total_promotional_cost['total_expense'] += $total_promotional_cost['discount'] + $total_promotional_cost['coupon'] + $total_promotional_cost['campaign'];
+                $totalPromotionalCost['discount'] += $item['discount_by_provider']??0;
+                $totalPromotionalCost['coupon'] += $item['coupon_discount_by_provider']??0;
+                $totalPromotionalCost['campaign'] += $item['campaign_discount_by_provider']??0;
+                $totalPromotionalCost['total_expense'] += $item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider'];
+
             }
         }
         elseif ($deterministic == 'day') {
-            if ($date_range == 'this_month') {
+            if ($dateRange == 'this_month') {
                 $to = Carbon::now()->lastOfMonth();
-            } elseif ($date_range == 'last_month') {
+            } elseif ($dateRange == 'last_month') {
                 $to = Carbon::now()->subMonth()->endOfMonth();
-            } elseif ($date_range == 'last_15_days') {
+            } elseif ($dateRange == 'last_15_days') {
                 $to = Carbon::now();
             }
 
@@ -218,74 +220,74 @@ class ExpenseReportController extends Controller
 
             for ($i = 1; $i <= $number; $i++) {
                 $found=0;
-                $chart_data['timeline'][] = $i;
+                $chartData['timeline'][] = $i;
                 foreach ($amounts as $item) {
                     if ($item['day'] == $i) {
                         //chart
-                        $chart_data['normal_discount'][] = with_decimal_point($item['discount_by_provider']);
-                        $chart_data['campaign_discount'][] = with_decimal_point($item['campaign_discount_by_provider']);
-                        $chart_data['coupon_discount'][] = with_decimal_point($item['coupon_discount_by_provider']);
-                        $chart_data['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
+                        $chartData['normal_discount'][] = with_decimal_point($item['discount_by_provider']);
+                        $chartData['campaign_discount'][] = with_decimal_point($item['campaign_discount_by_provider']);
+                        $chartData['coupon_discount'][] = with_decimal_point($item['coupon_discount_by_provider']);
+                        $chartData['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
                         $found=1;
 
                         //card
-                        $total_promotional_cost['discount'] += $item['discount_by_provider']??0;
-                        $total_promotional_cost['coupon'] += $item['coupon_discount_by_provider']??0;
-                        $total_promotional_cost['campaign'] += $item['campaign_discount_by_provider']??0;
-                        $total_promotional_cost['total_expense'] += $total_promotional_cost['discount'] + $total_promotional_cost['coupon'] + $total_promotional_cost['campaign'];
+                        $totalPromotionalCost['discount'] += $item['discount_by_provider']??0;
+                        $totalPromotionalCost['coupon'] += $item['coupon_discount_by_provider']??0;
+                        $totalPromotionalCost['campaign'] += $item['campaign_discount_by_provider']??0;
+                        $totalPromotionalCost['total_expense'] += $totalPromotionalCost['discount'] + $totalPromotionalCost['coupon'] + $totalPromotionalCost['campaign'];
                     }
                 }
                 //chart
                 if(!$found){
-                    $chart_data['normal_discount'][] = with_decimal_point(0);
-                    $chart_data['campaign_discount'][] = with_decimal_point(0);
-                    $chart_data['coupon_discount'][] = with_decimal_point(0);
-                    $chart_data['expenses'][] = with_decimal_point(0);
+                    $chartData['normal_discount'][] = with_decimal_point(0);
+                    $chartData['campaign_discount'][] = with_decimal_point(0);
+                    $chartData['coupon_discount'][] = with_decimal_point(0);
+                    $chartData['expenses'][] = with_decimal_point(0);
                 }
             }
         }
         elseif ($deterministic == 'week') {
-            if ($date_range == 'this_week') {
+            if ($dateRange == 'this_week') {
                 $from = Carbon::now()->startOfWeek();
                 $to = Carbon::now()->endOfWeek();
-            } elseif ($date_range == 'last_week') {
+            } elseif ($dateRange == 'last_week') {
                 $from = Carbon::now()->subWeek()->startOfWeek();
                 $to = Carbon::now()->subWeek()->endOfWeek();
             }
 
             for ($i = (int)$from->format('d'); $i <= (int)$to->format('d'); $i++) {
                 $found=0;
-                $chart_data['timeline'][] = $i;
+                $chartData['timeline'][] = $i;
                 foreach ($amounts as $item) {
                     if ($item['day'] == $i) {
                         //chart
-                        $chart_data['normal_discount'][] = with_decimal_point($item['discount_by_provider']);
-                        $chart_data['campaign_discount'][] = with_decimal_point($item['campaign_discount_by_provider']);
-                        $chart_data['coupon_discount'][] = with_decimal_point($item['coupon_discount_by_provider']);
-                        $chart_data['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
+                        $chartData['normal_discount'][] = with_decimal_point($item['discount_by_provider']);
+                        $chartData['campaign_discount'][] = with_decimal_point($item['campaign_discount_by_provider']);
+                        $chartData['coupon_discount'][] = with_decimal_point($item['coupon_discount_by_provider']);
+                        $chartData['expenses'][] = with_decimal_point($item['discount_by_provider'] + $item['coupon_discount_by_provider'] + $item['campaign_discount_by_provider']);
                         $found=1;
 
                         //card
-                        $total_promotional_cost['discount'] += $item['discount_by_provider']??0;
-                        $total_promotional_cost['coupon'] += $item['coupon_discount_by_provider']??0;
-                        $total_promotional_cost['campaign'] += $item['campaign_discount_by_provider']??0;
-                        $total_promotional_cost['total_expense'] += $total_promotional_cost['discount'] + $total_promotional_cost['coupon'] + $total_promotional_cost['campaign'];
+                        $totalPromotionalCost['discount'] += $item['discount_by_provider']??0;
+                        $totalPromotionalCost['coupon'] += $item['coupon_discount_by_provider']??0;
+                        $totalPromotionalCost['campaign'] += $item['campaign_discount_by_provider']??0;
+                        $totalPromotionalCost['total_expense'] += $totalPromotionalCost['discount'] + $totalPromotionalCost['coupon'] + $totalPromotionalCost['campaign'];
                     }
                 }
                 //chart
                 if(!$found){
-                    $chart_data['normal_discount'][] = with_decimal_point(0);
-                    $chart_data['campaign_discount'][] = with_decimal_point(0);
-                    $chart_data['coupon_discount'][] = with_decimal_point(0);
-                    $chart_data['expenses'][] = with_decimal_point(0);
+                    $chartData['normal_discount'][] = with_decimal_point(0);
+                    $chartData['campaign_discount'][] = with_decimal_point(0);
+                    $chartData['coupon_discount'][] = with_decimal_point(0);
+                    $chartData['expenses'][] = with_decimal_point(0);
                 }
             }
         }
 
-        return view('providermanagement::provider.report.business.expense', compact('zones', 'categories', 'sub_categories', 'filtered_booking_amounts', 'chart_data', 'total_promotional_cost', 'deterministic', 'query_params'));
+        return view('providermanagement::provider.report.business.expense', compact('zones', 'categories', 'subCategories', 'filteredBookingAmounts', 'chartData', 'totalPromotionalCost', 'deterministic', 'queryParams'));
     }
 
-    public function get_business_expense_report_download(Request $request)
+    public function getBusinessExpenseReportDownload(Request $request)
     {
         Validator::make($request->all(), [
             'zone_ids' => 'array',
@@ -300,10 +302,10 @@ class ExpenseReportController extends Controller
         ]);
 
         //** Table Data **
-        $filtered_booking_amounts = $this->booking_details_amount
+        $filteredBookingAmounts = $this->booking_details_amount
             ->with(['booking'])
             ->whereHas('booking', function ($query) use ($request) {
-                self::filter_query($query, $request)
+                self::filterQuery($query, $request)
                     ->ofBookingStatus('completed')
                     ->when($request->has('search'), function ($query) use ($request) {
                         $keys = explode(' ', $request['search']);
@@ -317,7 +319,7 @@ class ExpenseReportController extends Controller
             ->latest()
             ->get();
 
-        return (new FastExcel($filtered_booking_amounts))->download(time().'-business-expense-report.xlsx', function ($item) {
+        return (new FastExcel($filteredBookingAmounts))->download(time().'-business-expense-report.xlsx', function ($item) {
             return [
                 'Booking ID' => $item->booking->readable_id??'',
                 'Normal Discount ('.currency_symbol().')' => with_decimal_point($item['discount_by_provider']),
@@ -333,7 +335,7 @@ class ExpenseReportController extends Controller
      * @param $request
      * @return mixed
      */
-    function filter_query($instance, $request): mixed
+    function filterQuery($instance, $request): mixed
     {
         return $instance
             ->where('provider_id', $request->user()->provider->id)

@@ -5,7 +5,9 @@ namespace Modules\CategoryManagement\Entities;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Config;
+use Modules\BusinessSettingsModule\Entities\Translation;
 use Modules\PromotionManagement\Entities\DiscountType;
 use Modules\ServiceManagement\Entities\Service;
 use Modules\ZoneManagement\Entities\Zone;
@@ -96,6 +98,35 @@ class Category extends Model
         return $this->hasMany(Service::class, 'category_id');
     }
 
+    public function translations(): MorphMany
+    {
+        return $this->morphMany(Translation::class, 'translationable');
+    }
+
+    public function getNameAttribute($value){
+        if (count($this->translations) > 0) {
+            foreach ($this->translations as $translation) {
+                if ($translation['key'] == 'name') {
+                    return $translation['value'];
+                }
+            }
+        }
+
+        return $value;
+    }
+
+    public function getDescriptionAttribute($value){
+        if (count($this->translations) > 0) {
+            foreach ($this->translations as $translation) {
+                if ($translation['key'] == 'description') {
+                    return $translation['value'];
+                }
+            }
+        }
+
+        return $value;
+    }
+
     protected static function booted()
     {
         static::addGlobalScope('zone_wise_data', function (Builder $builder) {
@@ -104,6 +135,12 @@ class Category extends Model
                     $query->where('zone_id', Config::get('zone_id'));
                 })->with(['category_discount', 'campaign_discount']);
             }
+        });
+
+        static::addGlobalScope('translate', function (Builder $builder) {
+            $builder->with(['translations' => function ($query) {
+                return $query->where('locale', app()->getLocale());
+            }]);
         });
     }
 }

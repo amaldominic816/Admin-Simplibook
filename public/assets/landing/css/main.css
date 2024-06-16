@@ -386,7 +386,7 @@ footer {
     color: var(--white-clr);
 }
 
-.footer__wrapper-contact a:hover {
+.footer__wrapper-contact a:not(.cmn--btn):hover {
     color: var(--base-clr);
 }
 
@@ -631,11 +631,11 @@ footer {
     text-transform: capitalize;
 }
 
-.navbar-bottom-wrapper .menu li a span {
+/* .navbar-bottom-wrapper .menu li a span {
     position: relative;
-}
+} */
 
-.navbar-bottom-wrapper .menu li a span::before {
+/* .navbar-bottom-wrapper .menu li a > span::before {
     content: "";
     position: absolute;
     left: 0;
@@ -645,7 +645,7 @@ footer {
     border-radius: 2px;
     width: 0;
     transition: 0.3s ease-in-out;
-}
+} */
 
 .navbar-bottom-wrapper .menu li a:hover, .navbar-bottom-wrapper .menu li a.active {
     color: var(--base-clr);
@@ -2167,3 +2167,69 @@ textarea.form--control {
     color: var(--title-clr) !important;
 }
 /*# sourceMappingURL=main.css.map */
+
+.top-padding {
+    padding-left: 20px
+}
+
+
+.dark-theme {
+    --body-bg: #121213;
+    --header-bg: #11202be6;
+    --footer: #001f35;
+    --footer-bottom: #111a21;
+}
+
+.navbar-nav .dropdown-menu.lang-menu {
+    position: absolute;
+}
+
+@media (max-width: 575px) {
+    .navbar-nav .dropdown-menu.lang-menu {
+        left: unset;
+        right: 0;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+
+    .js-navbar-vertical-aside-toggle-invoker {
+        margin-right: 0 !important;
+    }
+}
+
+
+/* .lagn-drop-btn {
+    background: var(--body-bg);
+    padding: 10px 20px !important;
+    border-radius: 10px;
+    min-width: 200px;
+} */
+.lagn-drop-btn > span::before {
+    display: none;
+}
+
+@media (max-width: 1199px) {
+    .lagn-drop-btn {
+        min-width: initial;
+        padding: 10px !important;
+    }
+}
+
+.lagn-drop-btn + .dropdown-menu {
+    min-width: 200px;
+}
+
+.lagn-drop-btn + .dropdown-menu li:not(:last-child) {
+    border-bottom: 1px solid var(--body-bg);
+}
+
+.dropdown-item:hover {
+    background-color: transparent;
+    color: var(--link-color);
+}
+
+.dropdown-menu {
+    box-shadow: 0px 0px 0.125rem rgba(65, 83, 179, 0.05), 0px 0.75rem 1.5rem -0.25rem rgba(65, 83, 179, 0.05);
+    border: none;
+    border-radius: 0.625rem;
+}

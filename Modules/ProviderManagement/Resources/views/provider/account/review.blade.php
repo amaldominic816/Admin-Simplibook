@@ -9,41 +9,41 @@
 @endpush
 
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="page-title-wrap mb-3">
                 <h2 class="page-title">{{translate('Account_Information')}}</h2>
             </div>
 
-            <!-- Nav Tabs -->
             <div class="mb-3">
                 <ul class="nav nav--tabs nav--tabs__style2">
                     <li class="nav-item">
-                        <a class="nav-link {{$page_type=='overview'?'active':''}}"
+                        <a class="nav-link {{$pageType=='overview'?'active':''}}"
                            href="{{url()->current()}}?page_type=overview">{{translate('Overview')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$page_type=='commission-info'?'active':''}}"
+                        <a class="nav-link {{$pageType=='commission-info'?'active':''}}"
                            href="{{url()->current()}}?page_type=commission-info">{{translate('Commission_Info')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$page_type=='review'?'active':''}}"
+                        <a class="nav-link {{$pageType=='review'?'active':''}}"
                            href="{{url()->current()}}?page_type=review">{{translate('Reviews')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$page_type=='promotional_cost'?'active':''}}"
+                        <a class="nav-link {{$pageType=='promotional_cost'?'active':''}}"
                            href="{{url()->current()}}?page_type=promotional_cost">{{translate('Promotional_Cost')}}</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{$pageType=='withdraw_transaction'?'active':''}}"
+                           href="{{route('provider.withdraw.list', ['page_type'=>'withdraw_transaction'])}}">{{translate('withdraw_list')}}</a>
                     </li>
                 </ul>
             </div>
-            <!-- End Nav Tabs -->
 
-            <!-- Tab Content -->
             <div class="card mb-30">
                 <div class="card-body p-30">
-                    <div class="row">
-                        <div class="col-lg-5 mb-30 mb-lg-0 d-flex justify-content-center">
+                    <div class="row gx-5">
+                        <div class="col-lg-5 mb-30 mb-lg-0 d-flex justify-content-center border-lg-end">
                             <div class="rating-review">
                                 <h2 class="rating-review__title">
                                     <span class="rating-review__out-of">{{$provider->avg_rating}}</span>/5
@@ -60,10 +60,14 @@
                                     <span
                                         class="{{$provider->avg_rating>=5?'material-icons':'material-symbols-outlined'}}">{{$provider->avg_rating>=5?'star':'grade'}}</span>
                                 </div>
-                                <div class="rating-review__info d-flex flex-wrap gap-3">
+                                <div class="rating-review__info d-flex flex-wrap gap-3 mt-2">
                                     @php($total_review_count=$provider->reviews->count())
-                                    <span>{{$provider->rating_count}} {{translate('ratings')}}</span>
-                                    <span>{{$total_review_count}} {{translate('reviews')}}</span>
+                                    @if($provider->rating_count == $total_review_count)
+                                        <span>{{$total_review_count}} {{translate('ratings & reviews')}}</span>
+                                    @else
+                                        <span>{{$provider->rating_count}} {{translate('ratings')}}</span>
+                                        <span>{{$total_review_count}} {{translate('reviews')}}</span>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -145,7 +149,7 @@
             <div class="card">
                 <div class="card-body">
                     <div class="data-table-top d-flex flex-wrap gap-10 justify-content-between">
-                        <form action="{{url()->current()}}?page_type={{$page_type}}"
+                        <form action="{{url()->current()}}?page_type={{$pageType}}"
                                 class="search-form search-form_style-two"
                                 method="POST">
                             @csrf
@@ -182,21 +186,33 @@
                         <table id="example" class="table align-middle">
                             <thead>
                             <tr>
+                                <th>{{translate('SL')}}</th>
                                 <th>{{translate('Booking_ID')}}</th>
-                                <th>{{translate('Service')}}</th>
                                 <th>{{translate('Booking_Date')}}</th>
-                                <th>{{translate('Ratings')}}</th>
+                                <th>{{translate('Service_Name')}}</th>
                                 <th>{{translate('Reviews')}}</th>
+                                <th class="text-center">{{translate('Ratings')}}</th>
                             </tr>
                             </thead>
                             <tbody>
                             @foreach($reviews as $review)
                                 <tr>
+                                    <td>1</td>
                                     <td>{{isset($review->booking) ? $review->booking['readable_id'] : ''}}</td>
+                                    <td>
+                                        <div>{{date('d-M-y', strtotime($review->created_at))}}</div>
+                                        <div>{{date('H:iA', strtotime($review->created_at))}}</div>
+                                    </td>
                                     <td>{{$review->service ? $review->service->name : translate('Service_unavailable')}}</td>
-                                    <td>{{date('d-M-y H:iA', strtotime($review->created_at))}}</td>
-                                    <td>{{($review->review_rating ?? 0)}}</td>
-                                    <td>{{($review->review_comment ?? '')}}</td>
+                                    <td>
+                                        <div title="{{($review->review_comment ?? '')}}">{{($review->review_comment ?? '')}}</div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-1 c1 justify-content-center">
+                                            <span class="material-icons c1">star</span>
+                                            {{($review->review_rating ?? 0)}}
+                                        </div>
+                                    </td>
                                 </tr>
                             @endforeach
                             </tbody>
@@ -207,10 +223,8 @@
                     </div>
                 </div>
             </div>
-            <!-- End Tab Content -->
         </div>
     </div>
-    <!-- End Main Content -->
 @endsection
 
 @push('script')

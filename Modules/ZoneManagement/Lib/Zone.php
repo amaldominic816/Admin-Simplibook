@@ -5,13 +5,24 @@ use Modules\ProviderManagement\Entities\Provider;
 use Modules\UserManagement\Entities\Serviceman;
 use Modules\UserManagement\Entities\User;
 
-if (!function_exists('format_coordiantes')) {
-    function format_coordinates($object): string
+if (!function_exists('format_coordinates')) {
+    function format_coordinates($object): array
     {
-        $str = '';
-        foreach ($object as $key => $coordinate) {
-            $str .= '(' . $coordinate->lat . ', ' . $coordinate->lng . ')' . ($key + 1 != count($object) ? ',' : '');
+        $data = [];
+        foreach ($object as $coordinate) {
+            $data[] = (object)['lat' => $coordinate[1], 'lng' => $coordinate[0]];
         }
-        return $str;
+        return $data;
+    }
+}
+if (!function_exists('formatCoordinates')) {
+    function formatCoordinates($coordinates): array
+    {
+        $object = json_decode($coordinates[0]->toJson(),true)['coordinates'];
+        $data = [];
+        foreach ($object as $coordinate) {
+            $data[] = (object)['latitude' => $coordinate[0], 'longitude' => $coordinate[1]];
+        }
+        return $data;
     }
 }

@@ -16,10 +16,10 @@ use Illuminate\Support\Facades\Route;
 Route::group(['prefix' => 'admin', 'as' => 'admin.', 'namespace' => 'Web\Admin', 'middleware' => ['admin']], function () {
     Route::group(['prefix' => 'chat', 'as' => 'chat.'], function () {
         Route::get('index', 'ChattingController@index')->name('index');
-        Route::get('channel-list', 'ChattingController@channel_list');
-        Route::get('referenced-channel-list', 'ChattingController@referenced_channel_list');
-        Route::post('create-channel', 'ChattingController@create_channel')->name('create-channel');
-        Route::post('send-message', 'ChattingController@send_message')->name('send-message');
+        Route::get('channel-list', 'ChattingController@channelList');
+        Route::get('referenced-channel-list', 'ChattingController@referencedChannelList');
+        Route::post('create-channel', 'ChattingController@createChannel')->name('create-channel');
+        Route::post('send-message', 'ChattingController@sendMessage')->name('send-message');
         Route::get('ajax-conversation', 'ChattingController@conversation')->name('ajax-conversation');
     });
 });
@@ -27,10 +27,10 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.', 'namespace' => 'Web\Admin',
 Route::group(['prefix' => 'provider', 'as' => 'provider.', 'namespace' => 'Web\Provider', 'middleware' => ['provider']], function () {
     Route::group(['prefix' => 'chat', 'as' => 'chat.'], function () {
         Route::get('index', 'ChattingController@index')->name('index');
-        Route::get('channel-list', 'ChattingController@channel_list');
-        Route::get('referenced-channel-list', 'ChattingController@referenced_channel_list');
-        Route::post('create-channel', 'ChattingController@create_channel')->name('create-channel');
-        Route::post('send-message', 'ChattingController@send_message')->name('send-message');
+        Route::get('channel-list', 'ChattingController@channelList');
+        Route::get('referenced-channel-list', 'ChattingController@referencedChannelList');
+        Route::post('create-channel', 'ChattingController@createChannel')->name('create-channel');
+        Route::post('send-message', 'ChattingController@sendMessage')->name('send-message');
         Route::get('ajax-conversation', 'ChattingController@conversation')->name('ajax-conversation');
     });
 });

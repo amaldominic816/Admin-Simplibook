@@ -1,38 +1,32 @@
 @extends('adminmodule::layouts.master')
 
-@push('css_or_js')
-
-
-@endpush
+@section('title',translate('Reviews'))
 
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
-            <div class="page-title-wrap mb-3">
-                <h2 class="page-title">{{translate('Customer_Details')}}</h2>
+            <div class="page-title-wrap mb-4">
+                <h2 class="page-title mb-2">{{translate('Customer')}}</h2>
+                <div>{{translate('Joined_on')}} {{date('d-M-y H:iA', strtotime($customer?->created_at))}}</div>
             </div>
 
-            <!-- Nav Tabs -->
             <div class="mb-3">
                 <ul class="nav nav--tabs nav--tabs__style2">
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='overview'?'active':''}}"
+                        <a class="nav-link {{$webPage=='overview'?'active':''}}"
                            href="{{url()->current()}}?web_page=overview">{{translate('Overview')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='bookings'?'active':''}}"
+                        <a class="nav-link {{$webPage=='bookings'?'active':''}}"
                            href="{{url()->current()}}?web_page=bookings">{{translate('Bookings')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='reviews'?'active':''}}"
+                        <a class="nav-link {{$webPage=='reviews'?'active':''}}"
                            href="{{url()->current()}}?web_page=reviews">{{translate('Reviews')}}</a>
                     </li>
                 </ul>
             </div>
-            <!-- End Nav Tabs -->
 
-            <!-- Tab Content -->
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="boookings-tab-pane">
                     <div class="d-flex justify-content-end border-bottom mb-10">
@@ -76,7 +70,9 @@
                                     <tbody>
                                     @foreach($reviews as $review)
                                         <tr>
-                                            <td><a href="{{route('admin.booking.details', [$review->booking->id,'web_page'=>'details'])}}">{{$review->booking->readable_id}}</a></td>
+                                            <td>
+                                                <a href="{{route('admin.booking.details', [$review->booking->id,'web_page'=>'details'])}}">{{$review->booking->readable_id}}</a>
+                                            </td>
                                             <td>{{date('d-M-y H:iA', strtotime($review->booking->created_at))}}</td>
                                             <td>{{$review->review_rating}}</td>
                                             <td>{{Str::limit($review->review_comment, 100)}}</td>
@@ -92,12 +88,7 @@
                     </div>
                 </div>
             </div>
-            <!-- End Tab Content -->
         </div>
     </div>
-    <!-- End Main Content -->
 @endsection
 
-@push('script')
-
-@endpush

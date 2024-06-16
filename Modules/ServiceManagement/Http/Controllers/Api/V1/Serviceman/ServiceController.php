@@ -29,7 +29,7 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function services_by_subcategory(Request $request): JsonResponse
+    public function servicesBySubcategory(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',

@@ -88,10 +88,14 @@ class PostBidController extends Controller
         $post_bid->provider_id = $request->user()->provider->id;
         $post_bid->save();
 
-        //notification to customer
         $customer = Post::with(['customer'])->find($request['post_id'])?->customer;
-        if ($customer) {
-            device_notification_for_bidding($customer->fcm_token, translate('One provider bid offer for your requested service'), null, null, 'bidding', null, $post_bid->post_id, $request->user()->provider->id);
+        $title = get_push_notification_message('customer_notification_for_provider_bid_offer', 'customer_notification', $customer?->current_language_key);
+        $data_info = [
+            'provider_name' => $request->user()?->provider?->company_name,
+        ];
+        info($request->user()->provider?->company_name);
+        if ($customer && $title) {
+            device_notification_for_bidding($customer->fcm_token, $title, null, null, 'bidding', null, $post_bid->post_id, $request->user()->provider->id, data: $data_info);
         }
 
         return response()->json(response_formatter(DEFAULT_STORE_200, null), 200);
@@ -120,7 +124,16 @@ class PostBidController extends Controller
             return response()->json(response_formatter(DEFAULT_404, null), 404);
         }
 
+        $fcmToken = $post_bids->first()?->post?->customer?->fcm_token ?? null;
+
+        if (!is_null($fcmToken)) {
+            $languageKey = $post_bids->first()?->post?->customer?->current_language_key;
+            $title = get_push_notification_message('customer_notification_for_provider_bid_withdraw', 'customer_notification', $languageKey);
+            device_notification($fcmToken, $title, null, null, null, 'bid-withdraw');
+        }
+
         $post_bids->delete();
+
         return response()->json(response_formatter(DEFAULT_DELETE_200, null), 200);
     }
 }

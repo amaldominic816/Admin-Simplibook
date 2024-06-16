@@ -23,14 +23,14 @@ class ServicemanController extends Controller
     private Booking $booking;
     private Serviceman $serviceman;
     private User $employee;
-    private PushNotification $push_notification;
+    private PushNotification $pushNotification;
 
-    public function __construct(Booking $booking, Serviceman $serviceman, User $employee, PushNotification $push_notification)
+    public function __construct(Booking $booking, Serviceman $serviceman, User $employee, PushNotification $pushNotification)
     {
         $this->booking = $booking;
         $this->serviceman = $serviceman;
         $this->employee = $employee;
-        $this->push_notification = $push_notification;
+        $this->pushNotification = $pushNotification;
     }
 
     /**
@@ -56,21 +56,21 @@ class ServicemanController extends Controller
 
         $data = [];
         if (in_array('top_cards', $request['sections'])) {
-            $booking_overview = DB::table('bookings')->where('serviceman_id', $request->user()->serviceman->id)
+            $bookingOverview = DB::table('bookings')->where('serviceman_id', $request->user()->serviceman->id)
                 ->select('booking_status', DB::raw('count(*) as total'))
                 ->groupBy('booking_status')
                 ->get();
 
             $data[] = ['top_cards' => [
-                'total_bookings' => $booking_overview->sum('total') ?? 0,
-                'ongoing_bookings' => $booking_overview->where('booking_status', 'ongoing')->first()->total ?? 0,
-                'completed_bookings' => $booking_overview->where('booking_status', 'completed')->first()->total ?? 0,
-                'canceled_bookings' => $booking_overview->where('booking_status', 'canceled')->first()->total ?? 0
+                'total_bookings' => $bookingOverview->sum('total') ?? 0,
+                'ongoing_bookings' => $bookingOverview->where('booking_status', 'ongoing')->first()->total ?? 0,
+                'completed_bookings' => $bookingOverview->where('booking_status', 'completed')->first()->total ?? 0,
+                'canceled_bookings' => $bookingOverview->where('booking_status', 'canceled')->first()->total ?? 0
             ]];
         }
 
         if (in_array('booking_stats', $request['sections'])) {
-            $all_bookings = $this->booking->where(['serviceman_id' => $request->user()->serviceman->id])
+            $allBookings = $this->booking->where(['serviceman_id' => $request->user()->serviceman->id])
                 ->when($request->has('stats_type') && $request['stats_type'] == 'full_year', function ($query) use ($request) {
                     return $query->whereYear('created_at', '=', $request['year'])->select(
                         DB::raw('count(*) as total'),
@@ -83,7 +83,7 @@ class ServicemanController extends Controller
                     )->groupby('year', 'month', 'day');
                 })->get()->toArray();
 
-            $data[] = ['booking_stats' => $all_bookings];
+            $data[] = ['booking_stats' => $allBookings];
         }
 
         if (in_array('recent_bookings', $request['sections'])) {
@@ -96,7 +96,7 @@ class ServicemanController extends Controller
         return response()->json(response_formatter(DEFAULT_200, $data), 200);
     }
 
-    public function change_password(Request $request): JsonResponse
+    public function changePassword(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'password' => 'required|min:8|max:50',
@@ -112,7 +112,7 @@ class ServicemanController extends Controller
         return response()->json(response_formatter(DEFAULT_UPDATE_200), 200);
     }
 
-    public function profile_info(Request $request): JsonResponse
+    public function profileInfo(Request $request): JsonResponse
     {
         return response()->json(response_formatter(DEFAULT_UPDATE_200, $request->user()), 200);
     }
@@ -141,7 +141,7 @@ class ServicemanController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function update_profile(Request $request): JsonResponse
+    public function updateProfile(Request $request): JsonResponse
     {
         $employee = $this->employee::find($request->user()->id);
         if (!isset($employee)) {
@@ -151,13 +151,17 @@ class ServicemanController extends Controller
         $validator = Validator::make($request->all(), [
             'first_name' => 'required',
             'last_name' => 'required',
-            'email' => 'required|email|unique:users,email,' . $employee->id,
+            'email' => 'required|email',
             'password' => '',
             'profile_image' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
         ]);
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
+        }
+
+        if (User::where('email', $request['email'])->where('id', '!=', $employee->id)->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [['error_code' => 'email', 'message' =>translate('Email already taken')]]), 400);
         }
 
         $employee->first_name = $request->first_name;
@@ -179,7 +183,7 @@ class ServicemanController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function push_notifications(Request $request): JsonResponse
+    public function pushNotifications(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -190,12 +194,12 @@ class ServicemanController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $push_notification = $this->push_notification->ofStatus(1)->whereJsonContains('to_users', PROVIDER_USER_TYPES[2])
+        $pushNotification = $this->pushNotification->ofStatus(1)->whereJsonContains('to_users', PROVIDER_USER_TYPES[2])
             ->whereJsonContains('zone_ids', $request->user()->serviceman->provider->zone_id)
             ->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, $push_notification), 200);
+        return response()->json(response_formatter(DEFAULT_200, $pushNotification), 200);
     }
 
     /**
@@ -203,7 +207,7 @@ class ServicemanController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function forgot_password(Request $request): JsonResponse
+    public function forgotPassword(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'phone_or_email' => 'required'
@@ -231,19 +235,18 @@ class ServicemanController extends Controller
 
             $method = business_config('forget_password_verification_method', 'business_information')?->live_values;
             if ($method == 'phone') {
-                $published_status = 0;
-                $payment_published_status = config('get_payment_publish_status');
-                if (isset($payment_published_status[0]['is_published'])) {
-                    $published_status = $payment_published_status[0]['is_published'];
+                $publishedStatus = 0;
+                $paymentPublishedStatus = config('get_payment_publish_status');
+                if (isset($paymentPublishedStatus[0]['is_published'])) {
+                    $publishedStatus = $paymentPublishedStatus[0]['is_published'];
                 }
-                if($published_status == 1){
+                if($publishedStatus == 1){
                     $response = SmsGateway::send($customer->phone, $token);
                 }else{
                     SMS_gateway::send($customer->phone, $token);
                 }
 
             } elseif($method == 'email') {
-                //mail will be sent
                 try {
                     Mail::to($customer['email'])->send(new \App\Mail\PasswordResetMail($token));
                 } catch (\Exception $exception) {}
@@ -259,7 +262,7 @@ class ServicemanController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function otp_verification(Request $request): JsonResponse
+    public function otpVerification(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'phone_or_email' => 'required',
@@ -286,7 +289,7 @@ class ServicemanController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function reset_password(Request $request): JsonResponse
+    public function resetPassword(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'phone_or_email' => 'required',
@@ -328,7 +331,7 @@ class ServicemanController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function update_fcm_token(Request $request): JsonResponse
+    public function updateFcmToken(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'fcm_token' => 'required',
@@ -343,5 +346,20 @@ class ServicemanController extends Controller
         $customer->save();
 
         return response()->json(response_formatter(DEFAULT_UPDATE_200), 200);
+    }
+
+    /**
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function changeLanguage(Request $request): JsonResponse
+    {
+        if (auth('api')->user()){
+            $serviceman = $this->employee::find(auth('api')->user()->id);
+            $serviceman->current_language_key = $request->header('X-localization') ?? 'en';
+            $serviceman->save();
+            return response()->json(response_formatter(DEFAULT_200), 200);
+        }
+        return response()->json(response_formatter(DEFAULT_404), 200);
     }
 }

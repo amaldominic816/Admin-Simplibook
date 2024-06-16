@@ -144,6 +144,7 @@ class AdminController extends Controller
             $user = $this->user->where(['id' => auth('api')->id()])->with(['roles'])->first();
             return response()->json(response_formatter(DEFAULT_200, $user), 200);
         }
+
         return response()->json(response_formatter(DEFAULT_403), 401);
     }
 
@@ -157,6 +158,7 @@ class AdminController extends Controller
         if (in_array($request->user()->user_type, ADMIN_USER_TYPES)) {
             return response()->json(response_formatter(DEFAULT_200, auth('api')->user()), 200);
         }
+
         return response()->json(response_formatter(DEFAULT_403), 401);
     }
 

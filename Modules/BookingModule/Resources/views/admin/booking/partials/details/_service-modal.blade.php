@@ -1,4 +1,3 @@
-<!-- Service Update Modal -->
 <div class="modal fade" id="serviceUpdateModal--{{$booking['id']}}" tabindex="-1"
      aria-labelledby="serviceUpdateModalLabel"
      aria-hidden="true">
@@ -9,7 +8,6 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body px-4">
-                <!-- Add Service -->
                 <div class="row">
                     <div class="col-md-6 col-lg-4">
                         <div class="mb-30" data-bs-toggle="tooltip" data-bs-placement="top"
@@ -26,7 +24,7 @@
                              title="{{translate('Can not change Sub Category')}}">
                             <select class="theme-input-style w-100 disabled" id="sub_category_selector__select"
                                     name="sub_category_id" readonly disabled>
-                                <option value="{{$sub_category?->id}}" selected>{{$sub_category?->name}}</option>
+                                <option value="{{$subCategory?->id}}" selected>{{$subCategory?->name}}</option>
                             </select>
                         </div>
                     </div>
@@ -67,13 +65,14 @@
                         <input type="hidden" name="booking_id" value="{{$booking->id}}">
                         <div class="d-flex gap-3 justify-content-end mb-4">
                             <button type="reset" class="btn btn--secondary">{{translate('reset')}}</button>
-                            <button type="submit" class="btn btn--primary" id="add-service">{{translate('Add Service')}}</button>
+                            <button type="submit" class="btn btn--primary"
+                                    id="add-service">{{translate('Add Service')}}</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Service table -->
-                <form action="{{route('admin.booking.service.update_booking_service')}}" method="POST" id="booking-edit-table">
+                <form action="{{route('admin.booking.service.update_booking_service')}}" method="POST"
+                      id="booking-edit-table">
                     <div class="table-responsive">
                         <table class="table text-nowrap align-middle mb-0" id="service-edit-table">
                             @csrf
@@ -81,10 +80,10 @@
                             <thead>
                             <tr>
                                 <th class="ps-lg-3">{{translate('Service')}}</th>
-                                <th>{{translate('Price')}}</th>
-                                <th>{{translate('Qty')}}</th>
-                                <th>{{translate('Discount')}}</th>
-                                <th>{{translate('Total')}}</th>
+                                <th>{{translate('Price') . ' (' . currency_symbol() . ')'}}</th>
+                                <th>{{translate('Qty') }}</th>
+                                <th>{{translate('Discount') . ' (' . currency_symbol() . ')'}}</th>
+                                <th>{{translate('Total') . ' (' . currency_symbol() . ')'}}</th>
                                 <th class="text-center">{{translate('Action')}}</th>
                             </tr>
                             </thead>
@@ -101,22 +100,24 @@
                                                 <div>{{Str::limit($detail ? $detail->variant_key : '', 50)}}</div>
                                             </div>
                                         @else
-                                            <span class="badge badge-pill badge-danger">{{translate('Service_unavailable')}}</span>
+                                            <span
+                                                class="badge badge-pill badge-danger">{{translate('Service_unavailable')}}</span>
                                         @endif
                                     </td>
-                                    <td id="service-cost-{{$detail?->variant_key}}">{{with_currency_symbol($detail->service_cost)}}</td>
+                                    <td id="service-cost-{{$detail?->variant_key}}">{{$detail->service_cost}}</td>
                                     <td>
                                         <input type="number" min="1" name="qty[]" class="form-control qty-width"
                                                id="qty-{{$detail?->variant_key}}" value="{{$detail->quantity}}"
                                                oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                                                readonly>
                                     </td>
-                                    <td id="discount-amount-{{$detail?->variant_key}}">{{with_currency_symbol($detail->discount_amount)}}</td>
-                                    <td id="total-cost-{{$detail?->variant_key}}">{{with_currency_symbol($detail->total_cost)}}</td>
+                                    <td id="discount-amount-{{$detail?->variant_key}}">{{$detail->discount_amount}}</td>
+                                    <td id="total-cost-{{$detail?->variant_key}}">{{$detail->total_cost}}</td>
                                     <td>
                                         <div class="d-flex justify-content-center">
-                                            <span class="material-icons text-danger cursor-pointer"
-                                                  onclick="removeServiceRow('service-row--{{$detail?->variant_key}}')">delete</span>
+                                            <span class="material-icons text-danger cursor-pointer remove-service-row"
+                                                  data-row="service-row--{{$detail?->variant_key}}">delete
+                                            </span>
                                         </div>
                                     </td>
                                     <input type="hidden" name="service_ids[]" value="{{$detail->service->id}}">
@@ -124,20 +125,29 @@
                                 </tr>
                                 @php($sub_total += $detail->service_cost*$detail->quantity)
                             @endforeach
-
                             <input type="hidden" name="zone_id" value="{{$booking->zone_id}}">
                             <input type="hidden" name="booking_id" value="{{$booking->id}}">
                             </tbody>
                         </table>
                     </div>
                 </form>
-                <!-- End table -->
 
             </div>
             <div class="modal-footer d-flex justify-content-end gap-3 border-0 pt-0 pb-4">
-                <button type="button" class="btn btn--secondary" data-bs-dismiss="modal" aria-label="Close">{{translate('Cancel')}}</button>
-                <button type="submit" class="btn btn--primary" form="booking-edit-table">{{translate('update_cart')}}</button>
+                <button type="button" class="btn btn--secondary" data-bs-dismiss="modal"
+                        aria-label="Close">{{translate('Cancel')}}</button>
+                <button type="submit" class="btn btn--primary"
+                        form="booking-edit-table">{{translate('update_cart')}}</button>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    "use strict";
+
+    $(".remove-service-row").on('click', function (){
+        let row = $(this).data('row');
+        removeServiceRow(row)
+    })
+</script>

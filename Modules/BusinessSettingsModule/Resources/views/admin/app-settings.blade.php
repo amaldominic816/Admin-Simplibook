@@ -2,10 +2,6 @@
 
 @section('title',translate('app_settings'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
     <div class="main-content">
         <div class="container-fluid">
@@ -15,7 +11,6 @@
                         <h2 class="page-title">{{translate('app_settings')}}</h2>
                     </div>
 
-                    <!-- Nav Tabs -->
                     <div class="mb-3">
                         <ul class="nav nav--tabs nav--tabs__style2">
                             <li class="nav-item">
@@ -41,9 +36,7 @@
                             </li>
                         </ul>
                     </div>
-                    <!-- End Nav Tabs -->
 
-                    <!-- Tab Content -->
                     <div class="tab-content">
                         <div class="tab-pane fade show active" id="customer">
                             <div class="card">
@@ -70,7 +63,7 @@
                                                                    name="min_version_for_android"
                                                                    placeholder="{{translate('min_version_for_android')}} *"
                                                                    required=""
-                                                                   value="{{$customer_data_values->min_version_for_android??''}}">
+                                                                   value="{{$customerDataValues->min_version_for_android??''}}">
                                                             <label>{{translate('min_version_for_android')}} *</label>
                                                         </div>
                                                     </div>
@@ -82,7 +75,7 @@
                                                                    name="min_version_for_ios"
                                                                    placeholder="{{translate('min_version_for_IOS')}} *"
                                                                    required=""
-                                                                   value="{{$customer_data_values->min_version_for_ios??''}}">
+                                                                   value="{{$customerDataValues->min_version_for_ios??''}}">
                                                             <label>{{translate('min_version_for_IOS')}} *</label>
                                                         </div>
                                                     </div>
@@ -127,7 +120,7 @@
                                                                    name="min_version_for_android"
                                                                    placeholder="{{translate('min_version_for_android')}} *"
                                                                    required=""
-                                                                   value="{{$provider_data_values->min_version_for_android??''}}">
+                                                                   value="{{$providerDataValues->min_version_for_android??''}}">
                                                             <label>{{translate('min_version_for_android')}} *</label>
                                                         </div>
                                                     </div>
@@ -139,7 +132,7 @@
                                                                    name="min_version_for_ios"
                                                                    placeholder="{{translate('min_version_for_IOS')}} *"
                                                                    required=""
-                                                                   value="{{$provider_data_values->min_version_for_ios??''}}">
+                                                                   value="{{$providerDataValues->min_version_for_ios??''}}">
                                                             <label>{{translate('min_version_for_IOS')}} *</label>
                                                         </div>
                                                     </div>
@@ -184,7 +177,7 @@
                                                                    name="min_version_for_android"
                                                                    placeholder="{{translate('min_version_for_android')}} *"
                                                                    required=""
-                                                                   value="{{$serviceman_data_values->min_version_for_android??''}}">
+                                                                   value="{{$servicemanDataValues->min_version_for_android??''}}">
                                                             <label>{{translate('min_version_for_android')}} *</label>
                                                         </div>
                                                     </div>
@@ -196,7 +189,7 @@
                                                                    name="min_version_for_ios"
                                                                    placeholder="{{translate('min_version_for_IOS')}} *"
                                                                    required=""
-                                                                   value="{{$serviceman_data_values->min_version_for_ios??''}}">
+                                                                   value="{{$servicemanDataValues->min_version_for_ios??''}}">
                                                             <label>{{translate('min_version_for_IOS')}} *</label>
                                                         </div>
                                                     </div>
@@ -226,20 +219,21 @@
                                     <div class="table-responsive">
                                         <table id="example" class="table align-middle">
                                             <thead>
-                                                <tr>
-                                                    <th>{{translate('Medium')}}</th>
-                                                    <th>{{translate('Status')}}</th>
-                                                </tr>
+                                            <tr>
+                                                <th>{{translate('Medium')}}</th>
+                                                <th>{{translate('Status')}}</th>
+                                            </tr>
                                             </thead>
                                             <tbody>
                                             @foreach($mediums as $medium)
-                                                @php($config = $social_login_configs->where('key_name', $medium.'_social_login')->first())
+                                                @php($config = $socialLoginConfigs->where('key_name', $medium.'_social_login')->first())
                                                 <tr>
                                                     <td class="text-capitalize">{{translate($medium)}}</td>
                                                     <td>
                                                         <label class="switcher">
-                                                            <input class="switcher_input"
-                                                                   onclick="update_social_media_status('{{$medium}}_social_login', $(this).is(':checked')===true?1:0)"
+                                                            <input class="switcher_input social-media-status"
+                                                                   data-key="{{$medium}}-social_login"
+                                                                   data-value="$(this).is(':checked')===true?1:0"
                                                                    type="checkbox" {{isset($config) && $config->live_values ? 'checked' : ''}}>
                                                             <span class="switcher_control"></span>
                                                         </label>
@@ -253,8 +247,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- End Tab Content -->
-
                 </div>
             </div>
         </div>
@@ -263,11 +255,18 @@
 
 @push('script')
     <script>
+        "use strict";
+
+        $('.social-media-status').on('click', function () {
+            let key = $(this).data('key');
+            let value = $(this).data('value');
+            update_social_media_status(key, value)
+        });
+
         $('#google-map').on('submit', function (event) {
             event.preventDefault();
 
             var formData = new FormData(document.getElementById("google-map-update-form"));
-            // Set header if need any otherwise remove setup part
             $.ajaxSetup({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -293,7 +292,6 @@
             event.preventDefault();
 
             var formData = new FormData(document.getElementById("firebase-form"));
-            // Set header if need any otherwise remove setup part
             $.ajaxSetup({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -319,7 +317,6 @@
             event.preventDefault();
 
             var formData = new FormData(document.getElementById("recaptcha-form"));
-            // Set header if need any otherwise remove setup part
             $.ajaxSetup({
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')

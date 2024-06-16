@@ -1,4 +1,4 @@
-{{--for update variants--}}
+
 @if(isset($variants))
     @php($variant_keys = $variants->pluck('variant_key')->unique()->toArray())
     @foreach($variant_keys as $key=>$item)
@@ -21,8 +21,9 @@
                 </td>
             @endforeach
             <td>
-                <a class="btn btn-sm btn--danger"
-                   onclick="ajax_remove_variant('{{route('admin.service.ajax-delete-db-variant',[$item,$variants->first()->service_id])}}','variation-update-table')">
+                <a class="btn btn-sm btn--danger service-ajax-remove-variant"
+                   data-route="{{ route('admin.service.ajax-delete-db-variant',[$item,$variants->first()->service_id]) }}"
+                   data-id="variation-update-table">
                     <span class="material-icons m-0">delete</span>
                 </a>
             </td>
@@ -31,8 +32,23 @@
 @endif
 
 <script>
-    "use strict"
-    function set_update_values(key) {
-        $('.default-get-' + key + '-update').val($('#default-set-' + key + '-update').val())
-    }
+    "use strict";
+    document.addEventListener('DOMContentLoaded', function () {
+        var elements = document.querySelectorAll('.service-ajax-remove-variant');
+        elements.forEach(function (element) {
+            element.addEventListener('click', function () {
+                var route = this.getAttribute('data-route');
+                var id = this.getAttribute('data-id');
+                ajax_remove_variant(route, id);
+            });
+        });
+
+        function set_update_values(key) {
+            var updateElements = document.querySelectorAll('.default-get-' + key + '-update');
+            var setValue = document.getElementById('default-set-' + key + '-update').value;
+            updateElements.forEach(function (element) {
+                element.value = setValue;
+            });
+        }
+    });
 </script>

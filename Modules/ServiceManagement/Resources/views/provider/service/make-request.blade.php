@@ -2,14 +2,6 @@
 
 @section('title',translate('Request for Service'))
 
-@push('css_or_js')
-    <style>
-        #serviceForm.show + .show_form-btn {
-            display: none !important;
-        }
-    </style>
-@endpush
-
 @section('content')
     <div class="main-content">
         <div class="container-fluid">
@@ -35,12 +27,14 @@
                                                     @foreach($categories as $category)
                                                         <option value="{{$category['id']}}" {{old('category_id') == $category['id'] ? 'selected' : ''}}>{{$category['name']}}</option>
                                                     @endforeach
+                                                    <option value="null">{{translate('other')}}</option>
                                                 </select>
                                             </div>
 
-                                            <div class="form-floating mb-30">
+                                            <div class="form-floating form-floating__icon mb-30">
                                                 <input type="text" class="form-control" name="service_name" placeholder="{{translate('Service Name')}}" value="{{old('service_name')}}" required>
                                                 <label>{{translate('Service Name')}}</label>
+                                                <span class="material-icons">design_services</span>
                                             </div>
 
                                             <div class="form-floating mb-30">
@@ -57,7 +51,7 @@
                                 </div>
                                 <div class="col-5 col-lg-5">
                                     <div class="text-center">
-                                        <img width="220" src="{{asset('public/assets/admin-module/img/media/serv.png')}}" alt="">
+                                        <img width="220" src="{{asset('public/assets/admin-module/img/media/serv.png')}}" alt="{{ translate('service') }}">
                                     </div>
                                 </div>
                             </div>
@@ -72,6 +66,8 @@
 
 @push('script')
     <script>
+        "use strict";
+
         function collapse() {
             $(document.body).on('click', '[data-toggle="collapse"]', function (e) {
                 e.preventDefault();
@@ -83,9 +79,7 @@
             })
         }
         collapse();
-    </script>
 
-    <script>
         $(document).ready(function () {
             $('.category__select').select2({
                 placeholder: "{{translate('Select_category')}}",

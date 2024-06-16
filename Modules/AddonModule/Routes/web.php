@@ -21,6 +21,6 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.', 'namespace' => 'Web\Admin',
         Route::post('publish', [AddonController::class, 'publish'])->name('publish');
         Route::post('activation', [AddonController::class, 'activation'])->name('activation');
         Route::post('upload', [AddonController::class, 'upload'])->name('upload');
-        Route::post('delete', [AddonController::class, 'delete_theme'])->name('delete');
+        Route::post('delete', [AddonController::class, 'deleteAddon'])->name('delete');
     });
 });

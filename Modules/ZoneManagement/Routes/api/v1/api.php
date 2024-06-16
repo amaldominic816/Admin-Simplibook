@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::group(['prefix' => 'admin', 'as' => 'admin.', 'namespace' => 'Api\V1\Admin', 'middleware' => ['auth:api']], function () {
     Route::resource('zone', 'ZoneController', ['only' => ['index', 'store', 'edit', 'update']]);
-    Route::put('zone/status/update', 'ZoneController@status_update');
+    Route::put('zone/status/update', 'ZoneController@statusUpdate');
     Route::delete('zone/delete', 'ZoneController@destroy');
 });
 

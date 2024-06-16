@@ -5,6 +5,7 @@ namespace Modules\BusinessSettingsModule\Entities;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class BusinessSettings extends Model
 {
@@ -22,5 +23,10 @@ class BusinessSettings extends Model
     protected static function newFactory()
     {
         return \Modules\BusinessSettingsModule\Database\factories\BusinessSettingsFactory::new();
+    }
+
+    public function translations(): MorphMany
+    {
+        return $this->morphMany(Translation::class, 'translationable');
     }
 }

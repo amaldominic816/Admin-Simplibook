@@ -12,6 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
 use Modules\BookingModule\Entities\Booking;
 use Modules\CartModule\Entities\AddedToCart;
+use Modules\ChattingModule\Entities\ChannelConversation;
 use Modules\CustomerModule\Entities\SearchedData;
 use Modules\ProviderManagement\Entities\Provider;
 use Modules\ReviewModule\Entities\Review;
@@ -19,6 +20,7 @@ use Modules\ServiceManagement\Entities\VisitedService;
 use Modules\TransactionModule\Entities\Account;
 use Modules\TransactionModule\Entities\Transaction;
 use Modules\ZoneManagement\Entities\Zone;
+use Laravel\Passport\Token;
 
 class User extends Authenticatable
 {
@@ -47,7 +49,7 @@ class User extends Authenticatable
 
     public function roles(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
-        return $this->belongsToMany(Role::class, 'user_roles');
+        return $this->belongsToMany(Role::class, 'employee_role_sections','employee_id');
     }
 
     public function bookings(): \Illuminate\Database\Eloquent\Relations\HasMany
@@ -120,10 +122,15 @@ class User extends Authenticatable
         return $this->hasMany(SearchedData::class, 'user_id', 'id');
     }
 
-    /*public function getIdentificationImageAttribute(string $value): mixed
+    public function channelConversations(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return json_decode($value);
-    }*/
+        return $this->hasMany(ChannelConversation::class, 'user_id', 'id');
+    }
+
+    public function module_access(): HasMany
+    {
+        return $this->hasMany(EmployeeRoleAccess::class, 'employee_id', 'id');
+    }
 
     public static function boot()
     {
@@ -140,11 +147,28 @@ class User extends Authenticatable
         });
 
         self::updating(function ($model) {
-            // ... code here
+            if ($model->isDirty('is_active')) {
+                if ($model->is_active == 0){
+                    $model->fcm_token = '';
+                }
+            }
         });
 
         self::updated(function ($model) {
-            // ... code here
+            if ($model->isDirty('is_active')) {
+
+                if ($model->is_active == 0){
+
+                    $title = translate('Your account has been deactivated! Please contact with admin');
+                    if ($model->fcm_token && $title) {
+                        device_notification($model->fcm_token, $title, null, null, null, 'logout', null, $model->id);
+                    }
+
+                    $model->tokens->each(function ($token, $key) {
+                        $token->revoke();
+                    });
+                }
+            }
         });
 
         self::deleting(function ($model) {

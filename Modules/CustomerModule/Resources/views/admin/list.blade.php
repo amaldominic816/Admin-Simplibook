@@ -3,8 +3,8 @@
 @section('title',translate('customer_list'))
 
 @push('css_or_js')
-    <link rel="stylesheet" href="{{asset('public/assets/admin-module')}}/plugins/dataTables/jquery.dataTables.min.css"/>
-    <link rel="stylesheet" href="{{asset('public/assets/admin-module')}}/plugins/dataTables/select.dataTables.min.css"/>
+    <link rel="stylesheet" href="{{asset('public/assets/admin-module/plugins/dataTables/jquery.dataTables.min.css')}}"/>
+    <link rel="stylesheet" href="{{asset('public/assets/admin-module/plugins/dataTables/select.dataTables.min.css')}}"/>
 @endpush
 
 @section('content')
@@ -15,12 +15,14 @@
                     <div
                         class="page-title-wrap d-flex justify-content-between flex-wrap align-items-center gap-3 mb-3">
                         <h2 class="page-title">{{translate('customer_list')}}</h2>
-                        <div>
-                            <a href="{{route('admin.customer.create')}}" class="btn btn--primary">
-                                <span class="material-icons">add</span>
-                                {{translate('add_customer')}}
-                            </a>
-                        </div>
+                        @can('customer_add')
+                            <div>
+                                <a href="{{route('admin.customer.create')}}" class="btn btn--primary">
+                                    <span class="material-icons">add</span>
+                                    {{translate('add_customer')}}
+                                </a>
+                            </div>
+                        @endcan
                     </div>
 
                     <div
@@ -72,41 +74,46 @@
                                             <button type="submit"
                                                     class="btn btn--primary">{{translate('search')}}</button>
                                         </form>
-
-                                        <div class="d-flex flex-wrap align-items-center gap-3">
-                                            <div class="dropdown">
-                                                <button type="button"
-                                                        class="btn btn--secondary text-capitalize dropdown-toggle"
-                                                        data-bs-toggle="dropdown">
-                                                    <span class="material-icons">file_download</span> download
-                                                </button>
-                                                <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-                                                    <li>
-                                                        <a class="dropdown-item"
-                                                           href="{{env('APP_ENV') !='demo' ?route('admin.customer.download').'?search='.$search:'javascript:demo_mode()'}}">
-                                                            {{translate('excel')}}
-                                                        </a>
-                                                    </li>
-                                                </ul>
+                                        @can('customer_export')
+                                            <div class="d-flex flex-wrap align-items-center gap-3">
+                                                <div class="dropdown">
+                                                    <button type="button"
+                                                            class="btn btn--secondary text-capitalize dropdown-toggle"
+                                                            data-bs-toggle="dropdown">
+                                                        <span class="material-icons">file_download</span> download
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
+                                                        <li>
+                                                            <a class="dropdown-item"
+                                                               href="{{env('APP_ENV') !='demo' ?route('admin.customer.download').'?search='.$search:'javascript:demo_mode()'}}">
+                                                                {{translate('excel')}}
+                                                            </a>
+                                                        </li>
+                                                    </ul>
+                                                </div>
                                             </div>
-                                        </div>
+                                        @endcan
                                     </div>
 
                                     <div class="table-responsive">
                                         <table id="example" class="table align-middle">
                                             <thead>
                                             <tr>
+                                                <th>{{translate('Sl')}}</th>
                                                 <th>{{translate('Customer_Name')}}</th>
                                                 <th class="text-center">{{translate('Contact_Info')}}</th>
                                                 <th class="text-center">{{translate('Total_Bookings')}}</th>
                                                 <th class="text-center">{{translate('Joined')}}</th>
-                                                <th class="text-center">{{translate('status')}}</th>
+                                                @can('customer_manage_status')
+                                                    <th class="text-center">{{translate('status')}}</th>
+                                                @endcan
                                                 <th class="text-center">{{translate('action')}}</th>
                                             </tr>
                                             </thead>
                                             <tbody>
-                                            @foreach($customers as $customer)
+                                            @foreach($customers as $key => $customer)
                                                 <tr>
+                                                    <td>{{$key+$customers->firstItem()}}</td>
                                                     <td>
                                                         <a href="{{route('admin.customer.detail',[$customer->id, 'web_page'=>'overview'])}}">
                                                             {{$customer->first_name}} {{$customer->last_name}}
@@ -132,28 +139,39 @@
                                                     </td>
                                                     <td class="text-center">{{$customer->bookings_count}}</td>
                                                     <td class="text-center">{{date('d M, Y',strtotime($customer->created_at))}}</td>
+                                                    @can('customer_manage_status')
+                                                        <td>
+                                                            <label class="switcher mx-auto" data-bs-toggle="modal"
+                                                                   data-bs-target="#deactivateAlertModal">
+                                                                <input class="switcher_input"
+                                                                       type="checkbox"
+                                                                       {{$customer->is_active?'checked':''}} data-status="{{$customer->id}}">
+                                                                <span class="switcher_control"></span>
+                                                            </label>
+                                                        </td>
+                                                    @endcan
                                                     <td>
-                                                        <label class="switcher mx-auto" data-bs-toggle="modal"
-                                                               data-bs-target="#deactivateAlertModal">
-                                                            <input class="switcher_input"
-                                                                   onclick="route_alert('{{route('admin.customer.status-update',[$customer->id])}}','{{translate('want_to_update_status')}}')"
-                                                                   type="checkbox" {{$customer->is_active?'checked':''}}>
-                                                            <span class="switcher_control"></span>
-                                                        </label>
-                                                    </td>
-                                                    <td>
-                                                        <div class="table-actions justify-content-center">
-                                                            <a href="{{env('APP_ENV') !='demo' ?route('admin.customer.edit',[$customer->id]):'javascript:demo_mode()'}}"
-                                                               class="table-actions_edit">
-                                                                <span class="material-icons">edit</span>
-                                                            </a>
-                                                            <button type="button"
-                                                                    onclick="form_alert('delete-{{$customer->id}}','{{translate('want_to_delete_this_customer')}}?')"
-                                                                    class="table-actions_delete bg-transparent border-0 p-0">
-                                                                <span class="material-icons">delete</span>
-                                                            </button>
+                                                        <div class="d-flex gap-2 justify-content-center">
+                                                            @can('customer_update')
+                                                                <a href="{{env('APP_ENV') !='demo' ?route('admin.customer.edit',[$customer->id]):'javascript:demo_mode()'}}"
+                                                                   class="action-btn btn--light-primary"
+                                                                   style="--size: 30px">
+                                                                    <span class="material-icons">edit</span>
+                                                                </a>
+                                                            @endcan
+                                                            @can('customer_delete')
+                                                                <button type="button" data-delete="{{$customer->id}}"
+                                                                        data-id="delete-{{$customer->id}}"
+                                                                        data-message="{{translate('want_to_delete_this_customer')}}?"
+                                                                        class="action-btn btn--danger {{ env('APP_ENV') != 'demo' ? 'form-alert' : 'demo_check' }}"
+                                                                        style="--size: 30px">
+                                                                    <span
+                                                                        class="material-symbols-outlined">delete</span>
+                                                                </button>
+                                                            @endcan
                                                             <a href="{{route('admin.customer.detail',[$customer->id, 'web_page'=>'overview'])}}"
-                                                               class="table-actions_view">
+                                                               class="action-btn btn--light-primary"
+                                                               style="--size: 30px">
                                                                 <span class="material-icons">visibility</span>
                                                             </a>
                                                         </div>
@@ -185,10 +203,18 @@
 @push('script')
     <script src="{{asset('public/assets/admin-module')}}/plugins/select2/select2.min.js"></script>
     <script>
+        "use strict"
         $(document).ready(function () {
             $('.js-select').select2();
         });
+
+        $('.switcher_input').on('click', function () {
+            let itemId = $(this).data('status');
+            let route = '{{ route('admin.customer.status-update', ['id' => ':itemId']) }}';
+            route = route.replace(':itemId', itemId);
+            route_alert(route, '{{ translate('want_to_update_status') }}');
+        })
     </script>
-    <script src="{{asset('public/assets/admin-module')}}/plugins/dataTables/jquery.dataTables.min.js"></script>
-    <script src="{{asset('public/assets/admin-module')}}/plugins/dataTables/dataTables.select.min.js"></script>
+    <script src="{{asset('public/assets/admin-module/plugins/dataTables/jquery.dataTables.min.js')}}"></script>
+    <script src="{{asset('public/assets/admin-module/plugins/dataTables/dataTables.select.min.js')}}"></script>
 @endpush

@@ -3,11 +3,15 @@
 namespace Modules\AdminModule\Http\Controllers\Web\Admin\Report;
 
 use Auth;
+use Box\Spout\Common\Exception\InvalidArgumentException;
+use Box\Spout\Common\Exception\IOException;
+use Box\Spout\Common\Exception\UnsupportedTypeException;
+use Box\Spout\Writer\Exception\WriterNotOpenedException;
 use Carbon\Carbon;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Modules\BookingModule\Entities\Booking;
 use Modules\BookingModule\Entities\BookingDetailsAmount;
@@ -20,6 +24,7 @@ use Modules\UserManagement\Entities\User;
 use Modules\ZoneManagement\Entities\Zone;
 use Rap2hpoutre\FastExcel\FastExcel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use function pagination_limit;
 use function view;
 use function with_currency_symbol;
@@ -35,6 +40,7 @@ class ProviderReportController extends Controller
     protected Service $service;
     protected User $user;
     protected Transaction $transaction;
+    use AuthorizesRequests;
 
     public function __construct(Zone $zone, Provider $provider, Category $categories, Service $service, Booking $booking, Account $account, User $user, Transaction $transaction, BookingDetailsAmount $booking_details_amount)
     {
@@ -55,9 +61,11 @@ class ProviderReportController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return Renderable
+     * @throws AuthorizationException
      */
-    public function get_provider_report(Request $request): Renderable
+    public function getProviderReport(Request $request): Renderable
     {
+        $this->authorize('report_view');
         Validator::make($request->all(), [
             'zone_ids' => 'array',
             'zone_ids.*' => 'uuid',
@@ -70,101 +78,77 @@ class ProviderReportController extends Controller
             'to' => $request['date_range'] == 'custom_date' ? 'required' : '',
         ]);
 
+        $search = $request['search'];
+
         $zones = $this->zone->select('id', 'name')->get();
         $providers = $this->provider->ofApproval(1)->select('id', 'company_name', 'company_phone')->get();
         $sub_categories = $this->categories->ofType('sub')->select('id', 'name')->get();
 
-        //params
-        $search = $request['search'];
-        $query_params = ['search' => $search];
-        if($request->has('zone_ids')) {
-            $query_params['zone_ids'] = $request['zone_ids'];
-        }
-        if ($request->has('provider_ids')) {
-            $query_params['provider_ids'] = $request['provider_ids'];
-        }
-        if ($request->has('sub_category_ids')) {
-            $query_params['sub_category_ids'] = $request['sub_category_ids'];
-        }
-        if ($request->has('date_range')) {
-            $query_params['date_range'] = $request['date_range'];
-        }
-        if ($request->has('date_range') && $request['date_range'] == 'custom_date') {
-            $query_params['from'] = $request['from'];
-            $query_params['to'] = $request['to'];
+
+        $queryParams = $request->only('search', 'zone_ids', 'provider_ids', 'sub_category_ids', 'date_range');
+        if ($request->date_range === 'custom_date') {
+            $queryParams['from'] = $request->from;
+            $queryParams['to'] = $request->to;
         }
 
         $filtered_providers = $this->provider->with(['owner.account'])
             ->ofApproval(1)
-            ->withCount(['reviews', 'subscribed_services', 'bookings', 'servicemen', ])
+            ->withCount(['reviews', 'subscribed_services', 'bookings', 'servicemen',])
             ->withCount(['bookings as incomplete_bookings_count' => function ($query) {
                 $query->where('booking_status', 'canceled');
             }])
             ->with(['owner.transactions_for_from_user' => function ($query) {
                 $query->where('trx_type', 'received_commission');
             }])
-            ->when($request->has('zone_ids'), function ($query) use($request) {
+            ->when($request->has('zone_ids'), function ($query) use ($request) {
                 $query->whereIn('zone_id', $request['zone_ids']);
             })
-            ->when($request->has('provider_ids'), function ($query) use($request) {
+            ->when($request->has('provider_ids'), function ($query) use ($request) {
                 $query->whereIn('id', $request['provider_ids']);
             })
-            ->when($request->has('sub_category_ids'), function ($query) use($request) {
+            ->when($request->has('sub_category_ids'), function ($query) use ($request) {
                 $query->whereHas('subscribed_services.sub_category', function ($query) use ($request) {
                     $query->whereIn('id', $request['sub_category_ids']);
                 });
             })
-            ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use($request) {
+            ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use ($request) {
                 $query->whereBetween('created_at', [Carbon::parse($request['from'])->startOfDay(), Carbon::parse($request['to'])->endOfDay()]);
             })
-            ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use($request) {
-                //DATE RANGE
-                if($request['date_range'] == 'this_week') {
-                    //this week
+            ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use ($request) {
+                if ($request['date_range'] == 'this_week') {
                     $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
 
                 } elseif ($request['date_range'] == 'last_week') {
-                    //last week
                     $query->whereBetween('created_at', [Carbon::now()->subWeek()->startOfWeek(), Carbon::now()->subWeek()->endOfWeek()]);
 
                 } elseif ($request['date_range'] == 'this_month') {
-                    //this month
                     $query->whereMonth('created_at', Carbon::now()->month);
 
                 } elseif ($request['date_range'] == 'last_month') {
-                    //last month
                     $query->whereMonth('created_at', Carbon::now()->subMonth()->month);
 
                 } elseif ($request['date_range'] == 'last_15_days') {
-                    //last 15 days
                     $query->whereBetween('created_at', [Carbon::now()->subDay(15), Carbon::now()]);
 
                 } elseif ($request['date_range'] == 'this_year') {
-                    //this year
                     $query->whereYear('created_at', Carbon::now()->year);
 
                 } elseif ($request['date_range'] == 'last_year') {
-                    //last year
                     $query->whereYear('created_at', Carbon::now()->subYear()->year);
 
                 } elseif ($request['date_range'] == 'last_6_month') {
-                    //last 6month
                     $query->whereBetween('created_at', [Carbon::now()->subMonth(6), Carbon::now()]);
 
                 } elseif ($request['date_range'] == 'this_year_1st_quarter') {
-                    //this year 1st quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(1)->startOfQuarter(), Carbon::now()->month(1)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_2nd_quarter') {
-                    //this year 2nd quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(4)->startOfQuarter(), Carbon::now()->month(4)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_3rd_quarter') {
-                    //this year 3rd quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(7)->startOfQuarter(), Carbon::now()->month(7)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_4th_quarter') {
-                    //this year 4th quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(10)->startOfQuarter(), Carbon::now()->month(10)->endOfQuarter()]);
                 }
             })
@@ -178,22 +162,23 @@ class ProviderReportController extends Controller
                     }
                 });
             })
-            ->latest()->paginate(pagination_limit())->appends($query_params);
+            ->latest()->paginate(pagination_limit())->appends($queryParams);
 
-        return view('adminmodule::admin.report.provider', compact('zones', 'providers', 'sub_categories', 'search', 'filtered_providers', 'query_params'));
+        return view('adminmodule::admin.report.provider', compact('zones', 'providers', 'sub_categories', 'search', 'filtered_providers', 'queryParams'));
     }
 
+
     /**
-     * Display a listing of the resource.
      * @param Request $request
      * @return string|StreamedResponse
-     * @throws \Box\Spout\Common\Exception\IOException
-     * @throws \Box\Spout\Common\Exception\InvalidArgumentException
-     * @throws \Box\Spout\Common\Exception\UnsupportedTypeException
-     * @throws \Box\Spout\Writer\Exception\WriterNotOpenedException
+     * @throws \OpenSpout\Common\Exception\IOException
+     * @throws \OpenSpout\Common\Exception\InvalidArgumentException
+     * @throws \OpenSpout\Common\Exception\UnsupportedTypeException
+     * @throws \OpenSpout\Writer\Exception\WriterNotOpenedException
      */
-    public function get_provider_report_download(Request $request): string|StreamedResponse
+    public function getProviderReportDownload(Request $request): string|StreamedResponse
     {
+        $this->authorize('report_export');
         Validator::make($request->all(), [
             'zone_ids' => 'array',
             'zone_ids.*' => 'uuid',
@@ -209,75 +194,62 @@ class ProviderReportController extends Controller
         $filtered_providers = $this->provider
             ->ofApproval(1)
             ->with(['owner.account'])
-            ->withCount(['reviews', 'subscribed_services', 'bookings', 'servicemen', ])
+            ->withCount(['reviews', 'subscribed_services', 'bookings', 'servicemen',])
             ->withCount(['bookings as incomplete_bookings_count' => function ($query) {
                 $query->where('booking_status', 'canceled');
             }])
             ->with(['owner.transactions_for_from_user' => function ($query) {
                 $query->where('trx_type', 'received_commission');
             }])
-            ->when($request->has('zone_ids'), function ($query) use($request) {
+            ->when($request->has('zone_ids'), function ($query) use ($request) {
                 $query->whereIn('zone_id', $request['zone_ids']);
             })
-            ->when($request->has('provider_ids'), function ($query) use($request) {
+            ->when($request->has('provider_ids'), function ($query) use ($request) {
                 $query->whereIn('id', $request['provider_ids']);
             })
-            ->when($request->has('sub_category_ids'), function ($query) use($request) {
+            ->when($request->has('sub_category_ids'), function ($query) use ($request) {
                 $query->whereHas('subscribed_services.sub_category', function ($query) use ($request) {
                     $query->whereIn('id', $request['sub_category_ids']);
                 });
             })
-            ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use($request) {
+            ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use ($request) {
                 $query->whereBetween('created_at', [Carbon::parse($request['from'])->startOfDay(), Carbon::parse($request['to'])->endOfDay()]);
             })
-            ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use($request) {
-                //DATE RANGE
-                if($request['date_range'] == 'this_week') {
-                    //this week
+            ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use ($request) {
+                if ($request['date_range'] == 'this_week') {
                     $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
 
                 } elseif ($request['date_range'] == 'last_week') {
-                    //last week
                     $query->whereBetween('created_at', [Carbon::now()->subWeek()->startOfWeek(), Carbon::now()->subWeek()->endOfWeek()]);
 
                 } elseif ($request['date_range'] == 'this_month') {
-                    //this month
                     $query->whereMonth('created_at', Carbon::now()->month);
 
                 } elseif ($request['date_range'] == 'last_month') {
-                    //last month
-                    $query->whereMonth('created_at', Carbon::now()->month-1);
+                    $query->whereMonth('created_at', Carbon::now()->month - 1);
 
                 } elseif ($request['date_range'] == 'last_15_days') {
-                    //last 15 days
                     $query->whereBetween('created_at', [Carbon::now()->subDay(15), Carbon::now()]);
 
                 } elseif ($request['date_range'] == 'this_year') {
-                    //this year
                     $query->whereYear('created_at', Carbon::now()->year);
 
                 } elseif ($request['date_range'] == 'last_year') {
-                    //last year
-                    $query->whereYear('created_at', Carbon::now()->year-1);
+                    $query->whereYear('created_at', Carbon::now()->year - 1);
 
                 } elseif ($request['date_range'] == 'last_6_month') {
-                    //last 6month
                     $query->whereBetween('created_at', [Carbon::now()->subMonth(6), Carbon::now()]);
 
                 } elseif ($request['date_range'] == 'this_year_1st_quarter') {
-                    //this year 1st quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(1)->startOfQuarter(), Carbon::now()->month(1)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_2nd_quarter') {
-                    //this year 2nd quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(4)->startOfQuarter(), Carbon::now()->month(4)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_3rd_quarter') {
-                    //this year 3rd quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(7)->startOfQuarter(), Carbon::now()->month(7)->endOfQuarter()]);
 
                 } elseif ($request['date_range'] == 'this_year_4th_quarter') {
-                    //this year 4th quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(10)->startOfQuarter(), Carbon::now()->month(10)->endOfQuarter()]);
                 }
             })
@@ -293,7 +265,7 @@ class ProviderReportController extends Controller
             })
             ->latest()->get();
 
-        return (new FastExcel($filtered_providers))->download(time().'-provider-report.xlsx', function ($provider) {
+        return (new FastExcel($filtered_providers))->download(time() . '-provider-report.xlsx', function ($provider) {
             return [
                 'Company Name' => $provider->company_name,
                 'Company Phone' => $provider->company_phone,
@@ -302,7 +274,7 @@ class ProviderReportController extends Controller
                 'Total Bookings' => $provider->bookings_count,
                 'Subscribed Services Count' => $provider->subscribed_services_count,
                 'Total Servicemen' => $provider->servicemen_count,
-                'Completion Rate' => (100 - ($provider->bookings_count * $provider->incomplete_bookings_count)/100) . '%',
+                'Completion Rate' => (100 - ($provider->bookings_count * $provider->incomplete_bookings_count) / 100) . '%',
                 'Total Earning' => with_currency_symbol($provider->owner->account->received_balance),
             ];
         });

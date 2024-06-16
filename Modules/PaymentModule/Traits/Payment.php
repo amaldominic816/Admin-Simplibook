@@ -17,10 +17,6 @@ trait Payment
             throw new InvalidArgumentException('Need a valid currency code');
         }
 
-        if (!in_array($payment_info->getPaymentMethod(), array_column(GATEWAYS_PAYMENT_METHODS, 'key'))) {
-            throw new InvalidArgumentException('Need a valid payment gateway');
-        }
-
         if (!is_array($payment_info->getAdditionalData())) {
             throw new InvalidArgumentException('Additional data should be in a valid array');
         }

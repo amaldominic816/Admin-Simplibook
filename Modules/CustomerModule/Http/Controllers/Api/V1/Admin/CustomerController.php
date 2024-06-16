@@ -74,8 +74,8 @@ class CustomerController extends Controller
         $validator = Validator::make($request->all(), [
             'first_name' => 'required',
             'last_name' => 'required',
-            'email' => 'required|email|unique:users',
-            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10|unique:users',
+            'email' => 'required|email',
+            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10',
             'password' => 'required|min:6',
             'gender' => 'in:male,female,others',
             'confirm_password' => 'required|same:password',
@@ -84,6 +84,14 @@ class CustomerController extends Controller
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 403);
+        }
+
+        //email & phone check
+        if (User::where('email', $request['email'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code"=>"email","message"=>translate('Email already taken')]]), 400);
+        }
+        if (User::where('phone', $request['phone'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code"=>"phone","message"=>translate('Phone already taken')]]), 400);
         }
 
         $user = $this->user;
@@ -105,18 +113,18 @@ class CustomerController extends Controller
     public function overview(string $id): JsonResponse
     {
         $customer = $this->user->where(['id' => $id])->with(['bookings', 'addresses', 'reviews'])->first();
-        $total_booking_placed = $this->booking->where(['customer_id' => $id])->count();
-        $total_booking_amount = $this->booking->where(['customer_id' => $id])->sum('total_booking_amount');
-        $complete_bookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'completed'])->count();
-        $canceled_bookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'canceled'])->count();
-        $ongoing_bookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'ongoing'])->count();
+        $totalBookingPlaced = $this->booking->where(['customer_id' => $id])->count();
+        $totalBookingAmount = $this->booking->where(['customer_id' => $id])->sum('total_booking_amount');
+        $completeBookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'completed'])->count();
+        $canceledBookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'canceled'])->count();
+        $ongoingBookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'ongoing'])->count();
 
         $data = [
-            'total_booking_placed' => $total_booking_placed,
-            'total_booking_amount' => $total_booking_amount,
-            'complete_bookings' => $complete_bookings,
-            'canceled_bookings' => $canceled_bookings,
-            'ongoing_bookings' => $ongoing_bookings,
+            'total_booking_placed' => $totalBookingPlaced,
+            'total_booking_amount' => $totalBookingAmount,
+            'complete_bookings' => $completeBookings,
+            'canceled_bookings' => $canceledBookings,
+            'ongoing_bookings' => $ongoingBookings,
             'customer_details' => $customer
         ];
 
@@ -188,8 +196,8 @@ class CustomerController extends Controller
         $validator = Validator::make($request->all(), [
             'first_name' => 'required',
             'last_name' => 'required',
-            'email' => 'required|email|unique:users,email,' . $customer->id,
-            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10|unique:users,phone,' . $customer->id,
+            'email' => 'required|email',
+            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10',
             'password' => 'min:6',
             'gender' => 'in:male,female,others',
             'confirm_password' => $request->has('password') ? 'required|same:password' : '',
@@ -198,6 +206,14 @@ class CustomerController extends Controller
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 403);
+        }
+
+        //email & phone check
+        if (User::where('email', $request['email'])->where('id', '!=', $customer->id)->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code"=>"email","message"=>translate('Email already taken')]]), 400);
+        }
+        if (User::where('phone', $request['phone'])->where('id', '!=', $customer->id)->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code"=>"phone","message"=>translate('Phone already taken')]]), 400);
         }
 
         $customer->first_name = $request->first_name;
@@ -238,7 +254,7 @@ class CustomerController extends Controller
                     file_remover('user/identity/', $image_name);
                 }
             }
-            $customers->forceDelete();
+            $customers->delete();
             return response()->json(response_formatter(DEFAULT_DELETE_200), 200);
         }
         return response()->json(response_formatter(DEFAULT_204), 200);
@@ -249,7 +265,7 @@ class CustomerController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',
@@ -271,7 +287,7 @@ class CustomerController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function store_address(Request $request): JsonResponse
+    public function storeAddress(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'lat' => '',
@@ -315,7 +331,7 @@ class CustomerController extends Controller
      * @param string $id
      * @return JsonResponse
      */
-    public function edit_address(string $id): JsonResponse
+    public function editAddress(string $id): JsonResponse
     {
         $address = $this->address->where(['user_id' => $id])->where('id', $id)->first();
         if (isset($address)) {
@@ -330,7 +346,7 @@ class CustomerController extends Controller
      * @param string $id
      * @return JsonResponse
      */
-    public function update_address(Request $request, string $id): JsonResponse
+    public function updateAddress(Request $request, string $id): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'lat' => '',
@@ -378,7 +394,7 @@ class CustomerController extends Controller
      * @param string $id
      * @return JsonResponse
      */
-    public function destroy_address(Request $request, string $id): JsonResponse
+    public function destroyAddress(Request $request, string $id): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'customer_id' => 'required|uuid',

@@ -5,3 +5,16 @@
 .hide-div {
     display: none;
 }
+
+.statistics-card__style2 .btn--warning {
+    background: #F8924F;
+}
+.pending_withdraw{
+    background-color: #E0F1FF;
+}
+.already_withdraw{
+    background-color: #CDFFE2;
+}
+.total_earning{
+    background-color: #FFF5E1;
+}

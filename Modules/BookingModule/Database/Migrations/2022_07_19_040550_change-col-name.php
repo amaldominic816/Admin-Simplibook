@@ -25,6 +25,6 @@ class ChangeColName extends Migration
      */
     public function down()
     {
-        //
+
     }
 }

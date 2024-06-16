@@ -10,15 +10,13 @@ use Modules\ProviderManagement\Entities\Provider;
 
 class ConfigController extends Controller
 {
-    private $provider;
+    private Provider $provider;
     private $google_map;
-    private $google_map_base_api;
 
     public function __construct(Provider $provider)
     {
         $this->provider = $provider;
         $this->google_map = business_config('google_map', 'third_party');
-        $this->google_map_base_api = 'https://maps.googleapis.com/maps/api';
     }
 
     /**
@@ -35,6 +33,7 @@ class ConfigController extends Controller
             'countries' => COUNTRIES,
             'system_modules' => SYSTEM_MODULES,
             'time_zones' => DateTimeZone::listIdentifiers(),
+            'time_format' => (business_config('time_format', 'business_information'))->live_values ?? '24h',
             'recaptcha' => (business_config('recaptcha', 'third_party'))->live_values ?? null,
             'pagination_limit' => (business_config('pagination_limit', 'business_information'))->live_values ?? null,
             'footer_text' => (business_config('footer_text', 'business_information'))->live_values ?? null,
@@ -65,6 +64,9 @@ class ConfigController extends Controller
         ]), 200);
     }
 
+    /**
+     * @return JsonResponse
+     */
     public function counts(): JsonResponse
     {
         $onboarding_count = $this->provider->ofStatus(0)->count();

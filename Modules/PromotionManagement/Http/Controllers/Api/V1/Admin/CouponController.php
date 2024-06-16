@@ -119,13 +119,13 @@ class CouponController extends Controller
             $coupon->is_active = 1;
             $coupon->save();
 
-            $dis_types = ['category', 'service', 'zone'];
-            foreach ((array)$dis_types as $dis_type) {
+            $disTypes = ['category', 'service', 'zone'];
+            foreach ((array)$disTypes as $disType) {
                 $types = [];
-                foreach ((array)$request[$dis_type . '_ids'] as $id) {
+                foreach ((array)$request[$disType . '_ids'] as $id) {
                     $types[] = [
                         'discount_id' => $discount['id'],
-                        'discount_type' => $dis_type,
+                        'discount_type' => $disType,
                         'type_wise_id' => $id,
                         'created_at' => now(),
                         'updated_at' => now()
@@ -147,9 +147,11 @@ class CouponController extends Controller
     public function edit(string $id): JsonResponse
     {
         $coupon = $this->coupon->with(['discount', 'discount.category_types', 'discount.service_types', 'discount.zone_types'])->where('id', $id)->first();
+
         if (isset($coupon)) {
             return response()->json(response_formatter(DEFAULT_200, $coupon), 200);
         }
+
         return response()->json(response_formatter(DEFAULT_204, $coupon), 200);
     }
 
@@ -201,13 +203,13 @@ class CouponController extends Controller
 
             $this->discountType->where(['discount_id' => $discount['id']])->delete();
 
-            $dis_types = ['category', 'service', 'zone'];
-            foreach ($dis_types as $dis_type) {
+            $disTypes = ['category', 'service', 'zone'];
+            foreach ($disTypes as $disType) {
                 $types = [];
-                foreach ((array)$request[$dis_type . '_ids'] as $id) {
+                foreach ((array)$request[$disType . '_ids'] as $id) {
                     $types[] = [
                         'discount_id' => $discount['id'],
-                        'discount_type' => $dis_type,
+                        'discount_type' => $disType,
                         'type_wise_id' => $id,
                         'created_at' => now(),
                         'updated_at' => now()
@@ -236,14 +238,17 @@ class CouponController extends Controller
         }
 
         $coupons = $this->coupon->whereIn('id', $request['coupon_ids']);
+
         if ($coupons->count() > 0) {
             foreach ($coupons->get() as $coupon) {
                 $this->discount->where('id', $coupon['discount_id'])->delete();
                 $this->discountType->where('discount_id', $coupon['discount_id'])->delete();
             }
+
             $coupons->delete();
             return response()->json(response_formatter(DEFAULT_DELETE_200), 200);
         }
+
         return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
@@ -252,7 +257,7 @@ class CouponController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',

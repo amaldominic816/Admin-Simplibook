@@ -10,11 +10,13 @@
                 <div class="about__wrapper-content  wow animate__fadeInUp">
                     <h3 class="section-title text-start ms-0">{{bs_data($settings,'about_us_title', 1)}}</h3>
                     <p>
-                        {!! bs_data($settings,'about_us', 1) !!}
+                        {!! bs_data_text($dataSettings,'about_us', 1) !!}
                     </p>
                 </div>
                 <div class="about__wrapper-thumb ps-xl-4">
-                    <img class="main-img" src="{{asset('storage/app/public/landing-page')}}/{{bs_data($settings,'about_us_image', 1)}}" alt="img">
+                    <img class="main-img"
+                         src="{{asset('storage/app/public/landing-page')}}/{{bs_data($settings,'about_us_image', 1)}}"
+                         alt="img">
                     <div class="bg-img">
                         <img src="{{asset('public/assets/landing')}}/img/about-us.png" alt="img">
                     </div>

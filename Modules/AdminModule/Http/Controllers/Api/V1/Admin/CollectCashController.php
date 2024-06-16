@@ -5,7 +5,6 @@ namespace Modules\AdminModule\Http\Controllers\Api\V1\Admin;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Modules\ProviderManagement\Entities\Provider;
 use Modules\TransactionModule\Entities\Transaction;
@@ -50,7 +49,7 @@ class CollectCashController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 200);
         }
 
-        collect_cash_transaction($request->provider_id, $request['amount']);
+        collectCashTransaction($request->provider_id, $request['amount']);
 
         return response()->json(response_formatter(DEFAULT_200), 200);
     }
@@ -60,7 +59,7 @@ class CollectCashController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function collect_cash_transaction(Request $request)
+    public function collect_cash_transaction(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',

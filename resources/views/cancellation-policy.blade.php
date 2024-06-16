@@ -8,10 +8,9 @@
             <h3 class="title">{{translate('cancellation_policy')}}</h3>
         </section>
     </div>
-    <!-- Page Header End -->
     <section class="privacy-section py-5">
         <div class="container">
-            {!! bs_data($settings,'cancellation_policy', 1) !!}
+            {!! bs_data_text($dataSettings,'cancellation_policy', 1) !!}
         </div>
     </section>
 @endsection

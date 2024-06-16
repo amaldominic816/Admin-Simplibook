@@ -10,22 +10,26 @@ use Modules\TransactionModule\Entities\LoyaltyPointTransaction;
 use Modules\UserManagement\Entities\User;
 use Modules\ZoneManagement\Entities\Zone;
 use Rap2hpoutre\FastExcel\FastExcel;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class LoyaltyPointController extends Controller
 {
     protected User $user;
     protected Zone $zone;
-    protected LoyaltyPointTransaction $loyalty_point_transaction;
+    protected LoyaltyPointTransaction $loyaltyPointTransaction;
 
-    public function __construct(User $user, Zone $zone, LoyaltyPointTransaction $loyalty_point_transaction)
+    use AuthorizesRequests;
+
+    public function __construct(User $user, Zone $zone, LoyaltyPointTransaction $loyaltyPointTransaction)
     {
         $this->user = $user;
         $this->zone = $zone;
-        $this->loyalty_point_transaction = $loyalty_point_transaction;
+        $this->loyaltyPointTransaction = $loyaltyPointTransaction;
     }
 
-    public function get_loyalty_point_report(Request $request)
+    public function getLoyaltyPointReport(Request $request): \Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View|\Illuminate\Contracts\Foundation\Application
     {
+        $this->authorize('point_view');
         Validator::make($request->all(), [
             'zone_ids' => 'array',
             'zone_ids.*' => 'uuid',
@@ -36,45 +40,43 @@ class LoyaltyPointController extends Controller
             'transaction_type' => 'in:all,debit,credit'
         ])->validate();
 
-        //Dropdown data
         $zones = $this->zone->select('id', 'name')->get();
         $customers = $this->user->ofType(['customer'])->select('id', 'first_name', 'last_name', 'phone')->get();
 
-        //params
-        $query_params = [];
-        $transaction_type = $request->has('transaction_type') ? $request->transaction_type : 'all';
-        $query_params['transaction_type'] = $transaction_type;
+        $queryParams = [];
+        $transactionType = $request->has('transaction_type') ? $request->transaction_type : 'all';
+        $queryParams['transaction_type'] = $transactionType;
         $search = $request['search'];
-        $query_params['search'] = $search;
+        $queryParams['search'] = $search;
         if($request->has('zone_ids')) {
-            $query_params['zone_ids'] = $request['zone_ids'];
+            $queryParams['zone_ids'] = $request['zone_ids'];
         }
         if($request->has('customer_ids')) {
-            $query_params['customer_ids'] = $request['customer_ids'];
+            $queryParams['customer_ids'] = $request['customer_ids'];
         }
         if ($request->has('date_range')) {
-            $query_params['date_range'] = $request['date_range'];
+            $queryParams['date_range'] = $request['date_range'];
         }
         if ($request->has('date_range') && $request['date_range'] == 'custom_date') {
-            $query_params['from'] = $request['from'];
-            $query_params['to'] = $request['to'];
+            $queryParams['from'] = $request['from'];
+            $queryParams['to'] = $request['to'];
         }
 
         //*** Card Data ***
-        $total_credit = $this->filter_query($this->loyalty_point_transaction, $request)
+        $totalCredit = $this->filterQuery($this->loyaltyPointTransaction, $request)
             ->with(['user'])
             ->sum('credit');
 
-        $total_debit = $this->filter_query($this->loyalty_point_transaction, $request)
+        $totalDebit = $this->filterQuery($this->loyaltyPointTransaction, $request)
             ->with(['user'])
             ->sum('debit');
 
         //*** Table Data ***
-        $filtered_transactions = $this->filter_query($this->loyalty_point_transaction, $request)
+        $filteredTransactions = $this->filterQuery($this->loyaltyPointTransaction, $request)
             ->with(['user'])
-            ->latest()->paginate(pagination_limit())->appends($query_params);
+            ->latest()->paginate(pagination_limit())->appends($queryParams);
 
-        return view('customermodule::loyalty-point.report', compact('zones', 'customers', 'filtered_transactions', 'transaction_type', 'total_credit', 'total_debit', 'query_params'));
+        return view('customermodule::loyalty-point.report', compact('zones', 'customers', 'filteredTransactions', 'transactionType', 'totalCredit', 'totalDebit', 'queryParams'));
 
     }
 
@@ -82,8 +84,9 @@ class LoyaltyPointController extends Controller
      * Display a listing of the resource.
      * @return string|\Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function get_loyalty_point_report_download(Request $request)
+    public function getLoyaltyPointReportDownload(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse|string
     {
+        $this->authorize('point_export');
         Validator::make($request->all(), [
             'zone_ids' => 'array',
             'zone_ids.*' => 'uuid',
@@ -95,11 +98,11 @@ class LoyaltyPointController extends Controller
         ])->validate();
 
         //*** Table Data ***
-        $filtered_transactions = $this->filter_query($this->loyalty_point_transaction, $request)
+        $filteredTransactions = $this->filterQuery($this->loyaltyPointTransaction, $request)
             ->with(['user'])
             ->latest()->get();
 
-        return (new FastExcel($filtered_transactions))->download(time().'-provider-report.xlsx', function ($transaction) {
+        return (new FastExcel($filteredTransactions))->download(time().'-provider-report.xlsx', function ($transaction) {
             return [
                 'Transaction ID' => $transaction->id,
                 'Transaction Date' => date('d-M-Y h:ia',strtotime($transaction->created_at)),
@@ -120,7 +123,7 @@ class LoyaltyPointController extends Controller
      * @param $request
      * @return mixed
      */
-    function filter_query($instance, $request): mixed
+    function filterQuery($instance, $request): mixed
     {
         return $instance
             ->when($request->has('transaction_type') && $request['transaction_type'] != 'all', function ($query) use($request) {

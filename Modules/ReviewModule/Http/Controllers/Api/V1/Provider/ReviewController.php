@@ -2,14 +2,11 @@
 
 namespace Modules\ReviewModule\Http\Controllers\Api\V1\Provider;
 
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Modules\ProviderManagement\Entities\BankDetail;
-use Modules\ProviderManagement\Entities\Provider;
 use Modules\ReviewModule\Entities\Review;
 
 class ReviewController extends Controller
@@ -43,19 +40,19 @@ class ReviewController extends Controller
                 return $query->ofStatus(($request['status'] == 'active') ? 1 : 0);
             })->latest()->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $rating_group_count = DB::table('reviews')->where('provider_id', $request->user()->provider->id)
+        $ratingGroupCount = DB::table('reviews')->where('provider_id', $request->user()->provider->id)
             ->select('review_rating', DB::raw('count(*) as total'))
             ->groupBy('review_rating')
             ->get();
 
-        $rating_info = [
+        $ratingInfo = [
             'rating_count' => $request->user()->provider['rating_count'],
             'average_rating' => $request->user()->provider['avg_rating'],
-            'rating_group_count' => $rating_group_count,
+            'rating_group_count' => $ratingGroupCount,
         ];
 
         if ($reviews->count() > 0) {
-            return response()->json(response_formatter(DEFAULT_200, ['reviews' => $reviews, 'rating' => $rating_info]), 200);
+            return response()->json(response_formatter(DEFAULT_200, ['reviews' => $reviews, 'rating' => $ratingInfo]), 200);
         }
 
         return response()->json(response_formatter(DEFAULT_404), 200);

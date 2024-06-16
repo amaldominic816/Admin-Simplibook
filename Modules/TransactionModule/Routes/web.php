@@ -28,19 +28,19 @@ Route::group(['prefix' => 'admin', 'as'=>'admin.', 'namespace' => 'Web\Admin','m
             Route::any('list', [WithdrawRequestController::class, 'index'])->name('list');
             Route::any('download', [WithdrawRequestController::class, 'download'])->name('download');
             Route::post('import', [WithdrawRequestController::class, 'import'])->name('import');
-            Route::post('update-status/{id}', [WithdrawRequestController::class, 'update_status'])->name('update_status');
-            Route::put('update-multiple-status', [WithdrawRequestController::class, 'update_multiple_status'])->name('update_multiple_status');
+            Route::post('update-status/{id}', [WithdrawRequestController::class, 'updateStatus'])->name('update_status');
+            Route::put('update-multiple-status', [WithdrawRequestController::class, 'updateMultipleStatus'])->name('update_multiple_status');
         });
 
         Route::group(['prefix' => 'method', 'as'=>'method.'], function () {
-            Route::any('list', [WithdrawnController::class, 'method_list'])->name('list');
-            Route::get('create', 'WithdrawnController@method_create')->name('create');
-            Route::post('store', 'WithdrawnController@method_store')->name('store');
-            Route::get('edit/{id}', 'WithdrawnController@method_edit')->name('edit');
-            Route::put('update', 'WithdrawnController@method_update')->name('update');
-            Route::delete('delete/{id}', 'WithdrawnController@method_destroy')->name('delete');
-            Route::any('status-update/{id}', 'WithdrawnController@method_status_update')->name('status-update');
-            Route::any('default-status-update/{id}', 'WithdrawnController@method_default_status_update')->name('default-status-update');
+            Route::any('list', [WithdrawnController::class, 'methodList'])->name('list');
+            Route::get('create', 'WithdrawnController@methodCreate')->name('create');
+            Route::post('store', 'WithdrawnController@methodStore')->name('store');
+            Route::get('edit/{id}', 'WithdrawnController@methodEdit')->name('edit');
+            Route::put('update', 'WithdrawnController@methodUpdate')->name('update');
+            Route::delete('delete/{id}', 'WithdrawnController@methodDestroy')->name('delete');
+            Route::any('status-update/{id}', 'WithdrawnController@methodStatusUpdate')->name('status-update');
+            Route::any('default-status-update/{id}', 'WithdrawnController@methodDefaultStatusUpdate')->name('default-status-update');
         });
     });
 
@@ -48,7 +48,7 @@ Route::group(['prefix' => 'admin', 'as'=>'admin.', 'namespace' => 'Web\Admin','m
 Route::group(['prefix' => 'provider', 'as'=>'provider.', 'namespace' => 'Web\Provider','middleware'=>['provider']], function () {
     Route::group(['prefix' => 'withdraw', 'as'=>'withdraw.'], function () {
         Route::group(['prefix' => 'method', 'as'=>'method.'], function () {
-            Route::get('list', 'WithdrawController@get_method')->name('list');
+            Route::get('list', 'WithdrawController@getMethod')->name('list');
         });
     });
 

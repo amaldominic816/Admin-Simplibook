@@ -3,8 +3,9 @@
 namespace Modules\Auth\Http\Controllers;
 
 use Brian2694\Toastr\Facades\Toastr;
-use DebugBar\DataCollector\Renderable;
-use Grimzy\LaravelMysqlSpatial\Types\Point;
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,8 +21,8 @@ class RegisterController extends Controller
 {
     protected Provider $provider;
     protected User $owner;
-    protected $user;
-    protected $serviceman;
+    protected User $user;
+    protected Serviceman $serviceman;
     protected Zone $zone;
 
     public function __construct(Provider $provider, User $owner, User $user, Serviceman $serviceman, Zone $zone)
@@ -38,21 +39,28 @@ class RegisterController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function customer_register(Request $request): JsonResponse
+    public function customerRegister(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'first_name' => 'required',
             'last_name' => 'required',
-            'email' => 'required|email|unique:users',
-            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10|unique:users',
+            'email' => 'required|email',
+            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10',
             'password' => 'required|min:8',
             'gender' => 'in:male,female,others',
             'confirm_password' => 'required|same:password',
-            'profile_image' =>  'image|mimes:jpeg,jpg,png,gif|max:10000',
+            'profile_image' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
         ]);
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 403);
+        }
+
+        if (User::where('email', $request['email'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code" => "account_email", "message" => translate('Email already taken')]]), 400);
+        }
+        if (User::where('phone', $request['phone'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code" => "account_phone", "message" => translate('Phone already taken')]]), 400);
         }
 
         $user = $this->user;
@@ -62,7 +70,7 @@ class RegisterController extends Controller
         $user->phone = $request->phone;
         $user->profile_image = $request->has('profile_image') ? file_uploader('user/profile_image/', 'png', $request->profile_image) : 'default.png';
         $user->date_of_birth = $request->date_of_birth;
-        $user->gender = $request->gender??'male';
+        $user->gender = $request->gender ?? 'male';
         $user->password = bcrypt($request->password);
         $user->user_type = 'customer';
         $user->is_active = 1;
@@ -75,9 +83,9 @@ class RegisterController extends Controller
     /**
      * Store a newly created resource in storage.
      * @param Request $request
-     * @return \Illuminate\Contracts\Foundation\Application|\Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View
+     * @return Application|Factory|View
      */
-    public function provider_self_register_form(Request $request): \Illuminate\Contracts\Foundation\Application|\Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View
+    public function providerSelfRegisterForm(Request $request): Application|Factory|View
     {
         $zones = $this->zone->get();
         return view('auth::provider-register', compact('zones'));
@@ -89,35 +97,45 @@ class RegisterController extends Controller
      * @param Request $request
      * @return RedirectResponse
      */
-    public function provider_self_register(Request $request): RedirectResponse
+    public function providerSelfRegister(Request $request): RedirectResponse
     {
         $request->validate([
             'contact_person_name' => 'required',
-            'contact_person_phone' => 'required',
+            'contact_person_phone_2' => 'required',
             'contact_person_email' => 'required',
 
-            'account_first_name' => 'required',
-            'account_last_name' => 'required',
             'zone_id' => 'required|uuid',
-            'account_email' => 'required|email|unique:users,email',
-            'account_phone' => 'required|unique:users,phone',
             'password' => 'required|min:8',
             'confirm_password' => 'required|same:password',
 
             'company_name' => 'required',
-            'company_phone' => 'required|unique:providers',
+            'company_phone_2' => 'required',
             'company_address' => 'required',
-            'company_email' => 'required|email|unique:providers',
+            'company_email' => 'required|email',
             'logo' => 'required|image|mimes:jpeg,jpg,png,gif|max:10000',
 
-            'identity_type' => 'required|in:passport,driving_licence,nid,trade_license,company_id',
+            'identity_type' => 'required|in:passport,driving_license,nid,trade_license',
             'identity_number' => 'required',
             'identity_images' => 'required|array',
             'identity_images.*' => 'image|mimes:jpeg,jpg,png,gif|max:2048',
 
             'latitude' => 'required',
             'longitude' => 'required',
-        ]);
+        ],
+            [
+                'company_phone_2.required' => 'The company phone number is required.',
+                'contact_person_phone_2.required' => 'The contact person phone number is required.',
+            ]
+        );
+
+        if (User::where('email', $request['company_email'])->exists()) {
+            Toastr::error(translate('Email already taken'));
+            return back();
+        }
+        if (User::where('phone', $request['company_phone_2'])->exists()) {
+            Toastr::error(translate('Phone already taken'));
+            return back();
+        }
 
         $identity_images = [];
         foreach ($request->identity_images as $image) {
@@ -126,13 +144,13 @@ class RegisterController extends Controller
 
         $provider = $this->provider;
         $provider->company_name = $request->company_name;
-        $provider->company_phone = $request->company_phone;
+        $provider->company_phone = $request->company_phone_2;
         $provider->company_email = $request->company_email;
         $provider->logo = file_uploader('provider/logo/', 'png', $request->file('logo'));
         $provider->company_address = $request->company_address;
 
         $provider->contact_person_name = $request->contact_person_name;
-        $provider->contact_person_phone = $request->contact_person_phone;
+        $provider->contact_person_phone = $request->contact_person_phone_2;
         $provider->contact_person_email = $request->contact_person_email;
         $provider->is_approved = 2;
         $provider->is_active = 0;
@@ -141,10 +159,8 @@ class RegisterController extends Controller
 
 
         $owner = $this->owner;
-        $owner->first_name = $request->account_first_name;
-        $owner->last_name = $request->account_last_name;
-        $owner->email = $request->account_email;
-        $owner->phone = $request->account_phone;
+        $owner->email = $request->company_email;
+        $owner->phone = $request->company_phone_2;
         $owner->identification_number = $request->identity_number;
         $owner->identification_type = $request->identity_type;
         $owner->identification_image = $identity_images;
@@ -158,8 +174,20 @@ class RegisterController extends Controller
             $provider->save();
         });
 
-        Toastr::success(PROVIDER_REGISTERED_200['message']);
-        return redirect(route('provider.auth.verification.index'));
+        $phone_verification = business_config('phone_verification', 'service_setup')?->live_values ?? 0;
+        if ($phone_verification) {
+            Toastr::error(translate('Verify your account'));
+            return redirect(route('provider.auth.verification.index'));
+        }
+
+        $email_verification = business_config('email_verification', 'service_setup')?->live_values ?? 0;
+        if ($email_verification) {
+            Toastr::error(translate('Verify your account'));
+            return redirect(route('provider.auth.verification.index'));
+        }
+
+        Toastr::success(translate(PROVIDER_REGISTERED_200['message']));
+        return redirect(route('provider.auth.login'));
     }
 
 
@@ -168,7 +196,7 @@ class RegisterController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function provider_register(Request $request): JsonResponse
+    public function providerRegister(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'contact_person_name' => 'required',
@@ -178,18 +206,18 @@ class RegisterController extends Controller
             'account_first_name' => 'required',
             'account_last_name' => 'required',
             'zone_id' => 'required|uuid',
-            'account_email' => 'required|email|unique:users,email',
-            'account_phone' => 'required|unique:users,phone',
+            'account_email' => 'required|email',
+            'account_phone' => 'required',
             'password' => 'required|min:8',
             'confirm_password' => 'required|same:password',
 
             'company_name' => 'required',
-            'company_phone' => 'required|unique:providers',
+            'company_phone' => 'required',
             'company_address' => 'required',
-            'company_email' => 'required|email|unique:providers',
+            'company_email' => 'required|email',
             'logo' => 'required|image|mimes:jpeg,jpg,png,gif|max:10000',
 
-            'identity_type' => 'required|in:passport,driving_licence,nid,trade_license,company_id',
+            'identity_type' => 'required|in:passport,driving_license,nid,trade_license,company_id',
             'identity_number' => 'required',
             'identity_images' => 'required|array',
             'identity_images.*' => 'image|mimes:jpeg,jpg,png,gif',
@@ -197,6 +225,13 @@ class RegisterController extends Controller
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
+        }
+
+        if (User::where('email', $request['account_email'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code" => "account_email", "message" => translate('Email already taken')]]), 400);
+        }
+        if (User::where('phone', $request['account_phone'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code" => "account_phone", "message" => translate('Phone already taken')]]), 400);
         }
 
         $identity_images = [];

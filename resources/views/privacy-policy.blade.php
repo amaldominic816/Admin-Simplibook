@@ -8,10 +8,9 @@
             <h3 class="title">{{translate('privacy_policy')}}</h3>
         </section>
     </div>
-    <!-- Page Header End -->
     <section class="privacy-section py-5">
         <div class="container">
-            {!! bs_data($settings,'privacy_policy', 1) !!}
+            {!! bs_data_text($dataSettings,'privacy_policy', 1) !!}
         </div>
     </section>
 @endsection

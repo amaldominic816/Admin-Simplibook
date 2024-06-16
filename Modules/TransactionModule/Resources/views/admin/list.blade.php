@@ -2,12 +2,7 @@
 
 @section('title',translate('transaction_list'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="row">
@@ -21,19 +16,19 @@
                         class="d-flex flex-wrap justify-content-between align-items-center border-bottom mx-lg-4 mb-10 gap-3">
                         <ul class="nav nav--tabs">
                             <li class="nav-item">
-                                <a class="nav-link {{$trx_type=='all'?'active':''}}"
+                                <a class="nav-link {{$trxType=='all'?'active':''}}"
                                    href="{{url()->current()}}?trx_type=all">
                                     {{translate('all')}}
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{$trx_type=='debit'?'active':''}}"
+                                <a class="nav-link {{$trxType=='debit'?'active':''}}"
                                    href="{{url()->current()}}?trx_type=debit">
                                     {{translate('debit')}}
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{$trx_type=='credit'?'active':''}}"
+                                <a class="nav-link {{$trxType=='credit'?'active':''}}"
                                    href="{{url()->current()}}?trx_type=credit   ">
                                     {{translate('credit')}}
                                 </a>
@@ -51,7 +46,7 @@
                             <div class="card">
                                 <div class="card-body">
                                     <div class="data-table-top d-flex flex-wrap gap-10 justify-content-between">
-                                        <form action="{{url()->current()}}?trx_type={{$trx_type}}"
+                                        <form action="{{url()->current()}}?trx_type={{$trxType}}"
                                               class="search-form search-form_style-two"
                                               method="POST">
                                             @csrf
@@ -66,65 +61,82 @@
                                             <button type="submit"
                                                     class="btn btn--primary">{{translate('search')}}</button>
                                         </form>
-
-                                        <div class="d-flex flex-wrap align-items-center gap-3">
-                                            <div class="dropdown">
-                                                <button type="button"
-                                                        class="btn btn--secondary text-capitalize dropdown-toggle"
-                                                        data-bs-toggle="dropdown">
-                                                    <span class="material-icons">file_download</span> {{translate('download')}}
-                                                </button>
-                                                <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-                                                    <a class="dropdown-item" href="{{route('admin.transaction.download')}}?search={{$search}}&trx_type={{$trx_type}}">
-                                                        {{translate('excel')}}
-                                                    </a>
-                                                </ul>
+                                        @can('transaction_export')
+                                            <div class="d-flex flex-wrap align-items-center gap-3">
+                                                <div class="dropdown">
+                                                    <button type="button"
+                                                            class="btn btn--secondary text-capitalize dropdown-toggle"
+                                                            data-bs-toggle="dropdown">
+                                                        <span
+                                                            class="material-icons">file_download</span> {{translate('download')}}
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
+                                                        <a class="dropdown-item"
+                                                           href="{{route('admin.transaction.download')}}?search={{$search}}&trx_type={{$trxType}}">
+                                                            {{translate('excel')}}
+                                                        </a>
+                                                    </ul>
+                                                </div>
                                             </div>
-                                        </div>
+                                        @endcan
                                     </div>
 
                                     <div class="table-responsive">
                                         <table id="example" class="table align-middle">
                                             <thead class="text-nowrap">
-                                                <tr>
-                                                    <th>{{translate('Transaction_ID')}}</th>
-                                                    <th>{{translate('Transaction_Date')}}</th>
-                                                    <th>{{translate('Transaction_From')}}</th>
-                                                    <th>{{translate('Transaction_To')}}</th>
-                                                    <th>{{translate('Debit')}}</th>
-                                                    <th>{{translate('Credit')}}</th>
-                                                    <th>{{translate('Balance')}}</th>
-                                                </tr>
+                                            <tr>
+                                                <th>{{translate('Sl')}}</th>
+                                                <th>{{translate('Transaction_ID')}}</th>
+                                                <th>{{translate('Transaction_Date')}}</th>
+                                                <th>{{translate('Transaction_From')}}</th>
+                                                <th>{{translate('Transaction_To')}}</th>
+                                                <th>{{translate('Transaction Type')}}</th>
+                                                <th>{{translate('Debit')}}</th>
+                                                <th>{{translate('Credit')}}</th>
+                                                <th>{{translate('Balance')}}</th>
+                                            </tr>
                                             </thead>
                                             <tbody>
-                                            @forelse($transactions as $transaction)
+                                            @forelse($transactions as $key => $transaction)
                                                 <tr>
+                                                    <td>{{$key+$transactions->firstItem()}}</td>
                                                     <td>{{$transaction->id}}</td>
                                                     <td>{{date('d-M-y H:iA', strtotime($transaction->created_at))}}</td>
                                                     <td>
                                                         @if($transaction?->from_user?->provider)
-                                                            {{Str::limit($transaction->from_user->provider->company_name, 30)}} <br/>
-                                                            <small class="opacity-75">{{translate($transaction?->from_user_account)}}</small>
+                                                            {{Str::limit($transaction->from_user->provider->company_name, 30)}}
+                                                            <br/>
+                                                            <small
+                                                                class="opacity-75">{{translate($transaction?->from_user_account)}}</small>
                                                         @else
-                                                            {{Str::limit($transaction?->from_user?->first_name.' '.$transaction?->from_user?->last_name, 30)}} <br/>
-                                                            <small class="opacity-75">{{translate($transaction?->from_user_account)}}</small>
+                                                            {{Str::limit($transaction?->from_user?->first_name.' '.$transaction?->from_user?->last_name, 30)}}
+                                                            <br/>
+                                                            <small
+                                                                class="opacity-75">{{translate($transaction?->from_user_account)}}</small>
                                                         @endif
                                                     </td>
                                                     <td>
-                                                        @if($transaction->to_user?->provider)
-                                                            {{Str::limit($transaction->to_user->provider->company_name, 30)}} <br/>
-                                                            <small class="opacity-75">{{translate($transaction->to_user_account)}}</small>
+                                                        @if($transaction?->to_user?->provider)
+                                                            {{Str::limit($transaction->to_user->provider->company_name, 30)}}
+                                                            <br/>
+                                                            <small
+                                                                class="opacity-75">{{translate($transaction->to_user_account)}}</small>
                                                         @else
-                                                            {{Str::limit($transaction->to_user?->first_name.' '.$transaction->to_user?->last_name, 30)}} <br/>
-                                                            <small class="opacity-75">{{translate($transaction->to_user_account)}}</small>
+                                                            {{Str::limit($transaction?->to_user?->first_name.' '.$transaction?->to_user?->last_name, 30)}}
+                                                            <br/>
+                                                            <small
+                                                                class="opacity-75">{{translate($transaction->to_user_account)}}</small>
                                                         @endif
                                                     </td>
+                                                    <td>{{translate($transaction->trx_type)}}</td>
                                                     <td>{{with_currency_symbol($transaction->debit)}}</td>
                                                     <td>{{with_currency_symbol($transaction->credit)}}</td>
                                                     <td>{{with_currency_symbol($transaction->balance)}}</td>
                                                 </tr>
                                             @empty
-                                                <tr class="text-center"><td colspan="7">{{translate('No data available')}}</td></tr>
+                                                <tr class="text-center">
+                                                    <td colspan="7">{{translate('No data available')}}</td>
+                                                </tr>
                                             @endforelse
                                             </tbody>
                                         </table>
@@ -140,10 +152,5 @@
             </div>
         </div>
     </div>
-    <!-- End Main Content -->
 @endsection
 
-@push('script')
-
-
-@endpush

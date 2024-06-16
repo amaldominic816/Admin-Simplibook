@@ -2,6 +2,14 @@
 
 @section('title',translate('add_new_campaign'))
 
+@push('css_or_js')
+    <style>
+        .service_selector{
+            display: none;
+        }
+    </style>
+@endpush
+
 @section('content')
     <div class="main-content">
         <div class="container-fluid">
@@ -10,60 +18,53 @@
                     <div class="page-title-wrap mb-3">
                         <h2 class="page-title">{{translate('add_new_campaign')}}</h2>
                     </div>
-
                     <div class="card">
                         <div class="card-body p-30">
                             <form action="{{route('admin.campaign.store')}}" method="POST" enctype="multipart/form-data">
                                 @csrf
                                 <div class="discount-type">
-
                                     <div class="row">
                                         <div class="col-lg-6 mb-30">
-                                            <div class="form-floating">
+                                            <div class="form-floating form-floating__icon">
                                                 <input type="text" class="form-control" name="campaign_name"
                                                        placeholder="{{translate('campaign_name')}} *"
                                                        required="">
                                                 <label>{{translate('campaign_name')}} *</label>
+                                                <span class="material-icons">badge</span>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="row">
                                         <div class="col-lg-6">
                                             <div class="mb-30">
-                                                <div class="d-flex flex-wrap justify-content-between gap-3">
-                                                    <div>
-                                                        <p class="title-color">{{translate('upload_cover_image')}}</p>
-                                                        <p class="opacity-75 max-w220">{{translate('Image format - jpg,
-                                                            png, jpeg, gif Image Size - maximum size 2 MB Image
-                                                            Ratio - 2:1')}}</p>
-                                                    </div>
+                                                <div class="d-flex flex-column align-items-center gap-3">
+                                                    <p class="title-color mb-0">{{translate('upload_cover_image')}}</p>
+
                                                     <div>
                                                         <div class="upload-file">
-                                                            <input type="file" class="upload-file__input" name="cover_image" required>
+                                                            <input type="file" class="upload-file__input" name="cover_image" accept=".{{ implode(',.', array_column(IMAGEEXTENSION, 'key')) }}, |image/*" required>
                                                             <div class="upload-file__img upload-file__img_banner">
                                                                 <img src="{{asset('public/assets/admin-module')}}/img/media/banner-upload-file.png"
-                                                                     alt="">
+                                                                     alt="{{translate('campaign')}}">
                                                             </div>
                                                             <span class="upload-file__edit">
                                                                 <span class="material-icons">edit</span>
                                                             </span>
                                                         </div>
                                                     </div>
+                                                    <p class="opacity-75 max-w220">{{translate('Image format -')}} {{implode(', ', array_column(IMAGEEXTENSION, 'key'))}} {{translate("Image Size - maximum size 2 MB Image Ratio -
+                                                        2:1")}}</p>
                                                 </div>
                                             </div>
                                         </div>
                                         <div class="col-lg-6">
                                             <div class="mb-30">
-                                                <div class="d-flex flex-wrap justify-content-between gap-3">
-                                                    <div>
-                                                        <p class="title-color">{{translate('upload_thumbnail')}}</p>
-                                                        <p class="opacity-75 max-w220">{{translate('Image format - jpg, png,
-                                                            jpeg, gif Image Size - maximum size 2 MB Image Ratio -
-                                                            1:1')}}</p>
-                                                    </div>
-                                                    <div>
+                                                <div class="d-flex flex-column align-items-center gap-3">
+
+                                                    <p class="title-color mb-0">{{translate('upload_thumbnail')}}</p>
+                                                    <div class="d-flex flex-column align-items-center">
                                                         <div class="upload-file">
-                                                            <input type="file" class="upload-file__input" name="thumbnail" required>
+                                                            <input type="file" class="upload-file__input" name="thumbnail" accept=".{{ implode(',.', array_column(IMAGEEXTENSION, 'key')) }}, |image/*" required>
                                                             <div class="upload-file__img">
                                                                 <img src="{{asset('public/assets/admin-module')}}/img/media/upload-file.png" alt="">
                                                             </div>
@@ -72,6 +73,8 @@
                                                             </span>
                                                         </div>
                                                     </div>
+                                                    <p class="opacity-75 max-w220">{{translate('Image format -')}} {{implode(', ', array_column(IMAGEEXTENSION, 'key'))}} {{translate("Image Size - maximum size 2 MB Image Ratio -
+                                                        1:1")}}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -95,24 +98,27 @@
                                     </div>
 
                                     <div class="mb-30">
-                                        <div class="form-floating">
+                                        <div class="form-floating form-floating__icon">
                                             <input type="text" class="form-control" name="discount_title"
                                                    placeholder="{{translate('discount_title')}} *"
                                                    required="">
                                             <label>{{translate('discount_title')}} *</label>
+                                            <span class="material-icons">title</span>
                                         </div>
                                     </div>
                                     <div class="mb-30" id="category_selector">
                                         <select class="category-select theme-input-style w-100" name="category_ids[]"
                                                 multiple="multiple" id="category_selector__select" required>
+                                            <option value="all">{{translate('Select All')}}</option>
                                             @foreach($categories as $category)
                                                 <option value="{{$category->id}}">{{$category->name}}</option>
                                             @endforeach
                                         </select>
                                     </div>
-                                    <div class="mb-30" id="service_selector" style="display: none">
+                                    <div class="mb-30 service_selector" id="service_selector">
                                         <select class="service-select theme-input-style w-100" name="service_ids[]"
                                                 multiple="multiple" id="service_selector__select">
+                                            <option value="all">{{translate('Select All')}}</option>
                                             @foreach($services as $service)
                                                 <option value="{{$service->id}}">{{$service->name}}</option>
                                             @endforeach
@@ -120,7 +126,9 @@
                                     </div>
                                     <div class="mb-30">
                                         <select class="zone-select theme-input-style w-100" name="zone_ids[]"
-                                                multiple="multiple" required>
+                                                multiple="multiple" id="zone_selector__select" required>
+                                            <option value="0" disabled>{{translate('Select Zone')}}</option>
+                                            <option value="all">{{translate('Select All')}}</option>
                                             @foreach($zones as $zone)
                                                 <option value="{{$zone->id}}">{{$zone->name}}</option>
                                             @endforeach
@@ -146,11 +154,12 @@
                                     <div class="row">
                                         <div class="col-lg-4">
                                             <div class="mb-30">
-                                                <div class="form-floating">
+                                                <div class="form-floating form-floating__icon">
                                                     <input type="number" class="form-control" name="discount_amount"
                                                            placeholder="{{translate('amount')}}" id="discount_amount"
-                                                           min="0" max="100" value="0" step="any">
+                                                           min="0.01" max="100" value="0" step="any">
                                                     <label id="discount_amount__label">{{translate('amount')}} (%)</label>
+                                                    <span class="material-icons">price_change</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -174,25 +183,27 @@
                                         </div>
                                         <div class="col-lg-4">
                                             <div class="mb-30">
-                                                <div class="form-floating">
+                                                <div class="form-floating form-floating__icon">
                                                     <input type="number" class="form-control" step="any"
                                                            name="min_purchase"
                                                            placeholder="{{translate('min_purchase')}} ({{currency_symbol()}}) *"
                                                            min="0" value="0">
                                                     <label>{{translate('min_purchase')}} ({{currency_symbol()}})
                                                         *</label>
+                                                    <span class="material-icons">price_change</span>
                                                 </div>
                                             </div>
                                         </div>
                                         <div class="col-lg-4" id="max_discount_amount">
                                             <div class="mb-30">
-                                                <div class="form-floating">
+                                                <div class="form-floating form-floating__icon">
                                                     <input type="number" class="form-control" step="any"
                                                            name="max_discount_amount"
                                                            placeholder="{{translate('max_discount')}} ({{currency_symbol()}}) *"
                                                            min="0" value="0">
                                                     <label>{{translate('max_discount')}} ({{currency_symbol()}})
                                                         *</label>
+                                                    <span class="material-icons">price_change</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -205,7 +216,6 @@
                             </form>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -215,6 +225,31 @@
 @push('script')
     <script>
         "use Strict"
+
+        $('#category_selector__select').on('change', function() {
+            var selectedValues = $(this).val();
+            if (selectedValues !== null && selectedValues.includes('all')) {
+                $(this).find('option').not(':disabled').prop('selected', 'selected');
+                $(this).find('option[value="all"]').prop('selected', false);
+            }
+        });
+
+        $('#service_selector__select').on('change', function() {
+            var selectedValues = $(this).val();
+            if (selectedValues !== null && selectedValues.includes('all')) {
+                $(this).find('option').not(':disabled').prop('selected', 'selected');
+                $(this).find('option[value="all"]').prop('selected', false);
+            }
+        });
+
+        $('#zone_selector__select').on('change', function() {
+            var selectedValues = $(this).val();
+            if (selectedValues !== null && selectedValues.includes('all')) {
+                $(this).find('option').not(':disabled').prop('selected', 'selected');
+                $(this).find('option[value="all"]').prop('selected', false);
+            }
+        });
+
         $('#category').on('click', function () {
             $('#category_selector').show();
             $('#service_selector').hide();
@@ -257,13 +292,13 @@
 
         //Select 2
         $(".category-select").select2({
-            placeholder: "Select Category",
+            placeholder: "{{translate('Select Category')}}",
         });
         $(".service-select").select2({
-            placeholder: "Select Service",
+            placeholder: "{{translate('Select Service')}}",
         });
         $(".zone-select").select2({
-            placeholder: "Select Zone",
+            placeholder: "{{translate('Select Zone')}}",
         });
     </script>
 @endpush

@@ -13,10 +13,14 @@ use Modules\PromotionManagement\Entities\PushNotification;
 class NotificationController extends Controller
 {
     private PushNotification $pushNotification;
+    private mixed $customer_user_id;
+    private bool $is_customer_logged_in;
 
-    public function __construct(PushNotification $pushNotification)
+    public function __construct(PushNotification $pushNotification, Request $request)
     {
         $this->pushNotification = $pushNotification;
+        $this->is_customer_logged_in = (bool)auth('api')->user();
+        $this->customer_user_id = $this->is_customer_logged_in ? auth('api')->user()->id : $request['guest_id'];
     }
 
     /**
@@ -28,7 +32,7 @@ class NotificationController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
-            'offset' => 'required|numeric|min:1|max:100000',
+            'offset' => 'required|numeric|min:1|max:100000'
         ]);
 
         if ($validator->fails()) {
@@ -39,7 +43,12 @@ class NotificationController extends Controller
             ->when(!is_null(Config::get('zone_id')), function ($query) {
                 $query->whereJsonContains('zone_ids', Config::get('zone_id'));
             })
-            ->latest()->where('to_users', 'like', '%"customer"%')
+            ->whereDoesntHave('pushNotificationUser')
+            ->orWhereHas('pushNotificationUser', function ($query) {
+                $query->where('user_id', $this->customer_user_id);
+            })
+            ->latest()
+            ->where('to_users', 'like', '%"customer"%')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
         return response()->json(response_formatter(DEFAULT_200, $pushNotification), 200);

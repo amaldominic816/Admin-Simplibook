@@ -4,7 +4,6 @@ namespace Modules\ChattingModule\Http\Controllers\Web\Admin;
 
 use Brian2694\Toastr\Facades\Toastr;
 use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -22,18 +21,18 @@ use Ramsey\Uuid\Nonstandard\Uuid;
 
 class ChattingController extends Controller
 {
-    protected ChannelList $channel_list;
-    protected ChannelUser $channel_user;
-    protected ChannelConversation $channel_conversation;
-    protected ConversationFile $conversation_file;
+    protected ChannelList $channelList;
+    protected ChannelUser $channelUser;
+    protected ChannelConversation $channelConversation;
+    protected ConversationFile $conversationFile;
     protected User $user;
 
-    public function __construct(User $user, ChannelList $channel_list, ChannelUser $channel_user, ChannelConversation $channel_conversation, ConversationFile $conversation_file)
+    public function __construct(User $user, ChannelList $channelList, ChannelUser $channelUser, ChannelConversation $channelConversation, ConversationFile $conversationFile)
     {
-        $this->channel_list = $channel_list;
-        $this->channel_user = $channel_user;
-        $this->channel_conversation = $channel_conversation;
-        $this->conversation_file = $conversation_file;
+        $this->channelList = $channelList;
+        $this->channelUser = $channelUser;
+        $this->channelConversation = $channelConversation;
+        $this->conversationFile = $conversationFile;
         $this->user = $user;
     }
 
@@ -44,21 +43,41 @@ class ChattingController extends Controller
      */
     public function index(Request $request): Factory|View|Application
     {
-        $chat_list = $this->channel_list->withCount(['channelUsers'])
+        $request->validate([
+            'user_type' => 'nullable|in:customer,provider_admin,provider_serviceman'
+        ]);
+
+        $chatList = $this->channelList->withCount(['channelUsers'])
             ->with(['channelUsers.user.provider'])
             ->whereHas('channelUsers', function ($query) use ($request) {
                 $query->where(['user_id' => $request->user()->id]);
-            })->orderBy('updated_at', 'DESC')->get();
+            })
+            ->when($request->has('user_type'), function ($query) use ($request) {
+                $type = $request['user_type'];
+                $query->whereHas('channelUsers.user', function ($query) use ($type) {
+                    $query->where(function ($query) use ($type) {
+                        if ($type == 'customer') {
+                            $query->where('user_type', 'customer');
+                        } elseif ($type == 'provider_admin') {
+                            $query->where('user_type', 'provider-admin');
+                        } elseif ($type == 'provider_serviceman') {
+                            $query->where('user_type', 'provider-serviceman');
+                        }
+                    });
+                });
+            })
+            ->orderBy('updated_at', 'DESC')->get();
 
-        $chat_list->map(function ($chat) use ($request) {
+        $chatList->map(function ($chat) use ($request) {
             $chat['is_read'] = $chat->channelUsers->where('user_id', $request->user()->id)->first()->is_read;
         });
 
+        $type = $request['user_type'];
         $customers = $this->user->ofStatus(1)->where(['user_type' => 'customer'])->get();
         $providers = $this->user->ofStatus(1)->where(['user_type' => 'provider-admin'])->with(['provider'])->get();
         $servicemen = $this->user->ofStatus(1)->where(['user_type' => 'provider-serviceman'])->get();
 
-        return view('chattingmodule::admin.index', compact('chat_list', 'customers', 'providers', 'servicemen'));
+        return view('chattingmodule::admin.index', compact('chatList', 'customers', 'providers', 'servicemen', 'type'));
     }
 
     /**
@@ -66,7 +85,7 @@ class ChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function channel_list(Request $request): JsonResponse
+    public function channelList(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -77,14 +96,14 @@ class ChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $chat_list = $this->channel_list->withCount(['channelUsers'])
+        $chatList = $this->channelList->withCount(['channelUsers'])
             ->with(['channelUsers.user'])
             ->whereHas('channelUsers', function ($query) use ($request) {
                 $query->where(['user_id' => $request->user()->id]);
             })->orderBy('updated_at', 'DESC')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, $chat_list), 200);
+        return response()->json(response_formatter(DEFAULT_200, $chatList), 200);
     }
 
     /**
@@ -92,7 +111,7 @@ class ChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function referenced_channel_list(Request $request): JsonResponse
+    public function referencedChannelList(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -105,14 +124,14 @@ class ChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $chat_list = $this->channel_list->withCount(['channelUsers'])->with(['channelUsers.user'])
+        $chatList = $this->channelList->withCount(['channelUsers'])->with(['channelUsers.user'])
             ->where(['reference_id' => $request['reference_id'], 'reference_type' => $request['reference_type']])
             ->whereHas('channelUsers', function ($query) use ($request) {
                 $query->where(['user_id' => $request->user()->id]);
             })->orderBy('updated_at', 'DESC')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, $chat_list), 200);
+        return response()->json(response_formatter(DEFAULT_200, $chatList), 200);
     }
 
     /**
@@ -120,7 +139,7 @@ class ChattingController extends Controller
      * @param Request $request
      * @return RedirectResponse
      */
-    public function create_channel(Request $request): RedirectResponse
+    public function createChannel(Request $request): RedirectResponse
     {
         $request->validate([
             'reference_id' => '',
@@ -130,29 +149,29 @@ class ChattingController extends Controller
 
         if ($request['user_type'] == 'customer') {
             $request['to_user'] = $request['customer_id'];
-        }elseif ($request['user_type'] == 'provider-admin') {
+        } elseif ($request['user_type'] == 'provider-admin') {
             $request['to_user'] = $request['provider_id'];
-        }elseif ($request['user_type'] == 'provider-serviceman') {
+        } elseif ($request['user_type'] == 'provider-serviceman') {
             $request['to_user'] = $request['serviceman_id'];
         }
 
         if (!$this->user->where('id', $request['to_user'])->exists()) {
-            Toastr::error('Receiver not found');
+            Toastr::error(translate('Receiver not found'));
             return back();
         }
 
-        $channel_ids = $this->channel_user->where(['user_id' => $request->user()->id])->pluck('channel_id')->toArray();
-        $find_channel = $this->channel_list->whereIn('id', $channel_ids)->whereHas('channelUsers', function ($query) use ($request) {
+        $channelIds = $this->channelUser->where(['user_id' => $request->user()->id])->pluck('channel_id')->toArray();
+        $findChannel = $this->channelList->whereIn('id', $channelIds)->whereHas('channelUsers', function ($query) use ($request) {
             $query->where(['user_id' => $request['to_user']]);
         })->latest()->first();
 
-        if (!isset($find_channel)) {
-            $channel = $this->channel_list;
+        if (!isset($findChannel)) {
+            $channel = $this->channelList;
             $channel->reference_id = $request['reference_id'] ?? null;
             $channel->reference_type = $request['reference_type'] ?? null;
             $channel->save();
 
-            $this->channel_user->insert([
+            $this->channelUser->insert([
                 [
                     'id' => Uuid::uuid4(),
                     'channel_id' => $channel->id,
@@ -171,7 +190,20 @@ class ChattingController extends Controller
         }
 
         Toastr::success(translate('you_can_start_conversation_now'));
-        return back();
+
+        $userTypeRoutes = [
+            'customer' => 'customer',
+            'provider-admin' => 'provider_admin',
+            'provider-serviceman' => 'provider_serviceman',
+        ];
+
+        $userType = $request['user_type'];
+
+        if (array_key_exists($userType, $userTypeRoutes)) {
+            return redirect()->route('admin.chat.index', ['user_type' => $userTypeRoutes[$userType]]);
+        } else {
+            return back();
+        }
     }
 
     /**
@@ -179,47 +211,56 @@ class ChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function send_message(Request $request): JsonResponse
+    public function sendMessage(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'message' => '',
+            'message' => is_null($request['files']) ? 'required' : '',
             'channel_id' => 'required|uuid',
             'files' => is_null($request['message']) ? 'required|array' : 'array',
-            'files.*' => 'max:10240|mimes:' . implode(',', array_column(FILE_TYPE, 'key')),
+            'files.*' => 'max:10240|mimes:' . implode(',', array_column(FILE_TYPE, 'key'))
+        ], [
+            'files.required' => 'The files field is required when message is not provided.',
+            'files.array' => 'The files must be an array.',
+            'files.*.max' => 'The maximum file size allowed is :max kilobytes.',
+            'files.*.mimes' => 'Invalid file type. Allowed types are: ' . implode(', ', array_column(FILE_TYPE, 'key'))
         ]);
+
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
         DB::transaction(function () use ($request) {
-            $this->channel_list->where('id', $request['channel_id'])->update([
+            $this->channelList->where('id', $request['channel_id'])->update([
                 'updated_at' => now()
             ]);
-            $this->channel_user->where('channel_id', $request['channel_id'])->where('user_id', '!=', $request->user()->id)
+            $this->channelUser->where('channel_id', $request['channel_id'])->where('user_id', '!=', $request->user()->id)
                 ->update([
                     'is_read' => 0
                 ]);
 
-            $channel_conversation = $this->channel_conversation;
-            $channel_conversation->channel_id = $request->channel_id;
-            $channel_conversation->message = $request['message'];
-            $channel_conversation->user_id = $request->user()->id;
-            $channel_conversation->save();
+            $channelConversation = $this->channelConversation;
+            $channelConversation->channel_id = $request->channel_id;
+            $channelConversation->message = $request['message'];
+            $channelConversation->user_id = $request->user()->id;
+            $channelConversation->save();
 
             if ($request->has('files')) {
                 foreach ($request->file('files') as $file) {
                     $extension = $file->getClientOriginalExtension();
-                    $this->conversation_file->create([
-                        'conversation_id' => $channel_conversation->id,
-                        'file_name' => file_uploader('conversation/', $extension, $file),
+                    $originalName = $file->getClientOriginalName();
+
+                    $this->conversationFile->create([
+                        'conversation_id' => $channelConversation->id,
+                        'original_file_name' => $originalName,
+                        'stored_file_name' => file_uploader('conversation/', $extension, $file),
                         'file_type' => $extension,
                     ]);
                 }
             }
         });
 
-        $conversation = $this->channel_conversation->where(['channel_id' => $request['channel_id']])
+        $conversation = $this->channelConversation->where(['channel_id' => $request['channel_id']])
             ->with(['user', 'conversationFiles'])->whereHas('channel.channelUsers', function ($query) use ($request) {
                 $query->where(['user_id' => $request->user()->id]);
             })->latest()->paginate(100, ['*'], 'offset', $request['offset']);
@@ -245,22 +286,22 @@ class ChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $this->channel_user->where('channel_id', $request['channel_id'])->where('user_id', $request->user()->id)
+        $this->channelUser->where('channel_id', $request['channel_id'])->where('user_id', $request->user()->id)
             ->update([
                 'is_read' => 1
             ]);
 
-        $conversation = $this->channel_conversation->where(['channel_id' => $request['channel_id']])
+        $conversation = $this->channelConversation->where(['channel_id' => $request['channel_id']])
             ->with(['user', 'conversationFiles'])->whereHas('channel.channelUsers', function ($query) use ($request) {
                 $query->where(['user_id' => $request->user()->id]);
             })->latest()->paginate(100, ['*'], 'offset', $request['offset']);
 
-        $from_user = $this->channel_user->where('channel_id', $request['channel_id'])->where('user_id', '!=', $request->user()->id)->first();
+        $fromUser = $this->channelUser->where('channel_id', $request['channel_id'])->where('user_id', '!=', $request->user()->id)->first();
 
-        $channel_id = $request['channel_id'];
+        $channelId = $request['channel_id'];
 
         return response()->json([
-            'template' => view('chattingmodule::admin.partials._conversations', compact('from_user', 'conversation', 'channel_id'))->render()
+            'template' => view('chattingmodule::admin.partials._conversations', compact('fromUser', 'conversation', 'channelId'))->render()
         ]);
     }
 }

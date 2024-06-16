@@ -3,8 +3,8 @@
 namespace Modules\CustomerModule\Http\Controllers\Web\Admin;
 
 use Brian2694\Toastr\Facades\Toastr;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -13,36 +13,46 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Routing\Redirector;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Modules\BookingModule\Entities\Booking;
+use Modules\CustomerModule\Emails\CustomerRegistrationMail;
 use Modules\ReviewModule\Entities\Review;
 use Modules\UserManagement\Entities\User;
 use Modules\UserManagement\Entities\UserAddress;
+use Modules\UserManagement\Entities\UserVerification;
 use Rap2hpoutre\FastExcel\FastExcel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class CustomerController extends Controller
 {
     protected User $user;
-    private $booking;
-    private $review;
-    private $address;
+    private Booking $booking;
+    private Review $review;
+    private UserAddress $address;
+    private UserVerification $userVerification;
 
-    public function __construct(Booking $booking, User $user, Review $review, UserAddress $address)
+    use AuthorizesRequests;
+
+    public function __construct(Booking $booking, User $user, Review $review, UserAddress $address, UserVerification $userVerification)
     {
         $this->booking = $booking;
         $this->user = $user;
         $this->review = $review;
         $this->address = $address;
+        $this->userVerification = $userVerification;
     }
 
     /**
      * Display a listing of the resource.
      * @param Request $request
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function create(Request $request): View|Factory|Application
     {
+        $this->authorize('customer_add');
         return view('customermodule::admin.create');
     }
 
@@ -50,12 +60,14 @@ class CustomerController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function index(Request $request): View|Factory|Application
     {
+        $this->authorize('customer_view');
         $search = $request->has('search') ? $request['search'] : '';
         $status = $request->has('status') ? $request['status'] : 'all';
-        $query_param = ['search' => $search, 'status' => $status];
+        $queryParam = ['search' => $search, 'status' => $status];
 
         $customers = $this->user->withCount(['bookings'])->whereIn('user_type', CUSTOMER_USER_TYPES)
             ->when($request->has('search'), function ($query) use ($request) {
@@ -71,7 +83,7 @@ class CustomerController extends Controller
             })
             ->when($status != 'all', function ($query) use ($request) {
                 return $query->ofStatus(($request['status'] == 'active') ? 1 : 0);
-            })->latest()->paginate(pagination_limit())->appends($query_param);
+            })->latest()->paginate(pagination_limit())->appends($queryParam);
 
         return view('customermodule::admin.list', compact('customers', 'search', 'status'));
     }
@@ -80,18 +92,32 @@ class CustomerController extends Controller
      * Store a newly created resource in storage.
      * @param Request $request
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('customer_add');
         $request->validate([
             'first_name' => 'required',
             'last_name' => 'required',
-            'email' => 'required|email|unique:users',
-            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10|unique:users',
+            'email' => 'required|email',
+            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10',
             'password' => 'required|min:6',
+            'confirm_password' => 'same:password',
             'gender' => 'in:male,female,others',
             'profile_image' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
         ]);
+
+        if (User::where('email', $request['email'])->exists()) {
+            Toastr::error(translate('Email already taken'));
+            return back();
+        }
+        if (User::where('phone', $request['phone'])->exists()) {
+            Toastr::error(translate('Phone already taken'));
+            return back();
+        }
+
+        $password = $request->password;
 
         $user = $this->user;
         $user->first_name = $request->first_name;
@@ -106,29 +132,59 @@ class CustomerController extends Controller
         $user->is_active = 1;
         $user->save();
 
-        Toastr::success(REGISTRATION_200['message']);
+        try {
+            $otp = env('APP_ENV') != 'live' ? '1234' : rand(1000, 9999);
+
+            $webUrl = business_config('web_url', 'landing_button_and_links');
+            $token = base64_encode(json_encode(["identity" => $user->email, "identity_type" => "email", "otp" => $otp, "from_url" => 1]));
+
+            if (str_ends_with($webUrl->live_values, '/')) {
+                $url = $webUrl->live_values . 'change-password?token=' . urlencode($token);
+            } else {
+                $url = $webUrl->live_values . '/change-password?token=' . urlencode($token);
+            }
+
+            Mail::to($user->email)->send(new CustomerRegistrationMail($user, $password, $otp, $url));
+
+            $this->userVerification->updateOrCreate([
+                'identity' => $user->email,
+                'identity_type' => "email"
+            ], [
+                'identity' => $user->email,
+                'identity_type' => 'email',
+                'user_id' => null,
+                'otp' => $otp,
+                'expires_at' => now()->addMinute(60),
+            ]);
+
+
+        } catch (\Exception $exception) {
+            info($exception);
+        }
+
+        Toastr::success(translate(REGISTRATION_200['message']));
         return back();
     }
 
     public function overview(Request $request, string $id): JsonResponse
     {
         $search = $request->has('search') ? $request['search'] : '';
-        $web_page = $request->has('web_page') ? 'review' : 'general';
-        $query_param = ['search' => $search, 'web_page' => $web_page];
+        $webPage = $request->has('web_page') ? 'review' : 'general';
+        $queryParam = ['search' => $search, 'web_page' => $webPage];
 
         $customer = $this->user->where(['id' => $id])->with(['bookings', 'addresses', 'reviews'])->first();
-        $total_booking_placed = $this->booking->where(['customer_id' => $id])->count();
-        $total_booking_amount = $this->booking->where(['customer_id' => $id])->sum('total_booking_amount');
-        $complete_bookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'completed'])->count();
-        $canceled_bookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'canceled'])->count();
-        $ongoing_bookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'ongoing'])->count();
+        $totalBookingPlaced = $this->booking->where(['customer_id' => $id])->count();
+        $totalBookingAmount = $this->booking->where(['customer_id' => $id])->sum('total_booking_amount');
+        $completeBookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'completed'])->count();
+        $canceledBookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'canceled'])->count();
+        $ongoingBookings = $this->booking->where(['customer_id' => $id, 'booking_status' => 'ongoing'])->count();
 
         $data = [
-            'total_booking_placed' => $total_booking_placed,
-            'total_booking_amount' => $total_booking_amount,
-            'complete_bookings' => $complete_bookings,
-            'canceled_bookings' => $canceled_bookings,
-            'ongoing_bookings' => $ongoing_bookings,
+            'total_booking_placed' => $totalBookingPlaced,
+            'total_booking_amount' => $totalBookingAmount,
+            'complete_bookings' => $completeBookings,
+            'canceled_bookings' => $canceledBookings,
+            'ongoing_bookings' => $ongoingBookings,
             'customer_details' => $customer
         ];
 
@@ -180,9 +236,11 @@ class CustomerController extends Controller
      * Show the form for editing the specified resource.
      * @param string $id
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function edit(string $id): Application|Factory|View
     {
+        $this->authorize('customer_update');
         $customer = $this->user->whereIn('user_type', CUSTOMER_USER_TYPES)->find($id);
         return view('customermodule::admin.edit', compact('customer'));
     }
@@ -192,21 +250,32 @@ class CustomerController extends Controller
      * @param Request $request
      * @param string $id
      * @return Application|Redirector|RedirectResponse
+     * @throws AuthorizationException
      */
     public function update(Request $request, string $id): Redirector|RedirectResponse|Application
     {
+        $this->authorize('customer_update');
+
         $customer = $this->user->whereIn('user_type', CUSTOMER_USER_TYPES)->find($id);
 
         $request->validate([
             'first_name' => 'required',
             'last_name' => 'required',
-            'email' => 'required|email|unique:users,email,' . $customer->id,
-            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10|unique:users,phone,' . $customer->id,
-            'password' => '',
+            'email' => 'required|email',
+            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/|min:10',
             'confirm_password' => !is_null($request->password) ? 'required|same:password' : '',
             'gender' => 'in:male,female,others',
             'profile_image' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
         ]);
+
+        if (User::where('email', $request['email'])->where('id', '!=', $customer->id)->exists()) {
+            Toastr::error(translate('Email already taken'));
+            return back();
+        }
+        if (User::where('phone', $request['phone'])->where('id', '!=', $customer->id)->exists()) {
+            Toastr::error(translate('Phone already taken'));
+            return back();
+        }
 
         $customer->first_name = $request->first_name;
         $customer->last_name = $request->last_name;
@@ -215,12 +284,9 @@ class CustomerController extends Controller
         $customer->profile_image = $request->has('profile_image') ? file_uploader('user/profile_image/', 'png', $request->profile_image) : $customer->profile_image;
         $customer->date_of_birth = $request->date_of_birth;
         $customer->gender = $request->has('gender') ? $request->gender : $customer->gender;
-        if (!is_null($request['password'])) {
-            $customer->password = bcrypt($request->password);
-        }
         $customer->save();
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return redirect('admin/customer/list');
     }
 
@@ -230,9 +296,11 @@ class CustomerController extends Controller
      * @param Request $request
      * @param $id
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function destroy(Request $request, $id): RedirectResponse
     {
+        $this->authorize('customer_delete');
         $user = $this->user->where('id', $id)->first();
         if (isset($user)) {
             file_remover('user/profile_image/', $user->profile_image);
@@ -241,10 +309,10 @@ class CustomerController extends Controller
             }
             $user->delete();
 
-            Toastr::success(DEFAULT_DELETE_200['message']);
+            Toastr::success(translate(DEFAULT_DELETE_200['message']));
             return back();
         }
-        Toastr::success(DEFAULT_204['message']);
+        Toastr::success(translate(DEFAULT_204['message']));
         return back();
     }
 
@@ -254,13 +322,16 @@ class CustomerController extends Controller
      * @param Request $request
      * @param $id
      * @return JsonResponse
+     * @throws AuthorizationException
      */
-    public function status_update(Request $request, $id): JsonResponse
+    public function statusUpdate(Request $request, $id): JsonResponse
     {
+        $this->authorize('customer_manage_status');
         $user = $this->user->where('id', $id)->first();
-        $this->user->where('id', $id)->update(['is_active' => !$user->is_active]);
+        $user->is_active = !$user->is_active;
+        $user->save();
 
-        return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+        return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
     }
 
     /**
@@ -268,7 +339,7 @@ class CustomerController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function store_address(Request $request): JsonResponse
+    public function storeAddress(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'lat' => '',
@@ -312,7 +383,7 @@ class CustomerController extends Controller
      * @param string $id
      * @return JsonResponse
      */
-    public function edit_address(string $id): JsonResponse
+    public function editAddress(string $id): JsonResponse
     {
         $address = $this->address->where(['user_id' => $id])->where('id', $id)->first();
         if (isset($address)) {
@@ -327,7 +398,7 @@ class CustomerController extends Controller
      * @param string $id
      * @return JsonResponse
      */
-    public function update_address(Request $request, string $id): JsonResponse
+    public function updateAddress(Request $request, string $id): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'lat' => '',
@@ -375,7 +446,7 @@ class CustomerController extends Controller
      * @param string $id
      * @return JsonResponse
      */
-    public function destroy_address(Request $request, string $id): JsonResponse
+    public function destroyAddress(Request $request, string $id): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'customer_id' => 'required|uuid',
@@ -400,6 +471,7 @@ class CustomerController extends Controller
      */
     public function download(Request $request): string|StreamedResponse
     {
+        $this->authorize('customer_export');
         $items = $this->user->withCount(['bookings'])->whereIn('user_type', CUSTOMER_USER_TYPES)
             ->when($request->has('search'), function ($query) use ($request) {
                 $keys = explode(' ', $request['search']);
@@ -413,21 +485,21 @@ class CustomerController extends Controller
                 });
             })
             ->latest()->get();
-        return (new FastExcel($items))->download(time().'-file.xlsx');
+        return (new FastExcel($items))->download(time() . '-file.xlsx');
     }
 
     public function show($id, Request $request)
     {
+        $this->authorize('customer_view');
         $request->validate([
             'web_page' => 'in:overview,bookings,reviews',
         ]);
 
-        $web_page = $request->has('web_page') ? $request['web_page'] : 'overview';
+        $webPage = $request->has('web_page') ? $request['web_page'] : 'overview';
 
-        //overview
-        if($request->web_page == 'overview') {
+        if ($request->web_page == 'overview') {
             $customer = $this->user->with(['account', 'addresses'])->withCount(['bookings'])->find($id);
-            $total_booking_amount = $this->booking->where('customer_id', $id)->sum('total_booking_amount');
+            $totalBookingAmount = $this->booking->where('customer_id', $id)->sum('total_booking_amount');
 
             $booking_overview = DB::table('bookings')->where('customer_id', $id)
                 ->select('booking_status', DB::raw('count(*) as total'))
@@ -444,14 +516,12 @@ class CustomerController extends Controller
                 }
             }
 
-            return view('customermodule::admin.detail.overview', compact('customer', 'total_booking_amount', 'web_page', 'total'));
+            return view('customermodule::admin.detail.overview', compact('customer', 'totalBookingAmount', 'webPage', 'total'));
 
-        }
-        //bookings
-        elseif ($request->web_page == 'bookings') {
+        } elseif ($request->web_page == 'bookings') {
 
             $search = $request->has('search') ? $request['search'] : '';
-            $query_param = ['web_page' => $web_page, 'search' => $search];
+            $queryParam = ['web_page' => $webPage, 'search' => $search];
 
             $bookings = $this->booking->with(['provider.owner'])
                 ->where('customer_id', $id)
@@ -462,20 +532,22 @@ class CustomerController extends Controller
                     }
                 })
                 ->latest()
-                ->paginate(pagination_limit())->appends($query_param);
+                ->paginate(pagination_limit())->appends($queryParam);
 
-            return view('customermodule::admin.detail.bookings', compact( 'bookings', 'web_page'));
+            $customer = $this->user->whereIn('user_type', CUSTOMER_USER_TYPES)->find($id);
 
-        }
-        //reviews
-        elseif ($request->web_page == 'reviews') {
-            $query_param = ['web_page' => $web_page];
-            $booking_ids = $this->booking->where('customer_id', $id)->pluck('id')->toArray();
+            return view('customermodule::admin.detail.bookings', compact('bookings', 'webPage', 'customer', 'search'));
+
+        } elseif ($request->web_page == 'reviews') {
+            $search = $request->has('search') ? $request['search'] : '';
+            $queryParam = ['web_page' => $webPage];
+            $bookingIds = $this->booking->where('customer_id', $id)->pluck('id')->toArray();
             $reviews = $this->review->with(['booking'])
-                ->whereIn('booking_id', $booking_ids)
+                ->whereIn('booking_id', $bookingIds)
                 ->latest()
-                ->paginate(pagination_limit())->appends($query_param);
-            return view('customermodule::admin.detail.reviews', compact('reviews','web_page'));
+                ->paginate(pagination_limit())->appends($queryParam);
+            $customer = $this->user->whereIn('user_type', CUSTOMER_USER_TYPES)->find($id);
+            return view('customermodule::admin.detail.reviews', compact('reviews', 'webPage', 'customer', 'search'));
 
         }
 

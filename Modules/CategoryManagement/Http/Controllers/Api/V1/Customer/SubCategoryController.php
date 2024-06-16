@@ -2,7 +2,6 @@
 
 namespace Modules\CategoryManagement\Http\Controllers\Api\V1\Customer;
 
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -11,7 +10,7 @@ use Modules\CategoryManagement\Entities\Category;
 
 class SubCategoryController extends Controller
 {
-    private $category;
+    private Category $category;
 
     public function __construct(Category $category)
     {
@@ -34,9 +33,9 @@ class SubCategoryController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $sub_categories = $this->category->withCount('services')->with(['parent'])
+        $subCategories = $this->category->withCount('services')->with(['parent'])
             ->ofStatus(1)->ofType('sub')->latest()->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, $sub_categories), 200);
+        return response()->json(response_formatter(DEFAULT_200, $subCategories), 200);
     }
 }

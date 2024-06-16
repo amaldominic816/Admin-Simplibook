@@ -2,12 +2,7 @@
 
 @section('title',translate('withdrawal_method'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="row">
@@ -23,16 +18,51 @@
                     <div class="">
                         <form action="{{route('admin.withdraw.method.store')}}" method="POST">
                             @csrf
-                            <div class="card card-body">
-                                <div class="form-floating">
-                                    <input type="text" class="form-control" name="method_name" id="method_name"
-                                           placeholder="Select method name" value="" required>
-                                    <label>{{translate('method_name')}} *</label>
+                            @php($language= Modules\BusinessSettingsModule\Entities\BusinessSettings::where('key_name','system_language')->first())
+                            @php($default_lang = str_replace('_', '-', app()->getLocale()))
+                            @if($language)
+                                <ul class="nav nav--tabs border-color-primary mb-4">
+                                    <li class="nav-item">
+                                        <a class="nav-link lang_link active"
+                                           href="#"
+                                           id="default-link">{{translate('default')}}</a>
+                                    </li>
+                                    @foreach ($language?->live_values as $lang)
+                                        <li class="nav-item">
+                                            <a class="nav-link lang_link"
+                                               href="#"
+                                               id="{{ $lang['code'] }}-link">{{ get_language_name($lang['code']) }}</a>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                            @if ($language)
+                                <div class="form-floating form-floating__icon mb-30 lang-form" id="default-form">
+                                    <input type="text" name="method_name[]" class="form-control"
+                                           placeholder="{{translate('method_name')}}" required>
+                                    <label>{{translate('method_name')}} ({{ translate('default') }})</label>
+                                    <span class="material-icons">note_alt</span>
                                 </div>
-                            </div>
-
+                                <input type="hidden" name="lang[]" value="default">
+                                @foreach ($language?->live_values as $lang)
+                                    <div class="form-floating form-floating__icon mb-30 d-none lang-form" id="{{$lang['code']}}-form">
+                                        <input type="text" name="method_name[]" class="form-control"
+                                               placeholder="{{translate('method_name')}}">
+                                        <label>{{translate('method_name')}} ({{strtoupper($lang['code'])}})</label>
+                                        <span class="material-icons">note_alt</span>
+                                    </div>
+                                    <input type="hidden" name="lang[]" value="{{$lang['code']}}">
+                                @endforeach
+                            @else
+                                <div class="form-floating form-floating__icon mb-30">
+                                    <input type="text" name="method_name[]" class="form-control"
+                                           placeholder="{{translate('method_name')}}" required>
+                                    <label>{{translate('method_name')}}</label>
+                                    <span class="material-icons">note_alt</span>
+                                </div>
+                                <input type="hidden" name="lang[]" value="default">
+                        @endif
                             <div class="mt-3">
-                                <!-- HERE CUSTOM FIELDS WILL BE ADDED -->
                                 <div id="custom-field-section">
                                     <div class="card card-body">
                                         <div class="row gy-4 align-items-center">
@@ -48,17 +78,19 @@
                                                 </select>
                                             </div>
                                             <div class="col-md-6 col-12">
-                                                <div class="form-floating">
+                                                <div class="form-floating form-floating__icon">
                                                     <input type="text" class="form-control" name="field_name[]"
-                                                        placeholder="Select field name" value="" required>
+                                                           placeholder="{{translate('Select field name')}}" value="" required>
                                                     <label>{{translate('field_name')}} *</label>
+                                                    <span class="material-icons">article</span>
                                                 </div>
                                             </div>
                                             <div class="col-md-6 col-12">
-                                                <div class="form-floating">
+                                                <div class="form-floating form-floating__icon">
                                                     <input type="text" class="form-control" name="placeholder_text[]"
-                                                        placeholder="Select placeholder text" value="" required>
+                                                           placeholder="{{translate('Select placeholder text')}}" value="" required>
                                                     <label>{{translate('placeholder_text')}} *</label>
+                                                    <span class="material-icons">edit_note</span>
                                                 </div>
                                             </div>
                                             <div class="col-md-6 col-12">
@@ -82,32 +114,37 @@
                                     </div>
                                 </div>
 
-                                <!-- BUTTON -->
                                 <div class="d-flex justify-content-end">
                                     <button type="reset" class="btn btn--secondary mx-2">{{translate('Reset')}}</button>
                                     <button type="submit" class="btn btn--primary demo_check">{{translate('Submit')}}</button>
                                 </div>
                             </div>
                         </form>
+
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <!-- End Main Content -->
-
 
 @endsection
 
 @push('script')
     <script>
+        "use strict";
+
         function remove_field(fieldRowId) {
             $( `#field-row--${fieldRowId}` ).remove();
             counter--;
         }
 
         jQuery(document).ready(function ($) {
-            counter = 1;
+            var counter = 1;
+
+            $(document).on('click', '.remove-field-btn', function () {
+                var counter = $(this).data('counter');
+                remove_field(counter);
+            });
 
             $('#add-more-field').on('click', function (event) {
                 if(counter < 15) {
@@ -128,17 +165,19 @@
                                     </select>
                                 </div>
                                 <div class="col-md-6 col-12">
-                                    <div class="form-floating">
+                                    <div class="form-floating form-floating__icon">
                                         <input type="text" class="form-control" name="field_name[${counter}]"
-                                               placeholder="Select field name" value="" required>
+                                               placeholder="{{translate('Select field name')}}" value="" required>
                                         <label>{{translate('field_name')}} *</label>
+                                        <span class="material-icons">article</span>
                                     </div>
                                 </div>
                                 <div class="col-md-6 col-12">
-                                    <div class="form-floating">
+                                    <div class="form-floating form-floating__icon">
                                         <input type="text" class="form-control" name="placeholder_text[${counter}]"
-                                               placeholder="Select placeholder text" value="" required>
+                                               placeholder="{{translate('Select placeholder text')}}" value="" required>
                                         <label>{{translate('placeholder_text')}} *</label>
+                                        <span class="material-icons">edit_note</span>
                                     </div>
                                 </div>
                                 <div class="col-md-6 col-12">
@@ -150,7 +189,7 @@
                                     </div>
                                 </div>
                                 <div class="d-flex justify-content-end">
-                                    <span class="btn btn--danger" onclick="remove_field(${counter})">
+                                    <span class="btn btn--danger remove-field-btn" data-counter="${counter}">
                                         <span class="material-icons">delete</span>
                                             {{translate('Remove')}}
                                     </span>
@@ -178,6 +217,17 @@
 
                 counter = 1;
             })
+        });
+
+        $(".lang_link").on('click', function (e) {
+            e.preventDefault();
+            $(".lang_link").removeClass('active');
+            $(".lang-form").addClass('d-none');
+            $(this).addClass('active');
+
+            let form_id = this.id;
+            let lang = form_id.substring(0, form_id.length - 5);
+            $("#" + lang + "-form").removeClass('d-none');
         });
     </script>
 

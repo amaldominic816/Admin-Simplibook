@@ -1,6 +1,6 @@
 @extends('layouts.landing.app')
 
-@section('title',translate('privacy_policy'))
+@section('title',translate('contact_us'))
 
 @section('content')
     <div class="container pt-3">

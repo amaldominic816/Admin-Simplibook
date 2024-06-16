@@ -64,9 +64,13 @@ class PostController extends Controller
                 });
             })
             ->when($request->has('status') && $request['status'] == 'new_request', function ($query) use ($request) {
-                $query->whereDoesntHave('bids', function ($query) use ($request) {
-                    $query->where('provider_id', $request->user()->provider->id);
-                });
+                if($request->user()?->provider?->service_availability && (!$request->user()?->provider?->is_suspended || !business_config('suspend_on_exceed_cash_limit_provider', 'provider_config')->live_values)){
+                    $query->whereDoesntHave('bids', function ($query) use ($request) {
+                        $query->where('provider_id', $request->user()->provider->id);
+                    });
+                }else{
+                    $query->whereNull('id');
+                }
             })
             ->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])
@@ -76,7 +80,6 @@ class PostController extends Controller
             return response()->json(response_formatter(DEFAULT_404, null), 404);
         }
 
-        //distance
         $coordinates = auth()->user()->provider->coordinates ?? null;
         foreach ($posts as $post) {
             $distance = null;
@@ -111,7 +114,6 @@ class PostController extends Controller
             return response()->json(response_formatter(DEFAULT_404, null), 404);
         }
 
-        //find distance
         $coordinates = auth()->user()->provider->coordinates ?? null;
         $distance = null;
         if(!is_null($coordinates) && $post->service_address) {

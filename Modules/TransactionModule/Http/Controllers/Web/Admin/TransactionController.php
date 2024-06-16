@@ -2,21 +2,24 @@
 
 namespace Modules\TransactionModule\Http\Controllers\Web\Admin;
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Routing\Controller;
-use Illuminate\View\View;
 use Modules\TransactionModule\Entities\Transaction;
 use Rap2hpoutre\FastExcel\FastExcel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 
 class TransactionController extends Controller
 {
     private Transaction $transaction;
+
+    use AuthorizesRequests;
 
     public function __construct(Transaction $transaction)
     {
@@ -27,9 +30,11 @@ class TransactionController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return Renderable
+     * @throws AuthorizationException
      */
-    public function index(Request $request)
+    public function index(Request $request): Renderable
     {
+        $this->authorize('transaction_view');
         $request->validate([
             'start_date' => 'date',
             'end_date' => 'date',
@@ -37,8 +42,8 @@ class TransactionController extends Controller
         ]);
 
         $search = $request->has('search') ? $request['search'] : '';
-        $trx_type = $request->has('trx_type') ? $request['trx_type'] : 'all';
-        $query_param = ['search' => $search, 'trx_type' => $trx_type];
+        $trxType = $request->has('trx_type') ? $request['trx_type'] : 'all';
+        $queryParam = ['search' => $search, 'trx_type' => $trxType];
 
 
         $transactions = $this->transaction->with(['from_user.provider', 'to_user.provider'])
@@ -60,24 +65,24 @@ class TransactionController extends Controller
             ->when($request->has('from_date') && $request->has('to_date'), function ($query) use ($request) {
                 $query->whereBetween('created_at', [date('Y-m-d', strtotime($request['from_date'])), date('Y-m-d', strtotime($request['to_date']))]);
             })
-            ->latest()->paginate(pagination_limit())->appends($query_param);
+            ->latest()->paginate(pagination_limit())->appends($queryParam);
 
         $data = [
-            'commission_earning' => $this->transaction->where('trx_type', 'commission')->whereIn('to_user_account', ['received_balance'])
+            'commissionEarning' => $this->transaction->where('trx_type', 'commission')->whereIn('to_user_account', ['received_balance'])
                 ->when($request->has('start_date') && $request->has('end_date'), function ($query) use ($request) {
                     return $query->whereBetween('created_at', [$request['start_date'], $request['end_date']]);
                 })->sum('credit'),
-            'total_debit' => $this->transaction
+            'totalDebit' => $this->transaction
                 ->when($request->has('start_date') && $request->has('end_date'), function ($query) use ($request) {
                     return $query->whereBetween('created_at', [$request['start_date'], $request['end_date']]);
                 })->sum('debit'),
-            'total_credit' => $this->transaction
+            'totalCredit' => $this->transaction
                 ->when($request->has('start_date') && $request->has('end_date'), function ($query) use ($request) {
                     return $query->whereBetween('created_at', [$request['start_date'], $request['end_date']]);
                 })->sum('credit')
         ];
 
-        return view('transactionmodule::admin.list',compact('transactions', 'data', 'trx_type', 'search'));
+        return view('transactionmodule::admin.list',compact('transactions', 'data', 'trxType', 'search'));
     }
 
     /**
@@ -97,10 +102,8 @@ class TransactionController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        //make transaction
         DB::transaction(function () use ($request) {
             $transaction = $this->transaction;
-            //first transaction
             $data = [
                 'ref_trx_id' => null,
                 'booking_id' => $request->booking_id,
@@ -113,7 +116,6 @@ class TransactionController extends Controller
             ];
             $transaction::create($data);
 
-            //second transactions
             $data = [
                 'ref_trx_id' => $transaction['trx_id'],
                 'booking_id' => $request->booking_id,
@@ -138,7 +140,6 @@ class TransactionController extends Controller
      */
     public function download(Request $request): string|StreamedResponse
     {
-
         $request->validate([
             'start_date' => 'date',
             'end_date' => 'date',

@@ -3,6 +3,7 @@
 namespace Modules\CategoryManagement\Http\Controllers\Web\Admin;
 
 use Brian2694\Toastr\Facades\Toastr;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
@@ -10,17 +11,23 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Modules\BusinessSettingsModule\Entities\Translation;
 use Modules\CategoryManagement\Entities\Category;
 use Modules\ServiceManagement\Entities\Variation;
 use Modules\ZoneManagement\Entities\Zone;
 use Rap2hpoutre\FastExcel\FastExcel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 
 class CategoryController extends Controller
 {
 
-    private $category, $zone, $variation;
+    private Variation $variation;
+    private Zone $zone;
+    private Category $category;
+
+    use AuthorizesRequests;
 
     public function __construct(Category $category, Zone $zone, Variation $variation)
     {
@@ -33,14 +40,18 @@ class CategoryController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function create(Request $request): View|Factory|Application
     {
+        $this->authorize('category_view');
         $search = $request->has('search') ? $request['search'] : '';
         $status = $request->has('status') ? $request['status'] : 'all';
-        $query_param = ['search' => $search, 'status' => $status];
+        $queryParams = ['search' => $search, 'status' => $status];
 
-        $categories = $this->category->withCount(['children', 'zones'])
+        $categories = $this->category->withCount(['children', 'zones' => function ($query) {
+            $query->withoutGlobalScope('translate');
+        }])
             ->when($request->has('search'), function ($query) use ($request) {
                 $keys = explode(' ', $request['search']);
                 foreach ($keys as $key) {
@@ -51,9 +62,9 @@ class CategoryController extends Controller
                 $query->ofStatus($status == 'active' ? 1 : 0);
             })
             ->ofType('main')
-            ->latest()->paginate(pagination_limit())->appends($query_param);
+            ->latest()->paginate(pagination_limit())->appends($queryParams);
 
-        $zones = $this->zone->where('is_active', 1)->get();
+        $zones = $this->zone->where('is_active', 1)->withoutGlobalScope('translate')->get();
 
         return view('categorymanagement::admin.create', compact('categories', 'zones', 'search', 'status'));
     }
@@ -62,17 +73,23 @@ class CategoryController extends Controller
      * Store a newly created resource in storage.
      * @param Request $request
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('category_add');
         $request->validate([
             'name' => 'required|unique:categories',
+            'name.0' => 'required',
             'zone_ids' => 'required|array',
             'image' => 'required|image|mimes:jpeg,jpg,png,gif|max:10240',
-        ]);
+        ],
+            [
+                'name.0.required' => translate('default_name_is_required'),
+            ]);
 
         $category = $this->category;
-        $category->name = $request->name;
+        $category->name = $request->name[array_search('default', $request->lang)];
         $category->image = file_uploader('category/', 'png', $request->file('image'));
         $category->parent_id = 0;
         $category->position = 1;
@@ -80,7 +97,39 @@ class CategoryController extends Controller
         $category->save();
         $category->zones()->sync($request->zone_ids);
 
-        Toastr::success(CATEGORY_STORE_200['message']);
+        $defaultLanguage = str_replace('_', '-', app()->getLocale());
+
+        $data = [];
+
+        foreach ($request->lang as $index => $key) {
+            if ($defaultLanguage == $key && !($request->name[$index])) {
+                if ($key != 'default') {
+                    $data[] = array(
+                        'translationable_type' => 'Modules\CategoryManagement\Entities\Category',
+                        'translationable_id' => $category->id,
+                        'locale' => $key,
+                        'key' => 'name',
+                        'value' => $category->name,
+                    );
+                }
+            } else {
+
+                if ($request->name[$index] && $key != 'default') {
+                    $data[] = array(
+                        'translationable_type' => 'Modules\CategoryManagement\Entities\Category',
+                        'translationable_id' => $category->id,
+                        'locale' => $key,
+                        'key' => 'name',
+                        'value' => $request->name[$index],
+                    );
+                }
+            }
+        }
+        if (count($data)) {
+            Translation::insert($data);
+        }
+
+        Toastr::success(translate(CATEGORY_STORE_200['message']));
         return back();
     }
 
@@ -88,16 +137,20 @@ class CategoryController extends Controller
      * Show the form for editing the specified resource.
      * @param string $id
      * @return View|Factory|Application|RedirectResponse
+     * @throws AuthorizationException
      */
     public function edit(string $id): View|Factory|Application|RedirectResponse
     {
-        $category = $this->category->with(['zones'])->ofType('main')->where('id', $id)->first();
+        $this->authorize('category_update');
+        $category = $this->category->withoutGlobalScope('translate')->with(['zones' => function ($query) {
+            $query->withoutGlobalScope('translate');
+        }])->ofType('main')->where('id', $id)->first();
         if (isset($category)) {
-            $zones = $this->zone->where('is_active', 1)->get();
+            $zones = $this->zone->where('is_active', 1)->withoutGlobalScope('translate')->get();
             return view('categorymanagement::admin.edit', compact('category', 'zones'));
         }
 
-        Toastr::error(DEFAULT_204['message']);
+        Toastr::error(translate(DEFAULT_204['message']));
         return back();
     }
 
@@ -106,19 +159,25 @@ class CategoryController extends Controller
      * @param Request $request
      * @param string $id
      * @return JsonResponse|RedirectResponse
+     * @throws AuthorizationException
      */
     public function update(Request $request, string $id): JsonResponse|RedirectResponse
     {
+        $this->authorize('category_update');
         $request->validate([
             'name' => 'required|unique:categories,name,' . $id,
+            'name.0' => 'required',
             'zone_ids' => 'required|array',
-        ]);
+        ],
+            [
+                'name.0.required' => translate('default_name_is_required'),
+            ]);
 
         $category = $this->category->ofType('main')->where('id', $id)->first();
         if (!$category) {
             return response()->json(response_formatter(CATEGORY_204), 204);
         }
-        $category->name = $request->name;
+        $category->name = $request->name[array_search('default', $request->lang)];
         if ($request->has('image')) {
             $category->image = file_uploader('category/', 'png', $request->file('image'), $category->image);
         }
@@ -129,7 +188,36 @@ class CategoryController extends Controller
 
         $category->zones()->sync($request->zone_ids);
 
-        Toastr::success(CATEGORY_UPDATE_200['message']);
+        $defaultLanguage = str_replace('_', '-', app()->getLocale());
+
+        foreach ($request->lang as $index => $key) {
+            if ($defaultLanguage == $key && !($request->name[$index])) {
+                if ($key != 'default') {
+                    Translation::updateOrInsert(
+                        [
+                            'translationable_type' => 'Modules\CategoryManagement\Entities\Category',
+                            'translationable_id' => $category->id,
+                            'locale' => $key,
+                            'key' => 'name'],
+                        ['value' => $category->name]
+                    );
+                }
+            } else {
+
+                if ($request->name[$index] && $key != 'default') {
+                    Translation::updateOrInsert(
+                        [
+                            'translationable_type' => 'Modules\CategoryManagement\Entities\Category',
+                            'translationable_id' => $category->id,
+                            'locale' => $key,
+                            'key' => 'name'],
+                        ['value' => $request->name[$index]]
+                    );
+                }
+            }
+        }
+
+        Toastr::success(translate(CATEGORY_UPDATE_200['message']));
         return back();
     }
 
@@ -138,18 +226,21 @@ class CategoryController extends Controller
      * @param Request $request
      * @param $id
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function destroy(Request $request, $id): RedirectResponse
     {
+        $this->authorize('category_delete');
         $category = $this->category->ofType('main')->where('id', $id)->first();
         if (isset($category)) {
             file_remover('category/', $category->image);
             $category->zones()->sync([]);
+            $category->translations()->delete();
             $category->delete();
-            Toastr::success(CATEGORY_DESTROY_200['message']);
+            Toastr::success(translate(CATEGORY_DESTROY_200['message']));
             return back();
         }
-        Toastr::success(CATEGORY_204['message']);
+        Toastr::success(translate(CATEGORY_204['message']));
         return back();
     }
 
@@ -158,13 +249,15 @@ class CategoryController extends Controller
      * @param Request $request
      * @param $id
      * @return JsonResponse
+     * @throws AuthorizationException
      */
-    public function status_update(Request $request, $id): JsonResponse
+    public function statusUpdate(Request $request, $id): JsonResponse
     {
+        $this->authorize('category_manage_status');
         $category = $this->category->where('id', $id)->first();
         $this->category->where('id', $id)->update(['is_active' => !$category->is_active]);
 
-        return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+        return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
     }
 
     /**
@@ -172,13 +265,15 @@ class CategoryController extends Controller
      * @param Request $request
      * @param $id
      * @return JsonResponse
+     * @throws AuthorizationException
      */
-    public function featured_update(Request $request, $id): JsonResponse
+    public function featuredUpdate(Request $request, $id): JsonResponse
     {
+        $this->authorize('category_manage_status');
         $category = $this->category->where('id', $id)->first();
         $this->category->where('id', $id)->update(['is_featured' => !$category->is_featured]);
 
-        return response()->json(DEFAULT_UPDATE_200, 200);
+        return response()->json(response_formatter(DEFAULT_UPDATE_200), 200);
     }
 
     /**
@@ -205,7 +300,7 @@ class CategoryController extends Controller
      * @param $id
      * @return JsonResponse
      */
-    public function ajax_childes(Request $request, $id): JsonResponse
+    public function ajaxChildes(Request $request, $id): JsonResponse
     {
         $categories = $this->category->ofStatus(1)->ofType('sub')->where('parent_id', $id)->orderBY('name', 'asc')->get();
         $category = $this->category->where('id', $id)->with(['zones'])->first();
@@ -225,16 +320,17 @@ class CategoryController extends Controller
 
     /**
      * Display a listing of the resource.
+     * @param Request $request
      * @param $id
      * @return JsonResponse
      */
-    public function ajax_childes_only(Request $request, $id): JsonResponse
+    public function ajaxChildesOnly(Request $request, $id): JsonResponse
     {
         $categories = $this->category->ofStatus(1)->ofType('sub')->where('parent_id', $id)->orderBY('name', 'asc')->get();
-        $sub_category_id = $request->sub_category_id??null;
+        $subCategoryId = $request->sub_category_id ?? null;
 
         return response()->json([
-            'template' => view('categorymanagement::admin.partials._childes-selector', compact('categories', 'sub_category_id'))->render()
+            'template' => view('categorymanagement::admin.partials._childes-selector', compact('categories', 'subCategoryId'))->render()
         ], 200);
     }
 
@@ -246,6 +342,7 @@ class CategoryController extends Controller
      */
     public function download(Request $request): string|StreamedResponse
     {
+        $this->authorize('category_delete');
         $items = $this->category->withCount(['children', 'zones'])
             ->when($request->has('search'), function ($query) use ($request) {
                 $keys = explode(' ', $request['search']);
@@ -255,6 +352,6 @@ class CategoryController extends Controller
             })
             ->ofType('main')
             ->latest()->latest()->get();
-        return (new FastExcel($items))->download(time().'-file.xlsx');
+        return (new FastExcel($items))->download(time() . '-file.xlsx');
     }
 }

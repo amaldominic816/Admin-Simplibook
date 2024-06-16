@@ -2,12 +2,7 @@
 
 @section('title',translate('Account Verification'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
-    <!-- Login Form -->
     <div class="register-form dark-support"
          data-bg-img="{{asset('public/assets/provider-module')}}/img/media/login-bg.png">
         <div class="container">
@@ -27,7 +22,8 @@
                                                    placeholder="{{translate('Enter OTP')}} *"
                                                    required>
                                             <input type="hidden" name="identity" value="{{session('identity')}}">
-                                            <input type="hidden" name="identity_type" value="{{session('identity_type')}}">
+                                            <input type="hidden" name="identity_type"
+                                                   value="{{session('identity_type')}}">
                                             <label>{{translate('Enter OTP')}} *</label>
                                         </div>
                                     </div>
@@ -43,10 +39,4 @@
             </div>
         </div>
     </div>
-    <!-- End Login Form -->
 @endsection
-
-@push('script')
-
-
-@endpush

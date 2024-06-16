@@ -3,6 +3,7 @@
 namespace Modules\AdminModule\Http\Controllers\Web\Admin\Report\Business;
 
 use Carbon\Carbon;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -18,6 +19,8 @@ use Modules\TransactionModule\Entities\Transaction;
 use Modules\UserManagement\Entities\User;
 use Modules\ZoneManagement\Entities\Zone;
 use Rap2hpoutre\FastExcel\FastExcel;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class OverviewReportController extends Controller
 {
@@ -30,8 +33,10 @@ class OverviewReportController extends Controller
     protected Service $service;
     protected User $user;
     protected Transaction $transaction;
+    protected BookingDetailsAmount $bookingDetailsAmount;
+    use AuthorizesRequests;
 
-    public function __construct(Zone $zone, Provider $provider, Category $categories, Service $service, Booking $booking, Account $account, User $user, Transaction $transaction, BookingDetailsAmount $booking_details_amount)
+    public function __construct(Zone $zone, Provider $provider, Category $categories, Service $service, Booking $booking, Account $account, User $user, Transaction $transaction, BookingDetailsAmount $bookingDetailsAmount)
     {
         $this->zone = $zone;
         $this->provider = $provider;
@@ -42,7 +47,7 @@ class OverviewReportController extends Controller
         $this->account = $account;
         $this->user = $user;
         $this->transaction = $transaction;
-        $this->booking_details_amount = $booking_details_amount;
+        $this->bookingDetailsAmount = $bookingDetailsAmount;
     }
 
 
@@ -50,9 +55,11 @@ class OverviewReportController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return Renderable
+     * @throws AuthorizationException
      */
-    public function get_business_overview_report(Request $request)
+    public function getBusinessOverviewReport(Request $request)
     {
+        $this->authorize('report_view');
         Validator::make($request->all(), [
             'zone_ids' => 'array',
             'zone_ids.*' => 'uuid',
@@ -65,31 +72,15 @@ class OverviewReportController extends Controller
             'to' => $request['date_range'] == 'custom_date' ? 'required' : '',
         ]);
 
-        //Dropdown data
         $zones = $this->zone->ofStatus(1)->select('id', 'name')->get();
         $categories = $this->categories->ofType('main')->select('id', 'name')->get();
         $sub_categories = $this->categories->ofType('sub')->select('id', 'name')->get();
 
-        //params
-        $search = $request['search'];
-        $query_params = ['search' => $search];
-        if($request->has('zone_ids')) {
-            $query_params['zone_ids'] = $request['zone_ids'];
+        $queryParams = $request->only('search', 'zone_ids', 'category_ids', 'sub_category_ids', 'date_range');
+        if ($request->date_range === 'custom_date') {
+            $queryParams['from'] = $request->from;
+            $queryParams['to'] = $request->to;
         }
-        if ($request->has('category_ids')) {
-            $query_params['category_ids'] = $request['category_ids'];
-        }
-        if ($request->has('sub_category_ids')) {
-            $query_params['sub_category_ids'] = $request['sub_category_ids'];
-        }
-        if ($request->has('date_range')) {
-            $query_params['date_range'] = $request['date_range'];
-        }
-        if ($request->has('date_range') && $request['date_range'] == 'custom_date') {
-            $query_params['from'] = $request['from'];
-            $query_params['to'] = $request['to'];
-        }
-
 
         $date_range = $request['date_range'];
         if(is_null($date_range) || $date_range == 'all_time') {
@@ -117,7 +108,7 @@ class OverviewReportController extends Controller
         }
         $group_by_deterministic = $deterministic=='week'?'day':$deterministic;
 
-        $amounts = $this->booking_details_amount
+        $amounts = $this->bookingDetailsAmount
             ->whereHas('booking', function ($query) use ($request) {
                 $query->ofBookingStatus('completed')
                     ->when($request->has('zone_ids'), function ($query) use($request) {
@@ -129,59 +120,8 @@ class OverviewReportController extends Controller
                     ->when($request->has('sub_category_ids'), function ($query) use($request) {
                         $query->whereIn('sub_category_id', $request['sub_category_ids']);
                     })
-                    ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use($request) {
-                        $query->whereBetween('created_at', [Carbon::parse($request['from'])->startOfDay(), Carbon::parse($request['to'])->endOfDay()]);
-                    })
-                    ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use($request) {
-                        //DATE RANGE
-                        if($request['date_range'] == 'this_week') {
-                            //this week
-                            $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
-
-                        } elseif ($request['date_range'] == 'last_week') {
-                            //last week
-                            $query->whereBetween('created_at', [Carbon::now()->subWeek()->startOfWeek(), Carbon::now()->subWeek()->endOfWeek()]);
-
-                        } elseif ($request['date_range'] == 'this_month') {
-                            //this month
-                            $query->whereMonth('created_at', Carbon::now()->month);
-
-                        } elseif ($request['date_range'] == 'last_month') {
-                            //last month
-                            $query->whereMonth('created_at', Carbon::now()->month-1);
-
-                        } elseif ($request['date_range'] == 'last_15_days') {
-                            //last 15 days
-                            $query->whereBetween('created_at', [Carbon::now()->subDay(15), Carbon::now()]);
-
-                        } elseif ($request['date_range'] == 'this_year') {
-                            //this year
-                            $query->whereYear('created_at', Carbon::now()->year);
-
-                        } elseif ($request['date_range'] == 'last_year') {
-                            //last year
-                            $query->whereYear('created_at', Carbon::now()->year-1);
-
-                        } elseif ($request['date_range'] == 'last_6_month') {
-                            //last 6month
-                            $query->whereBetween('created_at', [Carbon::now()->subMonth(6), Carbon::now()]);
-
-                        } elseif ($request['date_range'] == 'this_year_1st_quarter') {
-                            //this year 1st quarter
-                            $query->whereBetween('created_at', [Carbon::now()->month(1)->startOfQuarter(), Carbon::now()->month(1)->endOfQuarter()]);
-
-                        } elseif ($request['date_range'] == 'this_year_2nd_quarter') {
-                            //this year 2nd quarter
-                            $query->whereBetween('created_at', [Carbon::now()->month(4)->startOfQuarter(), Carbon::now()->month(4)->endOfQuarter()]);
-
-                        } elseif ($request['date_range'] == 'this_year_3rd_quarter') {
-                            //this year 3rd quarter
-                            $query->whereBetween('created_at', [Carbon::now()->month(7)->startOfQuarter(), Carbon::now()->month(7)->endOfQuarter()]);
-
-                        } elseif ($request['date_range'] == 'this_year_4th_quarter') {
-                            //this year 4th quarter
-                            $query->whereBetween('created_at', [Carbon::now()->month(10)->startOfQuarter(), Carbon::now()->month(10)->endOfQuarter()]);
-                        }
+                    ->when($request->has('date_range'), function ($query) use ($request) {
+                        $this->applyDateRangeConditions($query, $request);
                     });
             })
             ->when(isset($group_by_deterministic), function ($query) use ($group_by_deterministic) {
@@ -201,43 +141,99 @@ class OverviewReportController extends Controller
             ->groupby($group_by_deterministic)
             ->get()->toArray();
 
+        $fee_amounts = $this->transaction
+            ->where('trx_type', TRX_TYPE['received_extra_fee'])
+            ->when($request->has('date_range'), function ($query) use($request) {
+                $this->applyDateRangeConditions($query, $request);
+            })
+            ->when(isset($group_by_deterministic), function ($query) use ($group_by_deterministic) {
+                $query->select(
+                    DB::raw('sum(credit) as fee'),
+
+                    DB::raw($group_by_deterministic.'(created_at) '.$group_by_deterministic)
+                );
+            })
+            ->groupby($group_by_deterministic)
+            ->get()->toArray();
+
+        $bonus_amounts = $this->transaction
+            ->where('trx_type', TRX_TYPE['add_fund_bonus'])
+            ->when($request->has('date_range'), function ($query) use($request) {
+                $this->applyDateRangeConditions($query, $request);
+            })
+            ->when(isset($group_by_deterministic), function ($query) use ($group_by_deterministic) {
+                $query->select(
+                    DB::raw('sum(credit) as bonus'),
+
+                    DB::raw($group_by_deterministic.'(created_at) '.$group_by_deterministic)
+                );
+            })
+            ->groupby($group_by_deterministic)
+            ->get()->toArray();
+
+        $all_expenses_and_earnings = [];
+        foreach ($amounts as $key=>$amount) {
+            foreach ($fee_amounts as $fee) {
+                if ($amount[$group_by_deterministic] == $fee[$group_by_deterministic]) {
+                    $all_expenses_and_earnings[$key] = array_merge($amount, $fee);
+                }
+            }
+            foreach ($bonus_amounts as $bonus) {
+                if ($amount[$group_by_deterministic] == $bonus[$group_by_deterministic]) {
+                    $all_expenses_and_earnings[$key] = isset($all_expenses_and_earnings[$key]) ? array_merge($all_expenses_and_earnings[$key], $bonus) : array_merge($all_expenses_and_earnings, $bonus);
+                }
+            }
+
+            if (!isset($fee_amounts[$key]) && !isset($bonus_amounts[$key])) {
+                $all_expenses_and_earnings[$key] = $amount;
+            }
+
+            if (isset($all_expenses_and_earnings[$key]) && !array_key_exists('fee', $all_expenses_and_earnings[$key])) {
+                $all_expenses_and_earnings[$key]['fee'] = 0;
+            }
+
+            if (isset($all_expenses_and_earnings[$key]) && !array_key_exists('bonus', $all_expenses_and_earnings[$key])) {
+                $all_expenses_and_earnings[$key]['bonus'] = 0;
+            }
+        }
 
         $chart_data = ['earnings'=>array(), 'expenses'=>array(), 'timeline'=>array()];
-        $total_promotional_cost = ['discount' => 0, 'coupon' => 0, 'campaign' => 0];
+        $all_expenses = ['discount' => 0, 'coupon' => 0, 'campaign' => 0, 'bonus' => 0];
 
-        //data filter for deterministic
         if($deterministic == 'month') {
             $months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
             foreach ($months as $month) {
                 $found=0;
                 $chart_data['timeline'][] = $month;
-                foreach ($amounts as $item) {
+                foreach ($all_expenses_and_earnings as $item) {
                     if ($item['month'] == $month) {
-                        $chart_data['earnings'][] = with_decimal_point($item['admin_commission']);
-                        $chart_data['expenses'][] = with_decimal_point($item['discount_by_admin'] + $item['coupon_discount_by_admin'] + $item['campaign_discount_by_admin']);
+                        $chart_data['earnings'][] = with_decimal_point(data_get($item, 'admin_commission', 0)+ $item['fee']??0);
+                        $chart_data['expenses'][] = with_decimal_point(data_get($item,'discount_by_admin', 0) + data_get($item, 'coupon_discount_by_admin', 0) + data_get($item, 'campaign_discount_by_admin', 0) + data_get($item, 'bonus', 0));
                         $found=1;
+
+                        $all_expenses['discount'] += data_get($item, 'discount_by_admin', 0);
+                        $all_expenses['coupon'] += data_get($item, 'coupon_discount_by_admin', 0);
+                        $all_expenses['campaign'] += data_get($item, 'campaign_discount_by_admin', 0);
+                        $all_expenses['bonus'] += data_get($item, 'bonus', 0);
                     }
                 }
                 if(!$found){
                     $chart_data['earnings'][] = with_decimal_point(0);
                     $chart_data['expenses'][] = with_decimal_point(0);
                 }
-
-                $total_promotional_cost['discount'] += $item['discount_by_admin']??0;
-                $total_promotional_cost['coupon'] += $item['coupon_discount_by_admin']??0;
-                $total_promotional_cost['campaign'] += $item['campaign_discount_by_admin']??0;
             }
 
         }
         elseif ($deterministic == 'year') {
-            foreach ($amounts as $item) {
-                $chart_data['earnings'][] = with_decimal_point($item['admin_commission']);
-                $chart_data['expenses'][] = with_decimal_point($item['discount_by_admin'] + $item['coupon_discount_by_admin'] + $item['campaign_discount_by_admin']);
+            foreach ($all_expenses_and_earnings as $item) {
+                $chart_data['earnings'][] = with_decimal_point($item['admin_commission'] + $item['fee']??0);
+                $chart_data['expenses'][] = with_decimal_point(data_get($item, 'discount_by_admin', 0) + data_get($item, 'coupon_discount_by_admin', 0) + data_get($item, 'campaign_discount_by_admin', 0) + data_get($item, 'bonus', 0));
                 $chart_data['timeline'][] = $item[$deterministic];
 
-                $total_promotional_cost['discount'] += $item['discount_by_admin']??0;
-                $total_promotional_cost['coupon'] += $item['coupon_discount_by_admin']??0;
-                $total_promotional_cost['campaign'] += $item['campaign_discount_by_admin']??0;
+                $all_expenses['discount'] += data_get($item, 'discount_by_admin', 0);
+                $all_expenses['coupon'] += data_get($item, 'coupon_discount_by_admin', 0);
+                $all_expenses['campaign'] += data_get($item, 'campaign_discount_by_admin', 0);
+                $all_expenses['bonus'] += data_get($item, 'bonus', 0);
             }
         }
         elseif ($deterministic == 'day') {
@@ -254,21 +250,22 @@ class OverviewReportController extends Controller
             for ($i = 1; $i <= $number; $i++) {
                 $found=0;
                 $chart_data['timeline'][] = $i;
-                foreach ($amounts as $item) {
+                foreach ($all_expenses_and_earnings as $item) {
                     if ($item['day'] == $i) {
-                        $chart_data['earnings'][] = with_decimal_point($item['admin_commission']);
-                        $chart_data['expenses'][] = with_decimal_point($item['discount_by_admin'] + $item['coupon_discount_by_admin'] + $item['campaign_discount_by_admin']);
+                        $chart_data['earnings'][] = with_decimal_point(data_get($item, 'admin_commission', 0) + $item['fee']??0);
+                        $chart_data['expenses'][] = with_decimal_point(data_get($item, 'discount_by_admin', 0) + data_get($item, 'coupon_discount_by_admin', 0) + data_get($item, 'campaign_discount_by_admin', 0) + data_get($item, 'bonus', 0));
                         $found=1;
+
+                        $all_expenses['discount'] += data_get($item, 'discount_by_admin', 0);
+                        $all_expenses['coupon'] += data_get($item, 'coupon_discount_by_admin', 0);
+                        $all_expenses['campaign'] += data_get($item, 'campaign_discount_by_admin', 0);
+                        $all_expenses['bonus'] += data_get($item, 'bonus', 0);
                     }
                 }
                 if(!$found){
                     $chart_data['earnings'][] = with_decimal_point(0);
                     $chart_data['expenses'][] = with_decimal_point(0);
                 }
-
-                $total_promotional_cost['discount'] += $item['discount_by_admin']??0;
-                $total_promotional_cost['coupon'] += $item['coupon_discount_by_admin']??0;
-                $total_promotional_cost['campaign'] += $item['campaign_discount_by_admin']??0;
             }
         }
         elseif ($deterministic == 'week') {
@@ -283,29 +280,31 @@ class OverviewReportController extends Controller
             for ($i = (int)$from->format('d'); $i <= (int)$to->format('d'); $i++) {
                 $found=0;
                 $chart_data['timeline'][] = $i;
-                foreach ($amounts as $item) {
+                foreach ($all_expenses_and_earnings as $item) {
                     if ($item['day'] == $i) {
-                        $chart_data['earnings'][] = with_decimal_point($item['admin_commission']);
-                        $chart_data['expenses'][] = with_decimal_point($item['discount_by_admin'] + $item['coupon_discount_by_admin'] + $item['campaign_discount_by_admin']);
+                        $chart_data['earnings'][] = with_decimal_point($item['admin_commission'] + $item['fee']??0);
+                        $chart_data['expenses'][] = with_decimal_point(data_get($item, 'discount_by_admin', 0) + data_get($item, 'coupon_discount_by_admin', 0) + data_get($item, 'campaign_discount_by_admin', 0) + data_get($item, 'bonus', 0));
                         $found=1;
+
+                        $all_expenses['discount'] += data_get($item, 'discount_by_admin', 0);
+                        $all_expenses['coupon'] += data_get($item, 'coupon_discount_by_admin', 0);
+                        $all_expenses['campaign'] += data_get($item, 'campaign_discount_by_admin', 0);
+                        $all_expenses['bonus'] += data_get($item, 'bonus', 0);
                     }
                 }
                 if(!$found){
                     $chart_data['earnings'][] = with_decimal_point(0);
                     $chart_data['expenses'][] = with_decimal_point(0);
                 }
-
-                $total_promotional_cost['discount'] += $item['discount_by_admin']??0;
-                $total_promotional_cost['coupon'] += $item['coupon_discount_by_admin']??0;
-                $total_promotional_cost['campaign'] += $item['campaign_discount_by_admin']??0;
             }
         }
 
-        return view('adminmodule::admin.report.business.overview', compact('zones', 'categories', 'sub_categories', 'amounts', 'chart_data', 'total_promotional_cost', 'deterministic', 'query_params'));
+        return view('adminmodule::admin.report.business.overview', compact('zones', 'categories', 'sub_categories', 'amounts', 'chart_data', 'all_expenses', 'deterministic', 'queryParams'));
     }
 
-    public function get_business_overview_report_download(Request $request)
+    public function getBusinessOverviewReportDownload(Request $request): StreamedResponse|string
     {
+        $this->authorize('report_export');
         Validator::make($request->all(), [
             'zone_ids' => 'array',
             'zone_ids.*' => 'uuid',
@@ -344,7 +343,7 @@ class OverviewReportController extends Controller
         }
         $group_by_deterministic = $deterministic=='week'?'day':$deterministic;
 
-        $amounts = $this->booking_details_amount
+        $amounts = $this->bookingDetailsAmount
             ->whereHas('booking', function ($query) use ($request) {
                 $query->ofBookingStatus('completed')
                     ->when($request->has('zone_ids'), function ($query) use($request) {
@@ -356,59 +355,8 @@ class OverviewReportController extends Controller
                     ->when($request->has('sub_category_ids'), function ($query) use($request) {
                         $query->whereIn('sub_category_id', $request['sub_category_ids']);
                     })
-                    ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use($request) {
-                        $query->whereBetween('created_at', [Carbon::parse($request['from'])->startOfDay(), Carbon::parse($request['to'])->endOfDay()]);
-                    })
-                    ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use($request) {
-                        //DATE RANGE
-                        if($request['date_range'] == 'this_week') {
-                            //this week
-                            $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
-
-                        } elseif ($request['date_range'] == 'last_week') {
-                            //last week
-                            $query->whereBetween('created_at', [Carbon::now()->subWeek()->startOfWeek(), Carbon::now()->subWeek()->endOfWeek()]);
-
-                        } elseif ($request['date_range'] == 'this_month') {
-                            //this month
-                            $query->whereMonth('created_at', Carbon::now()->month);
-
-                        } elseif ($request['date_range'] == 'last_month') {
-                            //last month
-                            $query->whereMonth('created_at', Carbon::now()->month-1);
-
-                        } elseif ($request['date_range'] == 'last_15_days') {
-                            //last 15 days
-                            $query->whereBetween('created_at', [Carbon::now()->subDay(15), Carbon::now()]);
-
-                        } elseif ($request['date_range'] == 'this_year') {
-                            //this year
-                            $query->whereYear('created_at', Carbon::now()->year);
-
-                        } elseif ($request['date_range'] == 'last_year') {
-                            //last year
-                            $query->whereYear('created_at', Carbon::now()->year-1);
-
-                        } elseif ($request['date_range'] == 'last_6_month') {
-                            //last 6month
-                            $query->whereBetween('created_at', [Carbon::now()->subMonth(6), Carbon::now()]);
-
-                        } elseif ($request['date_range'] == 'this_year_1st_quarter') {
-                            //this year 1st quarter
-                            $query->whereBetween('created_at', [Carbon::now()->month(1)->startOfQuarter(), Carbon::now()->month(1)->endOfQuarter()]);
-
-                        } elseif ($request['date_range'] == 'this_year_2nd_quarter') {
-                            //this year 2nd quarter
-                            $query->whereBetween('created_at', [Carbon::now()->month(4)->startOfQuarter(), Carbon::now()->month(4)->endOfQuarter()]);
-
-                        } elseif ($request['date_range'] == 'this_year_3rd_quarter') {
-                            //this year 3rd quarter
-                            $query->whereBetween('created_at', [Carbon::now()->month(7)->startOfQuarter(), Carbon::now()->month(7)->endOfQuarter()]);
-
-                        } elseif ($request['date_range'] == 'this_year_4th_quarter') {
-                            //this year 4th quarter
-                            $query->whereBetween('created_at', [Carbon::now()->month(10)->startOfQuarter(), Carbon::now()->month(10)->endOfQuarter()]);
-                        }
+                    ->when($request->has('date_range'), function ($query) use ($request) {
+                        $this->applyDateRangeConditions($query, $request);
                     });
             })
             ->when(isset($group_by_deterministic), function ($query) use ($group_by_deterministic) {
@@ -435,8 +383,6 @@ class OverviewReportController extends Controller
             $net_profit = $total_earning-$total_expense;
             $net_profit_rate = $total_earning!=0 ? ($net_profit*100)/$total_earning : $net_profit*100;
 
-
-            //set to amount object
             $amount->total_expense = $total_expense;
             $amount->net_profit = $net_profit;
             $amount->net_profit_rate = $net_profit_rate;
@@ -451,5 +397,51 @@ class OverviewReportController extends Controller
                 'Net Profit Rate (%)' => with_decimal_point($item['net_profit_rate']),
             ];
         });
+    }
+
+    private function applyDateRangeConditions($query, $request): void
+    {
+        if ($request['date_range'] == 'custom_date') {
+            $query->whereBetween('created_at', [Carbon::parse($request['from'])->startOfDay(), Carbon::parse($request['to'])->endOfDay()]);
+        } else {
+            switch ($request['date_range']) {
+                case 'this_week':
+                    $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
+                    break;
+                case 'last_week':
+                    $query->whereBetween('created_at', [Carbon::now()->subWeek()->startOfWeek(), Carbon::now()->subWeek()->endOfWeek()]);
+                    break;
+                case 'this_month':
+                    $query->whereMonth('created_at', Carbon::now()->month);
+                    break;
+                case 'last_month':
+                    $query->whereMonth('created_at', Carbon::now()->subMonth()->month);
+                    break;
+                case 'last_15_days':
+                    $query->whereBetween('created_at', [Carbon::now()->subDay(15), Carbon::now()]);
+                    break;
+                case 'this_year':
+                    $query->whereYear('created_at', Carbon::now()->year);
+                    break;
+                case 'last_year':
+                    $query->whereYear('created_at', Carbon::now()->subYear()->year);
+                    break;
+                case 'last_6_month':
+                    $query->whereBetween('created_at', [Carbon::now()->subMonth(6), Carbon::now()]);
+                    break;
+                case 'this_year_1st_quarter':
+                    $query->whereBetween('created_at', [Carbon::now()->month(1)->startOfQuarter(), Carbon::now()->month(1)->endOfQuarter()]);
+                    break;
+                case 'this_year_2nd_quarter':
+                    $query->whereBetween('created_at', [Carbon::now()->month(4)->startOfQuarter(), Carbon::now()->month(4)->endOfQuarter()]);
+                    break;
+                case 'this_year_3rd_quarter':
+                    $query->whereBetween('created_at', [Carbon::now()->month(7)->startOfQuarter(), Carbon::now()->month(7)->endOfQuarter()]);
+                    break;
+                case 'this_year_4th_quarter':
+                    $query->whereBetween('created_at', [Carbon::now()->month(10)->startOfQuarter(), Carbon::now()->month(10)->endOfQuarter()]);
+                    break;
+            }
+        }
     }
 }

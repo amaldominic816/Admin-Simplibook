@@ -17,16 +17,16 @@ use Modules\ServiceManagement\Entities\Service;
 
 class CouponController extends Controller
 {
-    protected $discount, $coupon, $discountType, $cart, $service, $coupon_customer, $booking;
+    protected $discount, $coupon, $discountType, $cart, $service, $couponCustomer, $booking;
     private bool $is_customer_logged_in;
     private mixed $customer_user_id;
 
-    public function __construct(Coupon $coupon, CouponCustomer $coupon_customer, Discount $discount, DiscountType $discountType, Cart $cart, Service $service, Booking $booking, Request $request)
+    public function __construct(Coupon $coupon, CouponCustomer $couponCustomer, Discount $discount, DiscountType $discountType, Cart $cart, Service $service, Booking $booking, Request $request)
     {
         $this->discount = $discount;
         $this->discountQuery = $discount->ofPromotionTypes('coupon');
         $this->coupon = $coupon;
-        $this->coupon_customer = $coupon_customer;
+        $this->couponCustomer = $couponCustomer;
         $this->discountType = $discountType;
         $this->cart = $cart;
         $this->service = $service;
@@ -53,7 +53,7 @@ class CouponController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $active_coupons = $this->coupon->with(['discount'])
+        $activeCoupons = $this->coupon->with(['discount', 'coupon_customers'])
             ->when(!is_null($request->status), function ($query) use ($request) {
                 $query->ofStatus(1);
             })
@@ -66,9 +66,26 @@ class CouponController extends Controller
             ->whereHas('discount.discount_types', function ($query) {
                 $query->where(['discount_type' => 'zone', 'type_wise_id' => config('zone_id')]);
             })
-            ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+            ->where(function ($query) use ($request) {
+                $query->where(function ($query) use ($request) {
+                        $query->where('coupon_type', '<>', 'customer_wise')
+                            ->orWhereHas('coupon_customers', function ($query) use ($request) {
+                                $query->where('customer_user_id', $this->customer_user_id);
+                            });
+                    })
+                    ->orWhereHas('coupon_customers', function ($query) use ($request) {
+                        $query->where('customer_user_id', $this->customer_user_id);
+                    });
+            })
+            ->paginate($request->limit, ['*'], 'page', $request->page);
 
-        $expired_coupons = $this->coupon->with(['discount'])
+        foreach ($activeCoupons as $key => $coupon) {
+            $coupon['is_used'] = Cart::where('customer_id', $this->customer_user_id)
+                ->where('coupon_code', $coupon->coupon_code)
+                ->exists() ? 1 : 0;
+        }
+
+        $expiredCoupons = $this->coupon->with(['discount'])
             ->when(!is_null($request->status), function ($query) use ($request) {
                 $query->ofStatus(1);
             })
@@ -79,10 +96,85 @@ class CouponController extends Controller
             })
             ->whereHas('discount.discount_types', function ($query) {
                 $query->where(['discount_type' => 'zone', 'type_wise_id' => config('zone_id')]);
-            })
-            ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+            })->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, ['active_coupons' => $active_coupons, 'expired_coupons' => $expired_coupons]), 200);
+        return response()->json(response_formatter(DEFAULT_200, ['active_coupons' => $activeCoupons, 'expired_coupons' => $expiredCoupons]), 200);
+    }
+
+    /**
+     * Display a listing of the resource.
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function applicable(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'limit' => 'required|numeric|min:1|max:200',
+            'offset' => 'required|numeric|min:1|max:100000'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
+        }
+
+        $couponQuery = $this->coupon
+            ->with(['discount.discount_types'])
+            ->ofStatus(1)
+            ->whereHas('discount', function ($query) {
+                $query->where(['promotion_type' => 'coupon'])
+                    ->whereDate('start_date', '<=', now())
+                    ->whereDate('end_date', '>=', now())
+                    ->where('is_active', 1);
+            })
+            ->whereHas('discount.discount_types', function ($query) {
+                $query->where(['discount_type' => 'zone', 'type_wise_id' => config('zone_id')]);
+            })->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+
+        $cartItems = $this->cart->where(['customer_id' => $this->customer_user_id])->get();
+
+        if ($cartItems->count() < 1)  return response()->json(response_formatter(DEFAULT_404, []), 404);
+
+        $typeWiseId = [];
+        foreach ($cartItems as $item) {
+            $typeWiseId['service_ids'][] = $item['service_id'];
+            $typeWiseId['category_ids'][] = $item['category_id'];
+        }
+
+        $filteredCoupons = collect([]);
+        foreach ($couponQuery as $key=>$coupon) {
+            //category wise
+            if ($coupon->discount->discount_type == 'category') {
+                $categoryIds = collect($coupon->discount->discount_types)->where('discount_type', 'category')->pluck('type_wise_id');
+                if (collect($typeWiseId['category_ids'])->intersect($categoryIds)->isNotEmpty()) {
+                    $filteredCoupons->push($couponQuery[$key]);
+                }
+            }
+
+            //service wise
+            if ($coupon->discount->discount_type == 'service') {
+                $serviceIds = collect($coupon->discount->discount_types)->where('discount_type', 'service')->pluck('type_wise_id');
+                if (collect($typeWiseId['service_ids'])->intersect($serviceIds)->isNotEmpty()) {
+                    $filteredCoupons->push($couponQuery[$key]);
+                }
+            }
+
+            //mixed
+            if ($coupon->discount->discount_type == 'mixed') {
+                $serviceIds = collect($coupon->discount->discount_types)->whereIn('discount_type', ['category', 'service'])->pluck('type_wise_id');
+                if (collect(array_merge($typeWiseId['service_ids'], $typeWiseId['category_ids']))->intersect($serviceIds)->isNotEmpty()) {
+                    $filteredCoupons->push($couponQuery[$key]);
+                }
+            }
+        }
+
+        foreach ($filteredCoupons as $key => $coupon) {
+            $filteredCoupons[$key]['is_used'] = Cart::where('customer_id', $this->customer_user_id)->where('coupon_code', $coupon->coupon_code)->exists() ? 1 : 0;
+        }
+
+
+        if ($filteredCoupons->count() < 1)  return response()->json(response_formatter(DEFAULT_404, []), 404);
+
+        return response()->json(response_formatter(DEFAULT_200, $filteredCoupons), 200);
     }
 
     /**
@@ -90,7 +182,7 @@ class CouponController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function apply_coupon(Request $request): JsonResponse
+    public function applyCoupon(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'coupon_code' => 'required',
@@ -100,29 +192,60 @@ class CouponController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $cart_items = $this->cart->where(['customer_id' => $this->customer_user_id])->get();
-        $type_wise_id = [];
-        foreach ($cart_items as $item) {
-            $type_wise_id[] = $item['service_id'];
-            $type_wise_id[] = $item['category_id'];
+        $cartItems = $this->cart->where(['customer_id' => $this->customer_user_id])->get();
+        $typeWiseId = [];
+        foreach ($cartItems as $item) {
+            $typeWiseId['service_ids'][] = $item['service_id'];
+            $typeWiseId['category_ids'][] = $item['category_id'];
         }
 
         //find valid coupons
-        $coupon = $this->coupon->where(['coupon_code' => $request['coupon_code']])
+        $couponQuery = $this->coupon->where(['coupon_code' => $request['coupon_code']])
+            ->withoutGlobalScope('zone_wise_data')
+            ->with(['discount'])
             ->whereHas('discount', function ($query) {
-                $query->where(['promotion_type' => 'coupon'])
-                    ->whereDate('start_date', '<=', now())
-                    ->whereDate('end_date', '>=', now())
-                    ->where('is_active', 1);
-            })->whereHas('discount.discount_types', function ($query) {
-                $query->where(['discount_type' => 'zone', 'type_wise_id' => config('zone_id')]);
-            })->with('discount.discount_types', function ($query) use ($type_wise_id) {
-                $query->whereIn('type_wise_id', array_unique($type_wise_id));
-            })->latest()->first();
+                $query->where('promotion_type', 'coupon')->where('is_active', 1)
+                    ->whereDate('start_date', '<=', now())->whereDate('end_date', '>=', now());
+            });
 
-        $discounted_ids = [];
+        // Zone, Category & service check
+        $zoneCheck = $couponQuery->whereHas('discount.discount_types', function ($query) {
+            $query->where(['discount_type' => DISCOUNT_TYPE['zone'], 'type_wise_id' => config('zone_id')]);
+        })->exists();
+        if (!$zoneCheck) return response()->json(response_formatter(COUPON_NOT_VALID_FOR_ZONE), 200);
+
+        foreach ($couponQuery->with(['discount.discount_types'])->get() as $coupon) {
+            //category wise
+            if ($coupon->discount->discount_type == 'category') {
+                $categoryIds = collect($coupon->discount->discount_types)->where('discount_type', 'category')->pluck('type_wise_id');
+                if (collect($typeWiseId['category_ids'])->intersect($categoryIds)->isEmpty()) {
+                    return response()->json(response_formatter(COUPON_NOT_VALID_FOR_CATEGORY), 200);
+                }
+            }
+
+            //service wise
+            if ($coupon->discount->discount_type == 'service') {
+                $serviceIds = collect($coupon->discount->discount_types)->where('discount_type', 'service')->pluck('type_wise_id');
+                if (collect($typeWiseId['service_ids'])->intersect($serviceIds)->isEmpty()) {
+                    return response()->json(response_formatter(COUPON_NOT_VALID_FOR_SERVICE), 200);
+                }
+            }
+
+            //mixed
+            if ($coupon->discount->discount_type == 'mixed') {
+                $serviceIds = collect($coupon->discount->discount_types)->whereIn('discount_type', ['category', 'service'])->pluck('type_wise_id');
+
+                if (collect(array_merge($typeWiseId['service_ids'], $typeWiseId['category_ids']))->intersect($serviceIds)->isEmpty()) {
+                    return response()->json(response_formatter(COUPON_NOT_VALID_FOR_CATEGORY), 200);
+                }
+            }
+        }
+
+        $coupon = $couponQuery->latest()->first();
+
+        $discountedIds = [];
         if (isset($coupon) && isset($coupon->discount) && $coupon->discount->discount_types->count() > 0) {
-            $discounted_ids = $coupon->discount->discount_types->pluck('type_wise_id')->toArray();
+            $discountedIds = $coupon->discount->discount_types->pluck('type_wise_id')->toArray();
         }
 
         if (!isset($coupon)) {
@@ -133,14 +256,14 @@ class CouponController extends Controller
         if ($coupon->coupon_type == 'first_booking') {
             $bookings = $this->booking->where('customer_id', $this->customer_user_id)->count();
             if ($bookings > 1) {
-                return response()->json(response_formatter(COUPON_NOT_VALID_FOR_CART), 200);
+                return response()->json(response_formatter(COUPON_IS_VALID_FOR_FIRST_TIME), 200);
             }
         } else if ($coupon->coupon_type == 'customer_wise') {
-            $coupon_customer = $this->coupon_customer
+            $couponCustomer = $this->couponCustomer
                 ->where('coupon_id', $coupon->id)
                 ->where('customer_user_id', $this->customer_user_id)
                 ->exists();
-            if (!$coupon_customer) {
+            if (!$couponCustomer) {
                 return response()->json(response_formatter(COUPON_NOT_VALID_FOR_CART), 200);
             }
         }
@@ -167,31 +290,31 @@ class CouponController extends Controller
 
         //apply
         $applied = 0;
-        foreach ($cart_items as $item) {
-            if (in_array($item->service_id, $discounted_ids) || in_array($item->category_id, $discounted_ids)) {
-                $cart_item = $this->cart->where('id', $item['id'])->first();
-                $service = $this->service->find($cart_item['service_id']);
+        foreach ($cartItems as $item) {
+            if (in_array($item->service_id, $discountedIds) || in_array($item->category_id, $discountedIds)) {
+                $cartItem = $this->cart->where('id', $item['id'])->first();
+                $service = $this->service->find($cartItem['service_id']);
 
                 //calculation
-                $coupon_discount_amount = booking_discount_calculator($coupon->discount, $cart_item->service_cost * $cart_item['quantity']);
-                $basic_discount = $cart_item->discount_amount;
-                $campaign_discount = $cart_item->campaign_discount;
-                $subtotal = round($cart_item->service_cost * $cart_item['quantity'], 2);
-                $applicable_discount = ($campaign_discount >= $basic_discount) ? $campaign_discount : $basic_discount;
-                $tax = round(((($cart_item->service_cost - $applicable_discount - $coupon_discount_amount) * $service['tax']) / 100) * $cart_item['quantity'], 2);
+                $couponDiscountAmount = booking_discount_calculator($coupon->discount, $cartItem->service_cost * $cartItem['quantity']);
+                $basicDiscount = $cartItem->discount_amount;
+                $campaignDiscount = $cartItem->campaign_discount;
+                $subtotal = round($cartItem->service_cost * $cartItem['quantity'], 2);
+                $applicableDiscount = ($campaignDiscount >= $basicDiscount) ? $campaignDiscount : $basicDiscount;
+                $tax = round(((($cartItem->service_cost - $applicableDiscount - $couponDiscountAmount) * $service['tax']) / 100) * $cartItem['quantity'], 2);
 
                 //update carts table
-                $cart_item->coupon_discount = $coupon_discount_amount;
-                $cart_item->coupon_code = $coupon->coupon_code;
-                $cart_item->tax_amount = $tax;
-                $cart_item->total_cost = round($subtotal - $applicable_discount - $coupon_discount_amount + $tax, 2);
-                $cart_item->save();
+                $cartItem->coupon_discount = $couponDiscountAmount;
+                $cartItem->coupon_code = $coupon->coupon_code;
+                $cartItem->tax_amount = $tax;
+                $cartItem->total_cost = round($subtotal - $applicableDiscount - $couponDiscountAmount + $tax, 2);
+                $cartItem->save();
                 $applied = 1;
             }
         }
 
         if ($applied) {
-            return response()->json(response_formatter(DEFAULT_200), 200);
+            return response()->json(response_formatter(COUPON_APPLIED_200), 200);
         }
         return response()->json(response_formatter(COUPON_NOT_VALID_FOR_CART), 200);
 
@@ -199,29 +322,28 @@ class CouponController extends Controller
 
     /**
      * Show the form for creating a new resource.
-     * @param $id
      * @param Request $request
      * @return JsonResponse
      */
-    public function remove_coupon(Request $request): JsonResponse
+    public function removeCoupon(Request $request): JsonResponse
     {
-        $cart_items = $this->cart->where('customer_id', $this->customer_user_id)->get();
-        if (!isset($cart_items)) {
+        $cartItems = $this->cart->where('customer_id', $this->customer_user_id)->get();
+        if (!isset($cartItems)) {
             return response()->json(response_formatter(DEFAULT_204), 200);
         }
 
-        foreach ($cart_items as $cart) {
+        foreach ($cartItems as $cart) {
             $service = $this->service->find($cart['service_id']);
 
-            $basic_discount = $cart->discount_amount;
-            $campaign_discount = $cart->campaign_discount;
+            $basicDiscount = $cart->discount_amount;
+            $campaignDiscount = $cart->campaign_discount;
             $subtotal = round($cart->service_cost * $cart['quantity'], 2);
-            $applicable_discount = ($campaign_discount >= $basic_discount) ? $campaign_discount : $basic_discount;
-            $tax = round(((($cart->service_cost - $applicable_discount) * $service['tax']) / 100) * $cart['quantity'], 2);
+            $applicableDiscount = ($campaignDiscount >= $basicDiscount) ? $campaignDiscount : $basicDiscount;
+            $tax = round(((($cart->service_cost - $applicableDiscount) * $service['tax']) / 100) * $cart['quantity'], 2);
 
             //updated values
             $cart->tax_amount = $tax;
-            $cart->total_cost = round($subtotal - $applicable_discount + $tax, 2);
+            $cart->total_cost = round($subtotal - $applicableDiscount + $tax, 2);
             $cart->coupon_discount = 0;
             $cart->coupon_code = null;
             $cart->save();

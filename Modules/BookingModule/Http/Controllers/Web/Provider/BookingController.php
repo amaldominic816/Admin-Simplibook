@@ -2,6 +2,10 @@
 
 namespace Modules\BookingModule\Http\Controllers\Web\Provider;
 
+use Box\Spout\Common\Exception\InvalidArgumentException;
+use Box\Spout\Common\Exception\IOException;
+use Box\Spout\Common\Exception\UnsupportedTypeException;
+use Box\Spout\Writer\Exception\WriterNotOpenedException;
 use Brian2694\Toastr\Facades\Toastr;
 use Carbon\Carbon;
 use Illuminate\Contracts\Foundation\Application;
@@ -36,9 +40,9 @@ class BookingController extends Controller
 {
 
     private Booking $booking;
-    private BookingDetail $booking_detail;
-    private BookingStatusHistory $booking_status_history;
-    private BookingScheduleHistory $booking_schedule_history;
+    private BookingDetail $bookingDetail;
+    private BookingStatusHistory $bookingStatusHistory;
+    private BookingScheduleHistory $bookingScheduleHistory;
     private $subscribed_sub_categories;
     private Category $category;
     private Zone $zone;
@@ -46,23 +50,23 @@ class BookingController extends Controller
     private Provider $provider;
     private SubscribedService $subscribed_service;
     private User $user;
-    private UserAddress $user_address;
+    private UserAddress $userAddress;
 
     use BookingTrait;
 
-    public function __construct(Booking $booking, BookingStatusHistory $booking_status_history, BookingScheduleHistory $booking_schedule_history, SubscribedService $subscribedService, Category $category, Zone $zone, Serviceman $serviceman, Provider $provider, SubscribedService $subscribed_service, User $user, UserAddress $user_address, BookingDetail $booking_detail)
+    public function __construct(Booking $booking, BookingStatusHistory $bookingStatusHistory, BookingScheduleHistory $bookingScheduleHistory, SubscribedService $subscribedService, Category $category, Zone $zone, Serviceman $serviceman, Provider $provider, SubscribedService $subscribed_service, User $user, UserAddress $userAddress, BookingDetail $bookingDetail)
     {
         $this->booking = $booking;
-        $this->booking_status_history = $booking_status_history;
-        $this->booking_schedule_history = $booking_schedule_history;
+        $this->bookingStatusHistory = $bookingStatusHistory;
+        $this->bookingScheduleHistory = $bookingScheduleHistory;
         $this->category = $category;
         $this->zone = $zone;
         $this->serviceman = $serviceman;
         $this->provider = $provider;
         $this->subscribed_service = $subscribed_service;
         $this->user = $user;
-        $this->user_address = $user_address;
-        $this->booking_detail = $booking_detail;
+        $this->userAddress = $userAddress;
+        $this->bookingDetail = $bookingDetail;
 
         try {
             $this->subscribed_sub_categories = $subscribedService->where(['provider_id' => auth('api')->user()->provider->id])
@@ -83,124 +87,60 @@ class BookingController extends Controller
             'booking_status' => 'in:' . implode(',', array_column(BOOKING_STATUSES, 'key')) . ',all',
         ]);
 
-        $query_param = [];
-        $filter_counter = 0;
 
-        if ($request->has('category_ids')) {
-            $category_ids = $request['category_ids'];
-            $query_param['category_ids'] = $category_ids;
-            $filter_counter += count($category_ids);
+        $queryParams = $request->only(['category_ids', 'sub_category_ids', 'start_date', 'end_date', 'search']);
+        $filterCounter = collect($queryParams)->filter()->count();
+        $bookingStatus = $queryParams['booking_status'] = $request->input('booking_status', 'pending');
+        $queryParams['booking_type'] = $request->input('booking_type', '');
+        if (empty($queryParams['start_date'])) {
+            $queryParams['start_date'] = null;
+        }
+        if (empty($queryParams['end_date'])) {
+            $queryParams['end_date'] = null;
         }
 
-        if ($request->has('sub_category_ids')) {
-            $sub_category_ids = $request['sub_category_ids'];
-            $query_param['sub_category_ids'] = $sub_category_ids;
-            $filter_counter += count($sub_category_ids);
-        }
-
-        if ($request->has('start_date')) {
-            $start_date = $request['start_date'];
-            $query_param['start_date'] = $start_date;
-            if (!is_null($request['start_date'])) $filter_counter++;
-        } else {
-            $query_param['start_date'] = null;
-        }
-
-        if ($request->has('end_date')) {
-            $end_date = $request['end_date'];
-            $query_param['end_date'] = $end_date;
-            if (!is_null($request['end_date'])) $filter_counter++;
-        } else {
-            $query_param['end_date'] = null;
-        }
-
-        if ($request->has('search')) {
-            $search = $request['search'];
-            $query_param['search'] = $search;
-        }
-
-        if ($request->has('booking_status')) {
-            $booking_status = $request['booking_status'];
-            $query_param['booking_status'] = $booking_status;
-        } else {
-            $query_param['booking_status'] = 'pending';
-        }
-
-        $sub_category_ids = $this->subscribed_service->where('provider_id', $request->user()->provider->id)->ofSubscription(1)->pluck('sub_category_id')->toArray();
-
-        $max_booking_amount = (business_config('max_booking_amount', 'booking_setup'))->live_values;
-
+        $maxBookingAmount = business_config('max_booking_amount', 'booking_setup')->live_values;
         $bookings = $this->booking->with(['customer'])
-            ->when($request->has('search'), function ($query) use ($request) {
-                $query->where(function ($query) use ($request) {
-                    $keys = explode(' ', $request['search']);
-                    foreach ($keys as $key) {
-                        $query->orWhere('readable_id', 'LIKE', '%' . $key . '%');
-                    }
-                });
-            })
-            ->when(!in_array($request['booking_status'], ['pending', 'all']), function ($query) use ($request) {
+            ->when(!in_array($request['booking_status'], ['pending', 'all']), function ($query) use ($request, $maxBookingAmount) {
                 $query->ofBookingStatus($request['booking_status'])
-                    ->where('provider_id', $request->user()->provider->id);
-            })
-            ->when(in_array($request['booking_status'], ['pending', 'all']), function ($query) use ($request, $sub_category_ids) {
-                $query->whereIn('sub_category_id', $sub_category_ids)->where('zone_id', $request->user()->provider->zone_id);
-            })
-            ->when($request['booking_status'] == 'all', function ($query) use ($request) {
-                $query->where('provider_id', $request->user()->provider->id);
-            })
-            ->when($request['booking_status'] == 'pending', function ($query) use ($request, $max_booking_amount) {
-                $query->ofBookingStatus($request['booking_status'])->whereIn('sub_category_id', $this->subscribed_sub_categories)
-                ->when($max_booking_amount > 0, function($query) use ($max_booking_amount) {
-                    $query->where(function ($query) use ($max_booking_amount) {
-                        $query->where('payment_method', 'cash_after_service')
-                            ->where(function ($query) use ($max_booking_amount) {
-                                $query->where('is_verified', 1)
-                                    ->orWhere('total_booking_amount', '<=', $max_booking_amount);
-                            })
-                            ->orWhere('payment_method', '<>', 'cash_after_service');
+                    ->where('provider_id', $request->user()->provider->id)
+                    ->when($request['booking_status'] == 'accepted', function ($query) use ($request, $maxBookingAmount) {
+                        $query->providerAcceptedBookings($request->user()->provider->id, $maxBookingAmount);
                     });
-                });
             })
-            ->when($booking_status == 'accepted', function ($query) use ($booking_status, $max_booking_amount) {
-                $query->when($max_booking_amount > 0, function($query) use ($max_booking_amount) {
-                    $query->where(function ($query) use ($max_booking_amount) {
-                        $query->where('payment_method', '!=', 'cash_after_service')
-                            ->orWhere(function ($query) use ($max_booking_amount) {
-                                $query->where('payment_method', 'cash_after_service')
-                                    ->where('total_booking_amount', '<=', $max_booking_amount)
-                                    ->orWhere('is_verified', 1);
-                            });
-                    });
-                })->where('booking_status', $booking_status);
+            ->when($request['booking_status'] == 'pending', function ($query) use ($request, $maxBookingAmount) {
+                $query->providerPendingBookings($request->user()->provider, $maxBookingAmount);
             })
-            ->when($query_param['start_date'] != null && $query_param['end_date'] != null, function ($query) use ($request) {
-                if ($request['start_date'] == $request['end_date']) {
-                    $query->whereDate('created_at', Carbon::parse($request['start_date'])->startOfDay());
-                } else {
-                    $query->whereBetween('created_at', [Carbon::parse($request['start_date'])->startOfDay(), Carbon::parse($request['end_date'])->endOfDay()]);
-                }
-            })->when($request->has('sub_category_ids'), function ($query) use ($request) {
-                $query->whereIn('sub_category_id', $request['sub_category_ids']);
-            })->when($request->has('category_ids'), function ($query) use ($request) {
-                $query->whereIn('category_id', $request['category_ids']);
-            })
-            ->latest()->paginate(pagination_limit())->appends($query_param);
+            ->search($request['string'], ['readable_id'])
+            ->filterByDateRange($request['start_date'], $request['end_date'])
+            ->filterBySubcategoryIds($request['sub_category_ids'])
+            ->filterByCategoryIds($request['category_ids'])
+            ->latest()->paginate(pagination_limit())->appends($queryParams);
 
-        //for filter
+        if ($bookingStatus == 'pending') {
+            $this->booking
+                ->whereIn('sub_category_id', $this->subscribed_sub_categories)
+                ->where('zone_id', $request->user()->provider->zone_id)
+                ->where('is_checked', 0)
+                ->update(['is_checked' => 1]);
+        }
+
+
         $categories = $this->category->select('id', 'parent_id', 'name')->where('position', 1)->get();
-        $sub_categories = $this->category->select('id', 'parent_id', 'name')->where('position', 2)->get();
-        return view('bookingmodule::provider.booking.list', compact('bookings', 'categories', 'sub_categories', 'query_param', 'filter_counter'));
+        $subCategories = $this->category->select('id', 'parent_id', 'name')->where('position', 2)->get();
+
+        return view('bookingmodule::provider.booking.list', compact('bookings', 'categories', 'subCategories', 'queryParams', 'filterCounter'));
     }
 
     /**
      * Display a listing of the resource.
+     * @param $id
      * @return void
      */
-    public function check_booking($id)
+    public function checkBooking($id): void
     {
         $this->booking->where('id', $id)->whereIn('sub_category_id', $this->subscribed_sub_categories)
-            ->where('is_checked', 0)->update(['is_checked' => 1]); //update the unseen bookings
+            ->where('is_checked', 0)->update(['is_checked' => 1]);
     }
 
     /**
@@ -209,53 +149,60 @@ class BookingController extends Controller
      * @param Request $request
      * @return Application|Factory|View|RedirectResponse
      */
-    public function details($id, Request $request)
+    public function details($id, Request $request): View|Factory|RedirectResponse|Application
     {
         Validator::make($request->all(), [
             'web_page' => 'required|in:details,status',
         ]);
 
-        $web_page = $request->has('web_page') ? $request['web_page'] : 'details';
-        $booking = $this->booking->with(['detail.service' => fn ($query) => $query->withTrashed(), 'detail.service.category', 'detail.service.subCategory', 'detail.variation', 'customer', 'provider', 'service_address', 'serviceman', 'service_address', 'status_histories.user'])->find($id);
+        $webPage = $request->has('web_page') ? $request['web_page'] : 'details';
+        $booking = $this->booking->with(['detail.service' => fn($query) => $query->withTrashed(), 'detail.service.category', 'detail.service.subCategory', 'detail.variation', 'customer', 'provider', 'service_address', 'serviceman', 'service_address', 'status_histories.user'])->find($id);
 
         if ($booking['booking_status'] != 'pending' && $booking['provider_id'] != $request->user()->provider->id) {
-            Toastr::error(ACCESS_DENIED['message']);
-            return redirect(route('provider.booking.list'));
+            Toastr::error(translate(ACCESS_DENIED['message']));
+            return redirect(route('provider.booking.list', ['booking_status' => 'accepted']));
         }
 
         if ($request->web_page == 'details') {
             $servicemen = $this->serviceman->with(['user'])
-                ->whereHas('user', function($q){
+                ->whereHas('user', function ($q) {
                     $q->ofStatus(1);
                 })
                 ->where('provider_id', $this->provider->where('user_id', $request->user()->id)->first()->id)
                 ->latest()
                 ->get();
 
-            //service address
-            $customer_addresses = $this->user_address->where(['user_id' => $booking?->customer?->id])->get();
+            $customerAddresses = $this->userAddress->where(['user_id' => $booking?->customer?->id])->get();
 
             $category = $booking?->detail?->first()?->service?->category;
-            $sub_category = $booking?->detail?->first()?->service?->subCategory;
-            $services = Service::select('id', 'name')->where('category_id', $category->id)->where('sub_category_id', $sub_category->id)->get();
+            $subCategory = $booking?->detail?->first()?->service?->subCategory;
+            $services = Service::select('id', 'name')->where('category_id', $category->id)->where('sub_category_id', $subCategory->id)->get();
 
-            $customer_address = $this->user_address->find($booking['service_address_id']);
+            $customerAddress = $this->userAddress->find($booking['service_address_id']);
             $zones = Zone::ofStatus(1)->get();
 
-            return view('bookingmodule::provider.booking.details', compact('booking', 'servicemen', 'web_page', 'customer_addresses', 'category', 'sub_category', 'services', 'customer_address', 'zones'));
+            return view('bookingmodule::provider.booking.details', compact('booking', 'servicemen', 'webPage', 'customerAddresses', 'category', 'subCategory', 'services', 'customerAddress', 'zones'));
 
         } elseif ($request->web_page == 'status') {
-            return view('bookingmodule::provider.booking.status', compact('booking', 'web_page'));
+            $customerAddresses = $this->userAddress->where(['user_id' => $booking?->customer?->id])->get();
+
+            $category = $booking?->detail?->first()?->service?->category;
+            $subCategory = $booking?->detail?->first()?->service?->subCategory;
+            $services = Service::select('id', 'name')->where('category_id', $category->id)->where('sub_category_id', $subCategory->id)->get();
+
+            $customerAddress = $this->userAddress->find($booking['service_address_id']);
+            $zones = Zone::ofStatus(1)->get();
+            return view('bookingmodule::provider.booking.status', compact('booking', 'webPage', 'customerAddress', 'category', 'subCategory', 'zones', 'services'));
         }
     }
 
     /**
      * Display a listing of the resource.
-     * @param $booking_id
+     * @param $bookingId
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update($booking_id, Request $request): JsonResponse
+    public function statusUpdate($bookingId, Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'booking_status' => 'required|in:' . implode(',', array_column(BOOKING_STATUSES, 'key')),
@@ -266,62 +213,102 @@ class BookingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $booking = $this->booking->where('id', $booking_id)->where(function ($query) use ($request) {
+        $booking = $this->booking->where('id', $bookingId)->where(function ($query) use ($request) {
             return $query->where('provider_id', $request->user()->provider->id)->orWhereNull('provider_id');
         })->first();
 
+        $provider = $request->user()->provider;
+
         if (isset($booking)) {
-            //OTP
+
+            if ($booking->booking_offline_payments->isNotEmpty()) {
+                if ($booking->is_paid == 0 && in_array($request->booking_status, ['ongoing', 'completed'])) {
+                    return response()->json(response_formatter(UPDATE_FAILED_FOR_OFFLINE_PAYMENT_VERIFICATION_200), 200);
+                }
+            }
+
             if ($request->booking_status == 'completed' && (business_config('booking_otp', 'booking_setup'))?->live_values == 1) {
+
                 $otp_number = implode('', $request->otp_field);
                 if ($booking->booking_otp != $otp_number) {
                     return response()->json(response_formatter(OTP_VERIFICATION_FAIL_403), 200);
                 }
             }
 
+            if ($request->booking_status == 'accepted') {
+                if ($provider?->is_suspended == 1 && business_config('suspend_on_exceed_cash_limit_provider', 'provider_config')->live_values) {
+                    return response()->json(DEFAULT_SUSPEND_200, 200);
+                }
+            }
+
+            if($booking->booking_status == 'canceled'){
+                return response()->json(response_formatter(BOOKING_ALREADY_CANCELED_200), 200);
+            }
+
+            if($booking->booking_status == 'ongoing' && $request['booking_status'] == 'canceled'){
+                return response()->json(BOOKING_ALREADY_ONGOING, 200);
+            }
+
+            if($booking->booking_status == 'completed' && $request['booking_status'] == 'canceled'){
+                return response()->json(BOOKING_ALREADY_COMPLETED, 200);
+            }
+
+            if($booking->payment_method != 'cash_after_service' && $request['booking_status'] == 'canceled' && $booking->additional_charge > 0){
+                return response()->json(BOOKING_ALREADY_EDITED, 200);
+            }
+
             $booking->booking_status = $request['booking_status'];
             $booking->provider_id = $request->user()->provider->id;
 
-            $booking_status_history = $this->booking_status_history;
-            $booking_status_history->booking_id = $booking_id;
-            $booking_status_history->changed_by = $request->user()->id;
-            $booking_status_history->booking_status = $request['booking_status'];
-
+            $bookingStatusHistory = $this->bookingStatusHistory;
+            $bookingStatusHistory->booking_id = $bookingId;
+            $bookingStatusHistory->changed_by = $request->user()->id;
+            $bookingStatusHistory->booking_status = $request['booking_status'];
             if ($booking->isDirty('booking_status')) {
-                DB::transaction(function () use ($booking_status_history, $booking) {
+                DB::transaction(function () use ($bookingStatusHistory, $booking) {
                     $booking->save();
-                    $booking_status_history->save();
+                    $bookingStatusHistory->save();
                 });
 
-                self::check_booking($booking->id);
+                self::checkBooking($booking->id);
 
-                return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+                return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
             }
-            return response()->json(NO_CHANGES_FOUND, 200);
+            return response()->json(response_formatter(NO_CHANGES_FOUND), 200);
         }
-        return response()->json(DEFAULT_204, 200);
+        return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
-        /**
+    /**
      * Display a listing of the resource.
-     * @param $booking_id
+     * @param $bookingId
      * @param Request $request
      * @return JsonResponse
      */
-    public function evidence_photos_upload($booking_id, Request $request): JsonResponse
+    public function evidencePhotosUpload($bookingId, Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'evidence_photos' => 'nullable|array',
         ]);
 
-        $booking = $this->booking->where('id', $booking_id)->where(function ($query) use ($request) {
+        $booking = $this->booking->where('id', $bookingId)->where(function ($query) use ($request) {
             return $query->where('provider_id', $request->user()->provider->id)->orWhereNull('provider_id');
         })->first();
-        $booking_status = $request->booking_status;
 
         if (isset($booking)) {
 
             $evidence_photos = [];
+
+            if ($booking->evidence_photos != 'null'){
+                foreach ($booking->evidence_photos ?? [] as $image) {
+                    file_remover('booking/evidence/', $image);
+                }
+
+                $booking->evidence_photos = [];
+                $booking->save();
+            }
+
+            $booking->evidence_photos = [];
 
             if ($request->has('evidence_photos')) {
                 foreach ($request->evidence_photos as $image) {
@@ -332,9 +319,9 @@ class BookingController extends Controller
             $booking->evidence_photos = $evidence_photos;
             $booking->save();
 
-            return response()->json(DEFAULT_UPDATE_200, 200);
+            return response()->json(response_formatter(DEFAULT_UPDATE_200), 200);
         }
-        return response()->json(DEFAULT_204, 200);
+        return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
     /**
@@ -342,7 +329,7 @@ class BookingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function resend_otp(Request $request): JsonResponse
+    public function resendOtp(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'booking_id' => 'required|uuid',
@@ -364,11 +351,11 @@ class BookingController extends Controller
             return response()->json(response_formatter(DEFAULT_404), 404);
         }
 
-        $fcm_token = $booking?->customer?->fcm_token;
+        $fcmToken = $booking?->customer?->fcm_token;
         $title = translate('Your booking verification OTP is') . ' ' . $booking->booking_otp;
 
-        if ($fcm_token) {
-            device_notification($fcm_token, $title, null, null, $booking->id, 'booking', null, $booking?->customer?->id);
+        if ($fcmToken) {
+            device_notification($fcmToken, $title, null, null, $booking->id, 'booking', null, $booking?->customer?->id);
             return response()->json(response_formatter(NOTIFICATION_SEND_SUCCESSFULLY_200), 200);
 
         } else {
@@ -378,80 +365,79 @@ class BookingController extends Controller
 
     /**
      * Display a listing of the resource.
-     * @param $booking_id
+     * @param $bookingId
      * @param Request $request
      * @return JsonResponse
      */
-    public function payment_update($booking_id, Request $request): JsonResponse
+    public function paymentUpdate($bookingId, Request $request): JsonResponse
     {
         Validator::make($request->all(), [
-            'payment_status' => 'required|in:paid,unpaid',
+            'payment_status' => 'required|in:1,0',
         ]);
 
-        $booking = $this->booking->where('id', $booking_id)->where(function ($query) use ($request) {
+        $booking = $this->booking->where('id', $bookingId)->where(function ($query) use ($request) {
             return $query->where('provider_id', $request->user()->provider->id)->orWhereNull('provider_id');
         })->first();
 
         if (isset($booking)) {
-            $booking->is_paid = $request->payment_status == 'paid' ? 1 : 0;
+            $booking->is_paid = $request->payment_status == '1' ? 1 : 0;
 
             if ($booking->isDirty('is_paid')) {
                 $booking->save();
-                return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+                return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
             }
-            return response()->json(NO_CHANGES_FOUND, 200);
+            return response()->json(response_formatter(NO_CHANGES_FOUND), 200);
         }
-        return response()->json(DEFAULT_204, 200);
+        return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
     /**
      * Display a listing of the resource.
-     * @param $booking_id
+     * @param $bookingId
      * @param Request $request
      * @return JsonResponse
      */
-    public function schedule_upadte($booking_id, Request $request): JsonResponse
+    public function scheduleUpdate($bookingId, Request $request): JsonResponse
     {
         Validator::make($request->all(), [
             'service_schedule' => 'required',
         ]);
 
-        $booking = $this->booking->where('id', $booking_id)->where(function ($query) use ($request) {
+        $booking = $this->booking->where('id', $bookingId)->where(function ($query) use ($request) {
             return $query->where('provider_id', $request->user()->provider->id)->orWhereNull('provider_id');
         })->first();
 
         if (isset($booking)) {
             $booking->service_schedule = Carbon::parse($request->service_schedule)->toDateTimeString();
 
-            //history
-            $booking_schedule_history = $this->booking_schedule_history;
-            $booking_schedule_history->booking_id = $booking_id;
-            $booking_schedule_history->changed_by = $request->user()->id;
-            $booking_schedule_history->schedule = $request['service_schedule'];
+            $bookingScheduleHistory = $this->bookingScheduleHistory;
+            $bookingScheduleHistory->booking_id = $bookingId;
+            $bookingScheduleHistory->changed_by = $request->user()->id;
+            $bookingScheduleHistory->schedule = $request['service_schedule'];
 
             if ($booking->isDirty('service_schedule')) {
                 $booking->save();
-                $booking_schedule_history->save();
-                return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+                $bookingScheduleHistory->save();
+                return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
             }
-            return response()->json(NO_CHANGES_FOUND, 200);
+            return response()->json(response_formatter(NO_CHANGES_FOUND), 200);
         }
-        return response()->json(DEFAULT_204, 200);
+        return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
     /**
      * Display a listing of the resource.
-     * @param $booking_id
+     * @param $bookingId
      * @param Request $request
      * @return JsonResponse
      */
-    public function serviceman_update($booking_id, Request $request): JsonResponse
+    public function servicemanUpdate($bookingId, Request $request): JsonResponse
     {
         Validator::make($request->all(), [
             'serviceman_id' => 'required|uuid',
         ]);
 
-        $booking = $this->booking->where('id', $booking_id)->where(function ($query) use ($request) {
+        $booking = $this->booking->where('id', $bookingId)->where(function ($query) use ($request) {
             return $query->where('provider_id', $request->user()->provider->id)->orWhereNull('provider_id');
         })->first();
 
@@ -460,26 +446,26 @@ class BookingController extends Controller
 
             if ($booking->isDirty('serviceman_id')) {
                 $booking->save();
-                return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+                return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
             }
-            return response()->json(NO_CHANGES_FOUND, 200);
+            return response()->json(response_formatter(NO_CHANGES_FOUND), 200);
         }
-        return response()->json(DEFAULT_204, 200);
+        return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
     /**
      * Display a listing of the resource.
-     * @param $booking_id
+     * @param $bookingId
      * @param Request $request
      * @return RedirectResponse
      */
-    public function service_address_update($booking_id, Request $request): RedirectResponse
+    public function serviceAddressUpdate($bookingId, Request $request): RedirectResponse
     {
         Validator::make($request->all(), [
             'service_address_id' => 'required',
         ]);
 
-        $booking = $this->booking->where('id', $booking_id)->first();
+        $booking = $this->booking->where('id', $bookingId)->first();
 
         if (isset($booking)) {
             $booking->service_address_id = $request->service_address_id;
@@ -487,13 +473,13 @@ class BookingController extends Controller
             if ($booking->isDirty('service_address_id')) {
                 $booking->save();
 
-                Toastr::success(DEFAULT_STATUS_UPDATE_200['message']);
+                Toastr::success(translate(DEFAULT_STATUS_UPDATE_200['message']));
                 return back();
             }
-            Toastr::info(NO_CHANGES_FOUND['message']);
+            Toastr::info(translate(NO_CHANGES_FOUND['message']));
             return back();
         }
-        Toastr::success(DEFAULT_204['message']);
+        Toastr::success(translate(DEFAULT_204['message']));
         return back();
     }
 
@@ -501,6 +487,10 @@ class BookingController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return string|StreamedResponse
+     * @throws IOException
+     * @throws InvalidArgumentException
+     * @throws UnsupportedTypeException
+     * @throws WriterNotOpenedException
      */
     public function download(Request $request): string|StreamedResponse
     {
@@ -508,74 +498,34 @@ class BookingController extends Controller
             'booking_status' => 'in:' . implode(',', array_column(BOOKING_STATUSES, 'key')) . ',all',
         ]);
 
-        $query_param = [];
-
-        if ($request->has('category_ids')) {
-            $category_ids = $request['category_ids'];
-            $query_param['category_ids'] = $category_ids;
+        $queryParams = $request->only(['category_ids', 'sub_category_ids', 'start_date', 'end_date', 'search']);
+        $filterCounter = collect($queryParams)->filter()->count();
+        $bookingStatus = $queryParams['booking_status'] = $request->input('booking_status', 'pending');
+        $queryParams['booking_type'] = $request->input('booking_type', '');
+        if (empty($queryParams['start_date'])) {
+            $queryParams['start_date'] = null;
+        }
+        if (empty($queryParams['end_date'])) {
+            $queryParams['end_date'] = null;
         }
 
-        if ($request->has('sub_category_ids')) {
-            $sub_category_ids = $request['sub_category_ids'];
-            $query_param['sub_category_ids'] = $sub_category_ids;
-        }
-
-        if ($request->has('start_date')) {
-            $start_date = $request['start_date'];
-            $query_param['start_date'] = $start_date;
-        } else {
-            $query_param['start_date'] = null;
-        }
-
-        if ($request->has('end_date')) {
-            $end_date = $request['end_date'];
-            $query_param['end_date'] = $end_date;
-        } else {
-            $query_param['end_date'] = null;
-        }
-
-        if ($request->has('search')) {
-            $search = $request['search'];
-            $query_param['search'] = $search;
-        }
-
-        if ($request->has('booking_status')) {
-            $booking_status = $request['booking_status'];
-            $query_param['booking_status'] = $booking_status;
-        } else {
-            $query_param['booking_status'] = 'pending';
-        }
-
-        $sub_category_ids = $this->subscribed_service->where('provider_id', $request->user()->provider->id)->ofSubscription(1)->pluck('sub_category_id')->toArray();
-
+        $maxBookingAmount = business_config('max_booking_amount', 'booking_setup')->live_values;
         $items = $this->booking->with(['customer'])
-            ->when($request->has('search'), function ($query) use ($request) {
-                $query->where(function ($query) use ($request) {
-                    $keys = explode(' ', $request['search']);
-                    foreach ($keys as $key) {
-                        $query->orWhere('readable_id', 'LIKE', '%' . $key . '%');
-                    }
-                });
-            })
-            ->when(!in_array($request['booking_status'], ['pending', 'all']), function ($query) use ($request) {
+            ->when(!in_array($request['booking_status'], ['pending', 'all']), function ($query) use ($request, $maxBookingAmount) {
                 $query->ofBookingStatus($request['booking_status'])
-                    ->where('provider_id', $request->user()->provider->id);
+                    ->where('provider_id', $request->user()->provider->id)
+                    ->when($request['booking_status'] == 'accepted', function ($query) use ($request, $maxBookingAmount) {
+                        $query->providerAcceptedBookings($request->user()->provider->id, $maxBookingAmount);
+                    });
             })
-            ->when(in_array($request['booking_status'], ['pending', 'all']), function ($query) use ($request, $sub_category_ids) {
-                $query->whereIn('sub_category_id', $sub_category_ids);
+            ->when($request['booking_status'] == 'pending', function ($query) use ($request, $maxBookingAmount) {
+                $query->providerPendingBookings($request->user()->provider, $maxBookingAmount);
             })
-            ->when($request['booking_status'] == 'all', function ($query) use ($request) {
-                $query->where('provider_id', $request->user()->provider->id);
-            })->when($request['booking_status'] == 'pending', function ($query) use ($request) {
-                $query->ofBookingStatus($request['booking_status'])->whereIn('sub_category_id', $this->subscribed_sub_categories);
-            })->when($query_param['start_date'] != null && $query_param['end_date'] != null, function ($query) use ($request) {
-                $query->whereBetween('created_at', [$request['start_date'], $request['end_date']]);
-            })->when($request->has('sub_category_ids'), function ($query) use ($request) {
-                $query->whereIn('sub_category_id', $request['sub_category_ids']);
-            })->when($request->has('category_ids'), function ($query) use ($request) {
-                $query->whereIn('category_id', $request['category_ids']);
-            })->latest()->get();
-
+            ->search($request['string'], ['readable_id'])
+            ->filterByDateRange($request['start_date'], $request['end_date'])
+            ->filterBySubcategoryIds($request['sub_category_ids'])
+            ->filterByCategoryIds($request['category_ids'])
+            ->latest()->get();
 
         return (new FastExcel($items))->download(time() . '-file.xlsx');
     }
@@ -589,20 +539,17 @@ class BookingController extends Controller
      */
     public function invoice($id, Request $request): Renderable
     {
-        $booking = $this->booking->with(['detail.service'=>function ($query) {
+        $booking = $this->booking->with(['detail.service' => function ($query) {
             $query->withTrashed();
         }, 'customer', 'provider', 'service_address', 'serviceman', 'service_address', 'status_histories.user'])->find($id);
         return view('bookingmodule::provider.booking.invoice', compact('booking'));
     }
 
-
-    //=========== BOOKING EDIT ===========
-
     /**
      * @param Request $request
      * @return JsonResponse
      */
-    public function ajax_get_service_info(Request $request): JsonResponse
+    public function ajaxGetServiceInfo(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'zone_id' => 'required|uuid',
@@ -621,32 +568,30 @@ class BookingController extends Controller
             ->with(['variations' => fn($query) => $query->where('variant_key', $request['variant_key'])->where('zone_id', $request['zone_id'])])
             ->first();
 
-        //calculation
         $quantity = $request['quantity'];
-        $variation_price = $service?->variations[0]?->price;
+        $variationPrice = $service?->variations[0]?->price;
 
-        $basic_discount = basic_discount_calculation($service, $variation_price * $quantity);
-        $campaign_discount = campaign_discount_calculation($service, $variation_price * $quantity);
-        $subtotal = round($variation_price * $quantity, 2);
+        $basicDiscount = basic_discount_calculation($service, $variationPrice * $quantity);
+        $campaignDiscount = campaign_discount_calculation($service, $variationPrice * $quantity);
+        $subTotal = round($variationPrice * $quantity, 2);
 
-        $applicable_discount = ($campaign_discount >= $basic_discount) ? $campaign_discount : $basic_discount;
+        $applicableDiscount = ($campaignDiscount >= $basicDiscount) ? $campaignDiscount : $basicDiscount;
 
-        $tax = round((($variation_price * $quantity - $applicable_discount) * $service['tax']) / 100, 2);
+        $tax = round((($variationPrice * $quantity - $applicableDiscount) * $service['tax']) / 100, 2);
 
-        //between normal discount & campaign discount, greater one will be calculated
-        $basic_discount = $basic_discount > $campaign_discount ? $basic_discount : 0;
-        $campaign_discount = $campaign_discount >= $basic_discount ? $campaign_discount : 0;
+        $basicDiscount = $basicDiscount > $campaignDiscount ? $basicDiscount : 0;
+        $campaignDiscount = $campaignDiscount >= $basicDiscount ? $campaignDiscount : 0;
 
         $data = collect([
             'service_id' => $service->id,
             'service_name' => $service->name,
             'variant_key' => $service?->variations[0]?->variant_key,
             'quantity' => $request['quantity'],
-            'service_cost' => $variation_price,
-            'total_discount_amount' => $basic_discount + $campaign_discount,
+            'service_cost' => $variationPrice,
+            'total_discount_amount' => $basicDiscount + $campaignDiscount,
             'coupon_code' => null,
             'tax_amount' => round($tax, 2),
-            'total_cost' => round($subtotal - $basic_discount - $campaign_discount + $tax, 2),
+            'total_cost' => round($subTotal - $basicDiscount - $campaignDiscount + $tax, 2),
             'zone_id' => $request['zone_id']
         ]);
 
@@ -659,7 +604,7 @@ class BookingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function ajax_get_variant(Request $request): JsonResponse
+    public function ajaxGetVariant(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'zone_id' => 'required|uuid',
@@ -682,7 +627,7 @@ class BookingController extends Controller
      * @return RedirectResponse
      * @throws ValidationException
      */
-    public function update_booking_service(Request $request): RedirectResponse
+    public function updateBookingService(Request $request): RedirectResponse
     {
         Validator::make($request->all(), [
             'qty' => 'required|array',
@@ -708,10 +653,9 @@ class BookingController extends Controller
         }
         $request->merge(['service_info' => collect($service_info)]);
 
-        //service format for add service
-        $existing_services = $this->booking_detail->where('booking_id', $request['booking_id'])->get();
-        foreach ($existing_services as $item) {
-            if(!$request['service_info']->where('service_id', $item->service_id)->where('variant_key', $item->variant_key)->first()) {
+        $existingServices = $this->bookingDetail->where('booking_id', $request['booking_id'])->get();
+        foreach ($existingServices as $item) {
+            if (!$request['service_info']->where('service_id', $item->service_id)->where('variant_key', $item->variant_key)->first()) {
                 $request['service_info']->push([
                     'service_id' => $item->service_id,
                     'variant_key' => $item->variant_key,
@@ -720,46 +664,37 @@ class BookingController extends Controller
             }
         }
 
-        //update
-        foreach ($request['service_info'] as $key=>$item) {
-            $existing_service = $this->booking_detail
+        foreach ($request['service_info'] as $key => $item) {
+            $existingService = $this->bookingDetail
                 ->where('booking_id', $request['booking_id'])
                 ->where('service_id', $item['service_id'])
                 ->where('variant_key', $item['variant_key'])
                 ->first();
 
-            if (!$existing_service) {
-                //dd('add new service');
-                //add new service
+            if (!$existingService) {
                 $request['service_id'] = $item['service_id'];
                 $request['variant_key'] = $item['variant_key'];
                 $request['quantity'] = $item['quantity'];
-                $this->add_new_booking_service($request);
+                $this->addNewBookingService($request);
 
-            } else if ($existing_service && $item['quantity'] == 0) {
-                //dd('remove [existing service]');
-                //remove [existing service]
+            } else if ($existingService && $item['quantity'] == 0) {
                 $request['service_id'] = $item['service_id'];
                 $request['variant_key'] = $item['variant_key'];
                 $request['quantity'] = $item['quantity'];
 
                 $this->remove_service_from_booking($request);
 
-            } else if($existing_service && $existing_service->quantity < $item['quantity']) {
-                //dd('add quantity [to existing service]');
-                //add quantity [to existing service]
+            } else if ($existingService && $existingService->quantity < $item['quantity']) {
                 $request['service_id'] = $item['service_id'];
                 $request['variant_key'] = $item['variant_key'];
-                $request['old_quantity'] = $existing_service->quantity;
+                $request['old_quantity'] = $existingService->quantity;
                 $request['new_quantity'] = (int)$item['quantity'];
                 $this->increase_service_quantity_from_booking($request);
 
-            } else if ($existing_service && $existing_service->quantity > $item['quantity']) {
-                //dd('remove quantity [from existing service]');
-                //remove quantity [from existing service]
+            } else if ($existingService && $existingService->quantity > $item['quantity']) {
                 $request['service_id'] = $item['service_id'];
                 $request['variant_key'] = $item['variant_key'];
-                $request['old_quantity'] = $existing_service->quantity;
+                $request['old_quantity'] = $existingService->quantity;
                 $request['new_quantity'] = (int)$item['quantity'];
 
                 $this->decrease_service_quantity_from_booking($request);
@@ -767,7 +702,7 @@ class BookingController extends Controller
             }
         }
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 }

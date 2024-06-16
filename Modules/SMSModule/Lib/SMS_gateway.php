@@ -35,6 +35,12 @@ class SMS_gateway
             return self::releans($receiver, $otp);
         }
 
+        $config = self::get_settings('alphanet_sms');
+        if (isset($config) && $config['status'] == 1) {
+            return self::alphanet_sms($receiver, $otp);
+        }
+
+
         return 'not_found';
     }
 
@@ -49,7 +55,7 @@ class SMS_gateway
             try {
                 $twilio = new Client($sid, $token);
                 $twilio->messages
-                    ->create($receiver, // to
+                    ->create($receiver,
                         array(
                             "messagingServiceSid" => $config['messaging_service_sid'],
                             "body" => $message
@@ -65,26 +71,27 @@ class SMS_gateway
 
     public static function nexmo($receiver, $otp): string
     {
-        $sms_nexmo = self::get_settings('nexmo');
+        $config = self::get_settings('nexmo');
         $response = 'error';
-        if (isset($sms_nexmo) && $sms_nexmo['status'] == 1) {
-            $message = str_replace("#OTP#", $otp, $sms_nexmo['otp_template']);
+        if (isset($config) && $config['status'] == 1) {
+            $message = str_replace("#OTP#", $otp, $config['otp_template']);
             try {
-                $config = [
-                    'api_key' => $sms_nexmo['api_key'],
-                    'api_secret' => $sms_nexmo['api_secret'],
-                    'signature_secret' => '',
-                    'private_key' => '',
-                    'application_id' => '',
-                    'app' => ['name' => '', 'version' => ''],
-                    'http_client' => ''
-                ];
-                Config::set('nexmo', $config);
-                Nexmo::message()->send([
-                    'to' => $receiver,
-                    'from' => $sms_nexmo['from'],
-                    'text' => $message
-                ]);
+                $ch = curl_init();
+
+                curl_setopt($ch, CURLOPT_URL, 'https://rest.nexmo.com/sms/json');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                curl_setopt($ch, CURLOPT_POST, 1);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, "from=" . $config['from'] . "&text=" . $message . "&to=" . $receiver . "&api_key=" . $config['api_key'] . "&api_secret=" . $config['api_secret']);
+
+                $headers = array();
+                $headers[] = 'Content-Type: application/x-www-form-urlencoded';
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+                $result = curl_exec($ch);
+                if (curl_errno($ch)) {
+                    echo 'Error:' . curl_error($ch);
+                }
+                curl_close($ch);
                 $response = 'success';
             } catch (\Exception $exception) {
                 $response = 'error';
@@ -190,11 +197,40 @@ class SMS_gateway
         return $response;
     }
 
+    public static function alphanet_sms($receiver, $otp): string
+    {
+        $config = self::get_settings('alphanet_sms');
+        $response = 'error';
+        if (isset($config) && $config['status'] == 1) {
+            $receiver = str_replace("+", "", $receiver);
+            $message = str_replace("#OTP#", $otp, $config['otp_template']);
+            $api_key = $config['api_key'];
+            $curl = curl_init();
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => 'https://api.sms.net.bd/sendsms',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => array('api_key' => $api_key, 'msg' => $message, 'to' => $receiver),
+            ));
+
+            $response = curl_exec($curl);
+            $err = curl_error($curl);
+            curl_close($curl);
+
+            if ((int) data_get(json_decode($response,true),'error') === 0) {
+                $response = 'success';
+            } else {
+                $response = 'error';
+            }
+        }
+        return $response;
+    }
+
     public static function get_settings($name)
     {
-        $data = business_config($name, 'sms_config');
-        if (isset($data) && !is_null($data['live_values'])) {
-            return $data['live_values'];
+        $data = config_settingss($name, 'sms_config');
+        if (isset($data) && !is_null($data->live_values)) {
+            return json_decode($data->live_values, true);
         }
         return null;
     }

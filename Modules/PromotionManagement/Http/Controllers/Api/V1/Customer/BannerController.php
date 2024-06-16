@@ -51,6 +51,7 @@ class BannerController extends Controller
                 unset($banners[$key]);
             }
         }
+
         return response()->json(response_formatter(DEFAULT_200, $banners), 200);
     }
 }

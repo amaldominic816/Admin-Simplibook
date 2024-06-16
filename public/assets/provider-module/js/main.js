@@ -435,4 +435,22 @@ We may release future updates so it will overwrite this file. it's better and sa
         });
     }
     collapse();
+
+
+    // Menu Search
+    var $rows = $('.aside .aside-body > ul.nav > li');
+    $('#search-bar-input').on("keyup", function () {
+        let val = $.trim($(this).val()).replace(/ +/g, ' ').toLowerCase();
+    
+        $rows.show().filter(function () {
+            let text = $(this).text().replace(/\s+/g, ' ').toLowerCase();
+            return !~text.indexOf(val);
+        }).hide();
+    });
+
+    // Select2 Dropdown Search Placeholder
+    $('.js-select').one('select2:open', function(e) {
+        $('input.select2-search__field').prop('placeholder', 'Search Here...');
+        $('.select2-search.select2-search--dropdown').addClass('select2-search-has-icon').append("<span class='material-symbols-outlined select2-search__icon text-muted'>search</span>");
+    });
 })(jQuery);

@@ -11,31 +11,31 @@ trait CustomerTrait
 {
     use CartTrait;
     /**
-     * @param $customer_user_id
+     * @param $customerUserId
      * @param $guest_id
      * @return void
      */
-    public function update_address_and_cart_user($customer_user_id, $guest_id): void
+    public function updateAddressAndCartUser($customerUserId, $guest_id): void
     {
-        DB::transaction(function () use ($customer_user_id, $guest_id) {
-            $logged_user_carts = Cart::where('customer_id', $customer_user_id)->get();
-            $guest_carts = Cart::where('customer_id', $guest_id)->get();
+        DB::transaction(function () use ($customerUserId, $guest_id) {
+            $loggedUserCarts = Cart::where('customer_id', $customerUserId)->get();
+            $guestCarts = Cart::where('customer_id', $guest_id)->get();
 
-            if (count($logged_user_carts) > 0 && count($guest_carts) >0) {
-                $guest_cart_sub_category_id = Cart::where('customer_id', $guest_id)->first()?->sub_category_id;
-                foreach ($logged_user_carts as $cart) {
-                    $guest_cart = $guest_carts->where('variant_key', $cart->variant_key)->first();
+            if (count($loggedUserCarts) > 0 && count($guestCarts) >0) {
+                $guestCartSubCategoryId = Cart::where('customer_id', $guest_id)->first()?->sub_category_id;
+                foreach ($loggedUserCarts as $cart) {
+                    $guest_cart = $guestCarts->where('variant_key', $cart->variant_key)->first();
 
-                    if ($cart->sub_category_id == $guest_cart_sub_category_id) {
+                    if ($cart->sub_category_id == $guestCartSubCategoryId) {
                         $quantity = $cart->quantity + $guest_cart?->quantity ?? 0;
-                        $this->update_cart_quantity($cart->id, $quantity);
+                        $this->updateCartQuantity($cart->id, $quantity);
                     }
                     Cart::where('variant_key', $cart->variant_key)->delete();
                 }
             }
 
-            Cart::where('customer_id', $guest_id)->update(['customer_id' => $customer_user_id]);
-            UserAddress::where('user_id', $guest_id)->update(['user_id' => $customer_user_id]);
+            Cart::where('customer_id', $guest_id)->update(['customer_id' => $customerUserId]);
+            UserAddress::where('user_id', $guest_id)->update(['user_id' => $customerUserId]);
         });
     }
 
