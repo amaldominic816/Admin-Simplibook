@@ -3,7 +3,6 @@
 namespace Modules\BidModule\Http\Controllers\Web\Admin;
 
 use Brian2694\Toastr\Facades\Toastr;
-use Carbon\Carbon;
 use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -11,14 +10,20 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Modules\BidModule\Entities\Post;
+use Modules\BidModule\Entities\PostAdditionalInformation;
+use Modules\PromotionManagement\Entities\PushNotification;
 use Rap2hpoutre\FastExcel\FastExcel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PostController extends Controller
 {
+    use AuthorizesRequests;
     public function __construct(
         private Post $post,
+        private PostAdditionalInformation $postAdditionalInformation,
+        private PushNotification $pushNotification
     )
     {
     }
@@ -32,12 +37,12 @@ class PostController extends Controller
      */
     public function index(Request $request): Renderable|RedirectResponse
     {
+        $this->authorize('booking_view');
         Validator::make($request->all(), [
             'type' => 'in:all,new_booking_request,placed_offer'
         ])->validate();
 
-
-        $query_param = [
+        $queryParams = [
             'type' => $request['type'],
             'search' => $request['search'],
         ];
@@ -68,24 +73,19 @@ class PostController extends Controller
             })
             ->latest()
             ->paginate(pagination_limit())
-            ->appends($query_param);
+            ->appends($queryParams);
 
         $type = $request['type'];
         $search = $request['search'];
 
-        //check posts
         $this->post->where('is_checked', 0)->update(['is_checked' => 1]);
         return view('bidmodule::admin.customize-list', compact('posts', 'type', 'search'));
     }
 
-    /**
-     * Display a listing of the resource.
-     * @param Request $request
-     * @return string|StreamedResponse
-     * @throws ValidationException
-     */
-    public function export(Request $request): string|StreamedResponse
+
+    public function export(Request $request): StreamedResponse|string
     {
+        $this->authorize('booking_export');
         Validator::make($request->all(), [
             'type' => 'in:all,new_booking_request,placed_offer',
             'search' => 'max:255'
@@ -114,19 +114,18 @@ class PostController extends Controller
             ->where('id', $post_id)
             ->first();
 
-        //find distance
         $coordinates = auth()->user()->provider->coordinates ?? null;
         $distance = null;
-        if(!is_null($coordinates) && $post->service_address) {
+        if (!is_null($coordinates) && $post->service_address) {
             $distance = get_distance(
-                [$coordinates['latitude']??null, $coordinates['longitude']??null],
+                [$coordinates['latitude'] ?? null, $coordinates['longitude'] ?? null],
                 [$post->service_address?->lat, $post->service_address?->lon]
             );
-            $distance = ($distance) ? number_format($distance, 2) .' km' : null;
+            $distance = ($distance) ? number_format($distance, 2) . ' km' : null;
         }
 
         if (!isset($post)) {
-            Toastr::success(DEFAULT_404['message']);
+            Toastr::success(translate(DEFAULT_404['message']));
             return back();
         }
 
@@ -136,20 +135,49 @@ class PostController extends Controller
     /**
      * Display a listing of the resource.
      * @param $post_id
-     * @return RedirectResponse|Renderable
+     * @param Request $request
+     * @return RedirectResponse
      */
-    public function delete($post_id): Renderable|RedirectResponse
+    public function delete($post_id, Request $request): RedirectResponse
     {
+        $this->authorize('booking_delete');
+        $request->validate([
+            'post_delete_note' => 'required|string',
+        ]);
+
         $post = $this->post->where('id', $post_id)->first();
 
         if (!isset($post)) {
-            Toastr::success(DEFAULT_404['message']);
-            return back();
+            Toastr::success(translate(DEFAULT_404['message']));
+            return redirect()->route('admin.booking.post.list');
+        }
+
+        $additionalInfo = new $this->postAdditionalInformation;
+        $additionalInfo->post_id = $post->id;
+        $additionalInfo->key = 'post_delete_note';
+        $additionalInfo->value = $request->post_delete_note;
+        $additionalInfo->save();
+
+        $pushNotification = $this->pushNotification;
+        $pushNotification->title = translate('Your post has been deleted');
+        $pushNotification->description = $additionalInfo->value;
+        $pushNotification->to_users = ['customer'];
+        $pushNotification->zone_ids = [];
+        $pushNotification->is_active = 1;
+        $pushNotification->save();
+
+        $customer = $post?->customer;
+        $fcmToken = $customer?->fcm_token ?? null;
+        $languageKey = $customer?->current_language_key;
+        if (!is_null($fcmToken)) {
+            $title = get_push_notification_message('customized_booking_request_delete', 'customer_notification', $languageKey);
+            device_notification($fcmToken, $title, null, null, null, 'general');
         }
 
         $post->delete();
-        Toastr::success(DEFAULT_DELETE_200['message']);
-        return back();
+
+        Toastr::success(translate(DEFAULT_DELETE_200['message']));
+        return redirect()->route('admin.booking.post.list');
     }
 
     /**
@@ -158,14 +186,28 @@ class PostController extends Controller
      * @return JsonResponse
      * @throws ValidationException
      */
-    public function multi_delete(Request $request): JsonResponse
+    public function multiDelete(Request $request): JsonResponse
     {
         Validator::make($request->all(), [
             'post_ids' => 'required|array',
             'post_ids.*' => 'uuid',
         ])->validate();
 
+        $deletedPosts = $this->post->whereIn('id', $request['post_ids'])->get();
+
+        foreach ($deletedPosts as $post) {
+            $customer = $post?->customer;
+            $fcmToken = $customer?->fcm_token ?? null;
+
+            if (!is_null($fcmToken)) {
+                $languageKey = $customer?->current_language_key;
+                $title = get_push_notification_message('customized_booking_request_delete', 'customer_notification', $languageKey);
+                device_notification($fcmToken, $title, null, null, null, 'bidding');
+            }
+        }
+
         $this->post->whereIn('id', $request['post_ids'])->delete();
+
         return response()->json(response_formatter(DEFAULT_DELETE_200), 200);
     }
 

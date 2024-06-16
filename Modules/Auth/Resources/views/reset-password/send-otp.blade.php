@@ -1,13 +1,13 @@
 @extends('auth::layouts.master')
 
-@section('title',translate('Reset Password'))
+@section('title', translate('Reset Password'))
 
 @push('css_or_js')
-
+    <script src="{{asset('public/assets/admin-module/js/intlTelInput.js')}}"></script>
+    <link rel="stylesheet" href="{{asset('public/assets/admin-module/css/intlTelInput.css')}}/">
 @endpush
 
 @section('content')
-    <!-- Login Form -->
     <div class="register-form dark-support"
          data-bg-img="{{asset('public/assets/provider-module')}}/img/media/login-bg.png">
         <div class="container">
@@ -28,9 +28,9 @@
                             <div class="row">
                                 <div class="col-10">
                                     <div class="mb-30">
-                                        @php($forget_password_verification_method = (business_config('forget_password_verification_method', 'business_information'))->live_values ?? 'email')
+                                        @php($forgetPasswordVerificationMetod = (business_config('forget_password_verification_method', 'business_information'))->live_values ?? 'email')
 
-                                        @if($forget_password_verification_method == 'email')
+                                        @if($forgetPasswordVerificationMetod == 'email')
                                             <div class="form-floating">
                                                 <input type="email" class="form-control" name="identity"
                                                        placeholder="{{translate('Enter your email address')}} *"
@@ -38,15 +38,14 @@
                                                 <input type="hidden" name="identity_type" value="email">
                                                 <label>{{translate('Enter your email address')}} *</label>
                                             </div>
-                                        @elseif($forget_password_verification_method == 'phone')
+                                        @elseif($forgetPasswordVerificationMetod == 'phone')
                                             <div class="form-floating">
+                                                <label for="identity">{{translate('Enter your phone number')}} *</label>
                                                 <input type="tel" class="form-control" name="identity"
-                                                       placeholder="{{translate('Enter your phone number')}} *"
+                                                       placeholder="{{translate('Enter your phone number')}} *" id="identity"
                                                        required>
                                                 <input type="hidden" name="identity_type" value="phone">
-                                                <label>{{translate('Enter your phone number')}} *</label>
                                             </div>
-                                            <label class="small text-danger mb-1">{{translate('Country code is required')}}</label>
                                         @endif
                                     </div>
                                 </div>
@@ -61,10 +60,21 @@
             </div>
         </div>
     </div>
-    <!-- End Login Form -->
 @endsection
 
 @push('script')
-
-
+    <script>
+        let flag = "{{business_config('country_code', 'business_information')->live_values ?? 'bd'}}"
+        const identity = window.intlTelInput(document.querySelector("#identity"), {
+            utilsScript: "{{asset('public/assets/admin-module/js/utils.js')}}",
+            autoHideDialCode: false,
+            autoPlaceholder: "ON",
+            dropdownContainer: document.body,
+            formatOnDisplay: true,
+            hiddenInput: "identity",
+            placeholderNumberType: "MOBILE",
+            separateDialCode: true,
+            initialCountry: flag,
+        });
+    </script>
 @endpush

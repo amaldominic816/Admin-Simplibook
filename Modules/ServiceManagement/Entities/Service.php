@@ -9,8 +9,10 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Config;
 use Modules\BookingModule\Entities\BookingDetail;
+use Modules\BusinessSettingsModule\Entities\Translation;
 use Modules\CategoryManagement\Entities\Category;
 use Modules\PromotionManagement\Entities\DiscountType;
 use Modules\ReviewModule\Entities\Review;
@@ -37,6 +39,11 @@ class Service extends Model
         return $this->hasMany(Variation::class, 'service_id', 'id');
     }
 
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(FavoriteService::class, 'service_id', 'id');
+    }
+
     public function bookings(): HasMany
     {
         return $this->hasMany(BookingDetail::class, 'service_id', 'id');
@@ -44,7 +51,7 @@ class Service extends Model
 
     public function category(): BelongsTo
     {
-        return $this->belongsTo(Category::class, 'category_id', 'id');
+        return $this->belongsTo(Category::class, 'category_id', 'id')->withoutGlobalScopes();
     }
 
     public function subCategory(): BelongsTo
@@ -134,6 +141,48 @@ class Service extends Model
         return $this->belongsToMany(Tag::class);
     }
 
+    public function translations(): MorphMany
+    {
+        return $this->morphMany(Translation::class, 'translationable');
+    }
+
+    public function getNameAttribute($value){
+        if (count($this->translations) > 0) {
+            foreach ($this->translations as $translation) {
+                if ($translation['key'] == 'name') {
+                    return $translation['value'];
+                }
+            }
+        }
+
+        return $value;
+    }
+
+    public function getDescriptionAttribute($value){
+        if (count($this->translations) > 0) {
+            foreach ($this->translations as $translation) {
+                if ($translation['key'] == 'description') {
+                    return $translation['value'];
+                }
+            }
+        }
+
+        return $value;
+    }
+
+    public function getShortDescriptionAttribute($value){
+        if (count($this->translations) > 0) {
+            foreach ($this->translations as $translation) {
+                if ($translation['key'] == 'short_description') {
+                    return $translation['value'];
+                }
+            }
+        }
+
+        return $value;
+    }
+
+
     protected static function booted()
     {
         static::addGlobalScope('zone_wise_data', function (Builder $builder) {
@@ -148,6 +197,12 @@ class Service extends Model
                     })->with(['service_discount', 'campaign_discount']);
                 }
             }
+        });
+
+        static::addGlobalScope('translate', function (Builder $builder) {
+            $builder->with(['translations' => function ($query) {
+                return $query->where('locale', app()->getLocale());
+            }]);
         });
     }
 }

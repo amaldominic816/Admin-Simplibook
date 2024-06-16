@@ -3,7 +3,6 @@
 namespace Modules\CustomerModule\Http\Controllers;
 
 use Illuminate\Contracts\Support\Renderable;
-use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
 class PagesController extends Controller
@@ -12,7 +11,7 @@ class PagesController extends Controller
      * Display a listing of the resource.
      * @return Renderable
      */
-    public function about_us(): Renderable
+    public function aboutUs(): Renderable
     {
         $page_data = business_config('about_us', 'pages_setup');
         return view('customermodule::index', compact('page_data'));
@@ -22,7 +21,7 @@ class PagesController extends Controller
      * Display a listing of the resource.
      * @return Renderable
      */
-    public function privacy_policy(): Renderable
+    public function privacyPolicy(): Renderable
     {
         $page_data = business_config('privacy_policy', 'pages_setup');
         return view('customermodule::index', compact('page_data'));
@@ -32,7 +31,7 @@ class PagesController extends Controller
      * Display a listing of the resource.
      * @return Renderable
      */
-    public function terms_and_conditions(): Renderable
+    public function termsAndConditions(): Renderable
     {
         $page_data = business_config('terms_and_conditions', 'pages_setup');
         return view('customermodule::index', compact('page_data'));
@@ -42,7 +41,7 @@ class PagesController extends Controller
      * Display a listing of the resource.
      * @return Renderable
      */
-    public function refund_policy(): Renderable
+    public function refundPolicy(): Renderable
     {
         $page_data = business_config('refund_policy', 'pages_setup');
         return view('customermodule::index', compact('page_data'));
@@ -52,7 +51,7 @@ class PagesController extends Controller
      * Display a listing of the resource.
      * @return Renderable
      */
-    public function return_policy(): Renderable
+    public function returnPolicy(): Renderable
     {
         $page_data = business_config('return_policy', 'pages_setup');
         return view('customermodule::index', compact('page_data'));
@@ -62,7 +61,7 @@ class PagesController extends Controller
      * Display a listing of the resource.
      * @return Renderable
      */
-    public function cancellation_policy(): Renderable
+    public function cancellationPolicy(): Renderable
     {
         $page_data = business_config('cancellation_policy', 'pages_setup');
         return view('customermodule::index', compact('page_data'));

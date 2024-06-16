@@ -2,12 +2,7 @@
 
 @section('title',translate('onboarding_requests'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="page-title-wrap mb-3">
@@ -21,14 +16,14 @@
                         <a class="nav-link {{$status=='onboarding'?'active':''}}"
                            href="{{url()->current()}}?status=onboarding">
                             {{translate('Onboarding_Requests')}}
-                            <sup class="c2-bg py-1 px-2 radius-50 text-white">{{$providers_count['onboarding']}}</sup>
+                            <sup class="c2-bg py-1 px-2 radius-50 text-white">{{$providersCount['onboarding']}}</sup>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {{$status=='denied'?'active':''}}"
                            href="{{url()->current()}}?status=denied">
                             {{translate('Denied_Requests')}}
-                            <sup class="c2-bg py-1 px-2 radius-50 text-white">{{$providers_count['denied']}}</sup>
+                            <sup class="c2-bg py-1 px-2 radius-50 text-white">{{$providersCount['denied']}}</sup>
                         </a>
                     </li>
                 </ul>
@@ -68,7 +63,9 @@
                                 <th>{{translate('Provider')}}</th>
                                 <th>{{translate('Contact_Info')}}</th>
                                 <th>{{translate('Zone')}}</th>
-                                <th class="text-center">{{translate('Action')}}</th>
+                                @can('onboarding_request_approve_or_deny')
+                                    <th class="text-center">{{translate('Action')}}</th>
+                                @endcan
                             </tr>
                             </thead>
                             <tbody>
@@ -76,11 +73,14 @@
                                 <tr>
                                     <td>{{$providers->firstitem()+$key}}</td>
                                     <td>
-                                        <a class="media align-items-center gap-2" href="{{route('admin.provider.details',[$provider->id, 'web_page'=>'overview'])}}">
+                                        <a class="media align-items-center gap-2"
+                                           href="{{route('admin.provider.onboarding_details',[$provider->id])}}">
                                             <img class="avatar avatar-lg radius-5"
-                                                 src="{{asset('storage/app/public/provider/logo')}}/{{$provider->logo}}"
-                                                 onerror="this.src='{{asset('public/assets/admin-module')}}/img/media/info-details.png'"
-                                                 alt="">
+                                                 alt="{{ translate('image') }}"
+                                                 src="{{onErrorImage($provider->logo,
+                                                asset('storage/app/public/provider/logo').'/' . $provider->logo,
+                                                asset('public/assets/admin-module/img/media/info-details.png') ,
+                                                'provider/logo/')}}">
                                             <h5 class="media-body">
                                                 {{Str::limit($provider->company_name, 30)}}
                                             </h5>
@@ -89,31 +89,41 @@
                                     <td>
                                         <div>
                                             <h5 class="mb-2">{{$provider->contact_person_name}}</h5>
-                                            <a class="d-flex fz-12" href="tel:{{$provider->contact_person_phone}}">{{$provider->contact_person_phone}}</a>
-                                            <a class="d-flex fz-12" href="mailto:{{$provider->contact_person_email}}">{{$provider->contact_person_email}}</a>
+                                            <a class="d-flex fz-12"
+                                               href="tel:{{$provider->contact_person_phone}}">{{$provider->contact_person_phone}}</a>
+                                            <a class="d-flex fz-12"
+                                               href="mailto:{{$provider->contact_person_email}}">{{$provider->contact_person_email}}</a>
                                         </div>
                                     </td>
                                     <td>
                                         @if($provider->zone)
                                             {{$provider->zone->name}}
                                         @else
-                                            <div class="fz-12 badge badge-danger opacity-50">{{translate('Zone is not available')}}</div>
+                                            <div
+                                                class="fz-12 badge badge-danger opacity-50">{{translate('Zone is not available')}}</div>
                                         @endif
                                     </td>
-                                    <td>
-                                        <div class="table-actions justify-content-center">
-                                            @if($provider->is_approved != 0)
-                                                <a type="button" class="btn btn-soft--danger text-capitalize" id="button-deny-{{$provider->id}}"
-                                                   onclick="approve_alert('{{route('admin.provider.update-approval',[$provider->id,'deny'])}}','{{translate('want_to_deny_the_provider')}}')">
-                                                    {{translate('Deny')}}
+                                    @can('onboarding_request_approve_or_deny')
+                                        <td>
+                                            <div class="table-actions justify-content-center">
+                                                @if($provider->is_approved != 0)
+                                                    <a type="button"
+                                                       class="btn btn-soft--danger text-capitalize provider_approval"
+                                                       id="button-deny-{{$provider->id}}"
+                                                       data-approve="{{$provider->id}}"
+                                                       data-status="deny">
+                                                        {{translate('Deny')}}
+                                                    </a>
+                                                @endif
+                                                <a type="button"
+                                                   class="btn btn--success text-capitalize approval_provider"
+                                                   id="button-{{$provider->id}}" data-approve="{{$provider->id}}"
+                                                   data-approve="approve">
+                                                    {{translate('Accept')}}
                                                 </a>
-                                            @endif
-                                            <a type="button" class="btn btn--success text-capitalize" id="button-{{$provider->id}}"
-                                               onclick="approve_alert('{{route('admin.provider.update-approval',[$provider->id,'approve'])}}','{{translate('want_to_approve_the_provider')}}')">
-                                                {{translate('Accept')}}
-                                            </a>
-                                        </div>
-                                    </td>
+                                            </div>
+                                        </td>
+                                    @endcan
                                 </tr>
                             @endforeach
                             </tbody>
@@ -126,45 +136,26 @@
             </div>
         </div>
     </div>
-    <!-- End Main Content -->
 @endsection
 
 @push('script')
     <script>
-        function approve_alert(route, message) {
-            Swal.fire({
-                title: "<?php echo e(translate('are_you_sure')); ?>?",
-                text: message,
-                type: 'warning',
-                showCancelButton: true,
-                cancelButtonColor: 'var(--c2)',
-                confirmButtonColor: 'var(--c1)',
-                cancelButtonText: 'Cancel',
-                confirmButtonText: 'Yes',
-                reverseButtons: true
-            }).then((result) => {
-                if (result.value) {
-                    $.get({
-                        url: route,
-                        dataType: 'json',
-                        data: {},
-                        beforeSend: function () {
-                            /*$('#loading').show();*/
-                        },
-                        success: function (data) {
-                            location.reload();
-                            toastr.success(data.message, {
-                                CloseButton: true,
-                                ProgressBar: true
-                            });
-                        },
-                        complete: function () {
-                            /*$('#loading').hide();*/
-                        },
-                    });
-                }
-            })
-        }
+        "use strict";
+
+        $('.provider_approval').on('click', function () {
+            let itemId = $(this).data('approve');
+            let route = '{{ route('admin.provider.update-approval', ['id' => ':itemId', 'status' => 'deny']) }}';
+            route = route.replace(':itemId', itemId);
+            route_alert_reload(route, '{{ translate('want_to_deny_the_provider') }}');
+        });
+
+        $('.approval_provider').on('click', function () {
+            let itemId = $(this).data('approve');
+            let route = '{{ route('admin.provider.update-approval', ['id' => ':itemId', 'status' => 'approve']) }}';
+            route = route.replace(':itemId', itemId);
+            route_alert_reload(route, '{{ translate('want_to_approve_the_provider') }}');
+        });
+
     </script>
 
 @endpush

@@ -2,10 +2,6 @@
 
 @section('title',translate('Service_Request_List'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
     <div class="main-content">
         <div class="container-fluid">
@@ -13,7 +9,33 @@
                 <div class="col-12">
                     <div class="page-title-wrap mb-3 d-flex gap-3 flex-wrap align-items-center justify-content-between">
                         <h2 class="page-title">{{translate('Service_Request_List')}}</h2>
-                        <a class="btn btn--primary" href="{{route('provider.service.make-request')}}"><span class="material-icons">add</span> {{translate('Request')}}</a>
+                        <div class="d-flex gap-3 align-items-center">
+                            <div class="position-relative">
+                                <div class="service-details-info-wrap d-inline-block position-relative cursor-pointer">
+                                    <div class="ripple-animation" data-bs-toggle="modal" data-bs-target="#settingModal" type="button">
+                                        <img src="{{asset('/public/assets/admin-module/img/info.svg')}}" class="svg" alt="">
+                                    </div>
+
+                                    <div class="service-details-info bg-dark p-3 rounded shadow">
+                                        <div class="d-flex flex-column gap-3">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <img width="16" class="rounded" src="{{asset('public/assets/admin-module')}}/img/note.png" alt="">
+                                                <h5 class="text-white">{{translate('Note')}}</h5>
+                                            </div>
+
+                                            <div class="media-body text-white">
+                                                View Feedback action red button indicate the rejection request and green button indicate the approval request.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <a class="btn btn--primary" href="{{route('provider.service.make-request')}}">
+                                <span class="material-icons">add</span> 
+                                {{translate('Request')}}
+                            </a>
+                        </div>
                     </div>
 
                     <div class="d-flex flex-wrap justify-content-end align-items-center border-bottom mx-lg-4 mb-10 gap-3">
@@ -45,11 +67,11 @@
                                 <table class="table align-middle">
                                     <thead class="text-nowrap align-middle">
                                         <tr>
-                                            <th>SL</th>
+                                            <th>{{translate('SL')}}</th>
                                             <th>{{translate('Category')}}</th>
                                             <th>{{translate('Suggested Service ')}} <br> {{translate('Name')}}</th>
                                             <th>{{translate('Description')}}</th>
-                                            <th>Action</th>
+                                            <th>{{translate('Action')}}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -64,7 +86,11 @@
                                                     @endif
                                                 </td>
                                                 <td>{{$item->service_name}}</td>
-                                                <td><div class="max-w320 min-w180 text-justify">{{$item->service_description}}</div></td>
+                                                <td>
+                                                    <div class="max-w320 min-w180 text-justify text-limit-2" title="{{$item->service_description}}">
+                                                        {{Str::limit($item->service_description, 150)}}
+                                                    </div>
+                                                </td>
                                                 <td>
                                                     <div class="table-actions">
                                                         @if($item->status == 'approved')
@@ -78,7 +104,6 @@
                                                 </td>
                                             </tr>
 
-                                            <!-- Modal -->
                                             <div class="modal fade" id="modal--{{$key}}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
                                                 <div class="modal-dialog modal-dialog-centered">
                                                     <div class="modal-content">

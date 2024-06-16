@@ -39,16 +39,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.', 'namespace' => 'Api\V1\Admi
     Route::resource('withdraw', 'WithdrawController', ['only' => ['index', 'update']]);
 
     Route::group(['prefix' => 'provider', 'as' => 'provider.',], function () {
-        Route::post('collect-cash', 'CollectCashController@collect_cash');
-        Route::get('collect-cash-transaction', 'CollectCashController@collect_cash_transaction');
+        Route::post('collect-cash', 'CollectCashController@collectCash');
+        Route::get('collect-cash-transaction', 'CollectCashController@collectCashTransaction');
     });
-});
-
-
-Route::get('test', function () {
-    $collection = collect(['']);
-
-    $matrix = $collection->crossJoin(['a', 'b', 'c'], ['I', 'II'],['q','w']);
-
-    return $matrix->all();
 });

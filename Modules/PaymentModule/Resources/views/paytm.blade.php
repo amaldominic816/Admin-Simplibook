@@ -6,7 +6,8 @@
 
 @section('content')
     <center><h1>Please do not refresh this page...</h1></center>
-    <form method="post" action="<?php echo \Illuminate\Support\Facades\Config::get('paytm_config.PAYTM_TXN_URL') ?>" id="form">
+    <form method="post" action="<?php echo \Illuminate\Support\Facades\Config::get('paytm_config.PAYTM_TXN_URL') ?>"
+          id="form">
         <table border="1">
             <tbody>
             @foreach($paramList as $name => $value)

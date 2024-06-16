@@ -9,9 +9,7 @@
 
 
     <form action="{!!route('razor-pay.payment',['payment_id'=>$data->id])!!}" id="form" method="POST">
-    @csrf
-    <!-- Note that the amount is in paise = 50 INR -->
-        <!--amount need to be in paisa-->
+        @csrf
         <script src="https://checkout.razorpay.com/v1/checkout.js"
                 data-key="{{ config()->get('razor_config.api_key') }}"
                 data-amount="{{round($data->payment_amount, 2)*100}}"

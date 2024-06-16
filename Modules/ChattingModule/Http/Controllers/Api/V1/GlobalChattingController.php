@@ -2,7 +2,6 @@
 
 namespace Modules\ChattingModule\Http\Controllers\Api\V1;
 
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -16,17 +15,17 @@ use Ramsey\Uuid\Nonstandard\Uuid;
 
 class GlobalChattingController extends Controller
 {
-    protected ChannelList $channel_list;
-    protected ChannelUser $channel_user;
-    protected ChannelConversation $channel_conversation;
-    protected ConversationFile $conversation_file;
+    protected ChannelList $channelList;
+    protected ChannelUser $channelUser;
+    protected ChannelConversation $channelConversation;
+    protected ConversationFile $conversationFile;
 
-    public function __construct(ChannelList $channel_list, ChannelUser $channel_user, ChannelConversation $channel_conversation, ConversationFile $conversation_file)
+    public function __construct(ChannelList $channelList, ChannelUser $channelUser, ChannelConversation $channelConversation, ConversationFile $conversationFile)
     {
-        $this->channel_list = $channel_list;
-        $this->channel_user = $channel_user;
-        $this->channel_conversation = $channel_conversation;
-        $this->conversation_file = $conversation_file;
+        $this->channelList = $channelList;
+        $this->channelUser = $channelUser;
+        $this->channelConversation = $channelConversation;
+        $this->conversationFile = $conversationFile;
     }
 
     /**
@@ -34,7 +33,7 @@ class GlobalChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function channel_list(Request $request): JsonResponse
+    public function channelList(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -45,18 +44,18 @@ class GlobalChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $chat_list = $this->channel_list->withCount(['channelUsers'])
+        $chatList = $this->channelList->withCount(['channelUsers'])
             ->with(['channelUsers.user.provider'])
             ->whereHas('channelUsers', function ($query) use ($request) {
                 $query->where(['user_id' => $request->user()->id]);
             })->orderBy('updated_at', 'DESC')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $chat_list->map(function ($chat) {
+        $chatList->map(function ($chat) {
             $chat['is_read'] = $chat->channelUsers->where('user_id', auth('api')->user()->id)->first()->is_read;
         });
 
-        return response()->json(response_formatter(DEFAULT_200, $chat_list), 200);
+        return response()->json(response_formatter(DEFAULT_200, $chatList), 200);
     }
 
     /**
@@ -64,7 +63,7 @@ class GlobalChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function referenced_channel_list(Request $request): JsonResponse
+    public function referencedChannelList(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -77,18 +76,18 @@ class GlobalChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $chat_list = $this->channel_list->withCount(['channelUsers'])->with(['channelUsers.user.provider'])
+        $chatList = $this->channelList->withCount(['channelUsers'])->with(['channelUsers.user.provider'])
             ->where(['reference_id' => $request['reference_id'], 'reference_type' => $request['reference_type']])
             ->whereHas('channelUsers', function ($query) use ($request) {
                 $query->where(['user_id' => $request->user()->id]);
             })->orderBy('updated_at', 'DESC')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $chat_list->map(function ($chat) {
+        $chatList->map(function ($chat) {
             $chat['is_read'] = $chat->channelUsers->where('user_id', auth('api')->user()->id)->first()->is_read;
         });
 
-        return response()->json(response_formatter(DEFAULT_200, $chat_list), 200);
+        return response()->json(response_formatter(DEFAULT_200, $chatList), 200);
     }
 
     /**
@@ -96,7 +95,7 @@ class GlobalChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function create_channel(Request $request): JsonResponse
+    public function createChannel(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'reference_id' => '',
@@ -108,18 +107,18 @@ class GlobalChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $channel_ids = $this->channel_user->where(['user_id' => $request->user()->id])->pluck('channel_id')->toArray();
-        $find_channel = $this->channel_list->whereIn('id', $channel_ids)->whereHas('channelUsers', function ($query) use ($request) {
+        $channelIds = $this->channelUser->where(['user_id' => $request->user()->id])->pluck('channel_id')->toArray();
+        $findChannel = $this->channelList->whereIn('id', $channelIds)->whereHas('channelUsers', function ($query) use ($request) {
             $query->where(['user_id' => $request['to_user']]);
         })->latest()->first();
 
-        if (!isset($find_channel)) {
-            $channel = $this->channel_list;
+        if (!isset($findChannel)) {
+            $channel = $this->channelList;
             $channel->reference_id = $request['reference_id'] ?? null;
             $channel->reference_type = $request['reference_type'] ?? null;
             $channel->save();
 
-            $this->channel_user->insert([
+            $this->channelUser->insert([
                 [
                     'id' => Uuid::uuid4(),
                     'channel_id' => $channel->id,
@@ -138,7 +137,7 @@ class GlobalChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_STORE_200, $channel), 200);
         }
 
-        return response()->json(response_formatter(DEFAULT_200, $find_channel), 200);
+        return response()->json(response_formatter(DEFAULT_200, $findChannel), 200);
     }
 
     /**
@@ -146,7 +145,7 @@ class GlobalChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function send_message(Request $request): JsonResponse
+    public function sendMessage(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'message' => '',
@@ -160,26 +159,29 @@ class GlobalChattingController extends Controller
         }
 
         DB::transaction(function () use ($request) {
-            $this->channel_list->where('id', $request['channel_id'])->update([
+            $this->channelList->where('id', $request['channel_id'])->update([
                 'updated_at' => now()
             ]);
-            $this->channel_user->where('channel_id', $request['channel_id'])->where('user_id', '!=', $request->user()->id)
+            $this->channelUser->where('channel_id', $request['channel_id'])->where('user_id', '!=', $request->user()->id)
                 ->update([
                     'is_read' => 0
                 ]);
 
-            $channel_conversation = $this->channel_conversation;
-            $channel_conversation->channel_id = $request->channel_id;
-            $channel_conversation->message = $request['message'];
-            $channel_conversation->user_id = $request->user()->id;
-            $channel_conversation->save();
+            $channelConversation = $this->channelConversation;
+            $channelConversation->channel_id = $request->channel_id;
+            $channelConversation->message = $request['message'];
+            $channelConversation->user_id = $request->user()->id;
+            $channelConversation->save();
 
             if ($request->has('files')) {
                 foreach ($request->file('files') as $file) {
                     $extension = $file->getClientOriginalExtension();
-                    $this->conversation_file->create([
-                        'conversation_id' => $channel_conversation->id,
-                        'file_name' => file_uploader('conversation/', $extension, $file),
+                    $originalName = $file->getClientOriginalName();
+
+                    $this->conversationFile->create([
+                        'conversation_id' => $channelConversation->id,
+                        'original_file_name' => $originalName,
+                        'stored_file_name' => file_uploader('conversation/', $extension, $file),
                         'file_type' => $extension,
                     ]);
                 }
@@ -204,12 +206,12 @@ class GlobalChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $this->channel_user->where('channel_id', $request['channel_id'])->where('user_id', $request->user()->id)
+        $this->channelUser->where('channel_id', $request['channel_id'])->where('user_id', $request->user()->id)
             ->update([
                 'is_read' => 1
             ]);
 
-        $conversation = $this->channel_conversation->where(['channel_id' => $request['channel_id']])
+        $conversation = $this->channelConversation->where(['channel_id' => $request['channel_id']])
             ->with(['user', 'conversationFiles'])->whereHas('channel.channelUsers', function ($query) use ($request) {
                 $query->where(['user_id' => $request->user()->id]);
             })->latest()
@@ -223,9 +225,9 @@ class GlobalChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function unread_conversation_count(Request $request): JsonResponse
+    public function unreadConversationCount(Request $request): JsonResponse
     {
-        $count = $this->channel_list->wherehas('channelUsers', function ($query) use ($request) {
+        $count = $this->channelList->wherehas('channelUsers', function ($query) use ($request) {
             $query->where('user_id', $request->user()->id)->where('is_read', 0);
         })->count();
 

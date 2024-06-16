@@ -16,8 +16,6 @@
                     <div class="page-title-wrap mb-3">
                         <h2 class="page-title">{{translate('promotional_banner_update')}}</h2>
                     </div>
-
-                    <!-- Promotional Banner -->
                     <div class="card mb-30">
                         <div class="card-body p-30">
                             <form action="{{route('admin.banner.update',[$banner->id])}}" method="POST"
@@ -26,12 +24,13 @@
                                 @csrf
                                 <div class="row">
                                     <div class="col-lg-6 mb-4 mb-lg-0">
-                                        <div class="form-floating mb-30">
+                                        <div class="form-floating form-floating__icon mb-30">
                                             <input type="text" class="form-control" name="banner_title"
                                                    value="{{$banner->banner_title}}"
                                                    placeholder="{{translate('title')}} *"
                                                    required="">
                                             <label>{{translate('title')}} *</label>
+                                            <span class="material-icons">title</span>
                                         </div>
 
                                         <div class="mb-3">{{translate('resource_type')}}</div>
@@ -53,29 +52,42 @@
                                             </div>
                                         </div>
 
-                                        <div class="mb-30" id="category_selector" style="display: {{$banner->resource_type=='category'?'block':'none'}}">
+                                        <div class="mb-30" id="category_selector"
+                                             style="display: {{$banner->resource_type=='category'?'block':'none'}}">
                                             <select class="js-select theme-input-style w-100" name="category_id">
-                                                <option value="" selected disabled>---{{translate('Select_Category')}}---</option>
+                                                <option value="" selected disabled>---{{translate('Select_Category')}}
+                                                    ---
+                                                </option>
                                                 @foreach($categories as $category)
-                                                    <option value="{{$category->id}}" {{$category->id==$banner->resource_id?'selected':''}}>
+                                                    <option
+                                                        value="{{$category->id}}" {{$category->id==$banner->resource_id?'selected':''}}>
                                                         {{$category->name}}
                                                     </option>
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="mb-30" id="service_selector" style="display: {{$banner->resource_type=='service'?'block':'none'}}">
+                                        <div class="mb-30" id="service_selector"
+                                             style="display: {{$banner->resource_type=='service'?'block':'none'}}">
                                             <select class="js-select theme-input-style w-100" name="service_id">
-                                                <option value="" selected disabled>---{{translate('Select_Service')}}---</option>
+                                                <option value="" selected disabled>---{{translate('Select_Service')}}
+                                                    ---
+                                                </option>
                                                 @foreach($services as $service)
-                                                    <option value="{{$service->id}}" {{$service->id==$banner->resource_id?'selected':''}}>
+                                                    <option
+                                                        value="{{$service->id}}" {{$service->id==$banner->resource_id?'selected':''}}>
                                                         {{$service->name}}
                                                     </option>
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="form-floating mb-30" style="display: {{$banner->resource_type=='link'?'block':'none'}}" id="link_selector">
-                                            <input type="url" class="form-control" placeholder="{{translate('redirect_link')}}" value="{{$banner->redirect_link}}">
+                                        <div class="form-floating form-floating__icon mb-30"
+                                             style="display: {{$banner->resource_type=='link'?'block':'none'}}"
+                                             id="link_selector">
+                                            <input type="url" class="form-control"
+                                                   placeholder="{{translate('redirect_link')}}"
+                                                   value="{{$banner->redirect_link}}">
                                             <label>{{translate('redirect_link')}}</label>
+                                            <span class="material-icons">link</span>
                                         </div>
 
                                     </div>
@@ -87,9 +99,11 @@
                                                     <input type="file" class="upload-file__input" name="banner_image">
                                                     <div class="upload-file__img upload-file__img_banner">
                                                         <img
-                                                            onerror="this.src='{{asset('public/assets/admin-module/img/media/banner-upload-file.png')}}'"
-                                                            src="{{asset('storage/app/public/banner')}}/{{$banner->banner_image}}"
-                                                            alt="">
+                                                            src="{{onErrorImage($banner->banner_image,
+                                                            asset('storage/app/public/banner').'/' . $banner->banner_image,
+                                                            asset('public/assets/admin-module/img/media/banner-upload-file.png') ,
+                                                            'banner/')}}"
+                                                            alt="{{ translate('banner') }}">
                                                     </div>
                                                     <span class="upload-file__edit">
                                                         <span class="material-icons">edit</span>
@@ -114,7 +128,6 @@
                             </form>
                         </div>
                     </div>
-                    <!-- End Promotional Banner -->
                 </div>
             </div>
         </div>
@@ -123,15 +136,11 @@
 
 @push('script')
     <script src="{{asset('public/assets/admin-module')}}/plugins/select2/select2.min.js"></script>
-    <script>
-        $(document).ready(function () {
-            $('.js-select').select2();
-        });
-    </script>
     <script src="{{asset('public/assets/admin-module')}}/plugins/dataTables/jquery.dataTables.min.js"></script>
     <script src="{{asset('public/assets/admin-module')}}/plugins/dataTables/dataTables.select.min.js"></script>
     <script>
-        "use Strict"
+        "use Strict";
+
         $('#category').on('click', function () {
             $('#category_selector').show();
             $('#service_selector').hide();
@@ -148,6 +157,10 @@
             $('#category_selector').hide();
             $('#service_selector').hide();
             $('#link_selector').show();
+        });
+
+        $(document).ready(function () {
+            $('.js-select').select2();
         });
     </script>
 @endpush

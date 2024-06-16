@@ -108,13 +108,13 @@ class CampaignController extends Controller
             $campaign->is_active = 1;
             $campaign->save();
 
-            $dis_types = ['category', 'service', 'zone'];
-            foreach ((array)$dis_types as $dis_type) {
+            $disTypes = ['category', 'service', 'zone'];
+            foreach ((array)$disTypes as $disType) {
                 $types = [];
-                foreach ((array)$request[$dis_type . '_ids'] as $id) {
+                foreach ((array)$request[$disType . '_ids'] as $id) {
                     $types[] = [
                         'discount_id' => $discount['id'],
-                        'discount_type' => $dis_type,
+                        'discount_type' => $disType,
                         'type_wise_id' => $id,
                         'created_at' => now(),
                         'updated_at' => now()
@@ -135,9 +135,11 @@ class CampaignController extends Controller
     public function edit(string $id): JsonResponse
     {
         $campaign = $this->campaign->with(['discount', 'discount.category_types', 'discount.service_types', 'discount.zone_types'])->where('id', $id)->first();
+
         if (isset($campaign)) {
             return response()->json(response_formatter(DEFAULT_200, $campaign), 200);
         }
+
         return response()->json(response_formatter(DEFAULT_204, $campaign), 200);
     }
 
@@ -196,13 +198,13 @@ class CampaignController extends Controller
 
             $discount->discount_types()->delete();
 
-            $dis_types = ['category', 'service', 'zone'];
-            foreach ((array)$dis_types as $dis_type) {
+            $disTypes = ['category', 'service', 'zone'];
+            foreach ((array)$disTypes as $disType) {
                 $types = [];
-                foreach ((array)$request[$dis_type . '_ids'] as $id) {
+                foreach ((array)$request[$disType . '_ids'] as $id) {
                     $types[] = [
                         'discount_id' => $discount['id'],
-                        'discount_type' => $dis_type,
+                        'discount_type' => $disType,
                         'type_wise_id' => $id,
                         'created_at' => now(),
                         'updated_at' => now()
@@ -232,15 +234,18 @@ class CampaignController extends Controller
 
         $campaigns = $this->campaign->whereIn('id', $request['campaign_ids']);
         if ($campaigns->count() > 0) {
+
             foreach ($campaigns->get() as $campaign) {
                 file_remover('campaign/', $campaign['thumbnail']);
                 file_remover('campaign/', $campaign['cover_image']);
                 $this->discount->where('id', $campaign['discount_id'])->delete();
                 $this->discountType->where('discount_id', $campaign['discount_id'])->delete();
             }
+
             $campaigns->delete();
             return response()->json(response_formatter(DEFAULT_DELETE_200), 200);
         }
+
         return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
@@ -249,7 +254,7 @@ class CampaignController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',

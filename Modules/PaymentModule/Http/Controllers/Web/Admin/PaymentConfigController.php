@@ -17,53 +17,11 @@ use Modules\PaymentModule\Entities\Setting;
 
 class PaymentConfigController extends Controller
 {
-    private BusinessSettings $business_setting;
-    private Setting $addon_settings;
+    private Setting $addonSettings;
 
-    public function __construct(BusinessSettings $business_setting, Setting $addon_settings)
+    public function __construct(Setting $addonSettings)
     {
-        $this->business_setting = $business_setting;
-        $this->addon_settings = $addon_settings;
-    }
-
-    /**
-     * Display a listing of the resource.
-     * @return Application|Factory|View
-     */
-    public function payment_config_get(Request $request): View|Factory|Application
-    {
-        Validator::make($request->all(), [
-            'type' => 'in:digital_payment'
-        ])->validate();
-
-        $published_status = 0; // Set a default value
-        $payment_published_status = config('get_payment_publish_status');
-        if (isset($payment_published_status[0]['is_published'])) {
-            $published_status = $payment_published_status[0]['is_published'];
-        }
-
-        $routes = config('addon_admin_routes');
-        $desiredName = 'payment_setup';
-        $payment_url = '';
-
-        foreach ($routes as $routeArray) {
-            foreach ($routeArray as $route) {
-                if ($route['name'] === $desiredName) {
-                    $payment_url = $route['url'];
-                    break 2;
-                }
-            }
-        }
-
-        $data_values = $this->addon_settings
-            ->whereIn('settings_type', ['payment_config'])
-            ->whereIn('key_name', array_merge(array_column(PAYMENT_METHODS, 'key'), ['ssl_commerz']))
-            ->get();
-
-        $type = 'digital_payment';
-        $search = $request['search'] ?? '';
-
-        return view('paymentmodule::admin.payment-gateway-config', compact('data_values', 'published_status', 'payment_url', 'type'));
+        $this->addonSettings = $addonSettings;
     }
 
     /**
@@ -71,98 +29,98 @@ class PaymentConfigController extends Controller
      * @param Request $request
      * @return RedirectResponse
      */
-    public function payment_config_set(Request $request): RedirectResponse
+    public function setPaymentConfig(Request $request): RedirectResponse
     {
         $validation = [
             'gateway' => 'required|in:' . implode(',', array_column(DIGITAL_PAYMENT_METHODS, 'key')),
             'mode' => 'required|in:live,test'
         ];
-        $additional_data = [];
+        $additionalData = [];
 
         if ($request['gateway'] == 'ssl_commerz') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
-                'store_id' => 'required',
-                'store_password' => 'required'
+                'store_id' => 'required_if:status,1',
+                'store_password' => 'required_if:status,1'
             ];
         } elseif ($request['gateway'] == 'stripe') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
-                'api_key' => 'required',
-                'published_key' => 'required',
+                'api_key' => 'required_if:status,1',
+                'published_key' => 'required_if:status,1',
             ];
         } elseif ($request['gateway'] == 'razor_pay') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
-                'api_key' => 'required',
-                'api_secret' => 'required'
+                'api_key' => 'required_if:status,1',
+                'api_secret' => 'required_if:status,1'
             ];
         } elseif ($request['gateway'] == 'senang_pay') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
-                'callback_url' => 'required',
-                'secret_key' => 'required',
-                'merchant_id' => 'required'
+                'callback_url' => 'required_if:status,1',
+                'secret_key' => 'required_if:status,1',
+                'merchant_id' => 'required_if:status,1'
             ];
         } elseif ($request['gateway'] == 'paystack') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
-                'public_key' => 'required',
-                'secret_key' => 'required',
-                'merchant_email' => 'required'
+                'public_key' => 'required_if:status,1',
+                'secret_key' => 'required_if:status,1',
+                'merchant_email' => 'required_if:status,1'
             ];
         } elseif ($request['gateway'] == 'flutterwave') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
-                'secret_key' => 'required',
-                'public_key' => 'required',
-                'hash' => 'required'
+                'secret_key' => 'required_if:status,1',
+                'public_key' => 'required_if:status,1',
+                'hash' => 'required_if:status,1'
             ];
         } elseif ($request['gateway'] == 'paytm') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0',
-                'merchant_key' => 'required',
-                'merchant_id' => 'required',
-                'merchant_website_link' => 'required'
+                'merchant_key' => 'required_if:status,1',
+                'merchant_id' => 'required_if:status,1',
+                'merchant_website_link' => 'required_if:status,1'
             ];
         } elseif ($request['gateway'] == 'cash_after_service') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0'
             ];
         } elseif ($request['gateway'] == 'digital_payment') {
-            $additional_data = [
+            $additionalData = [
                 'status' => 'required|in:1,0'
             ];
         }
-        $validation = $request->validate(array_merge($validation, $additional_data));
-        $addon_settings = $this->addon_settings->where('key_name', $request['gateway'])->where('settings_type', 'payment_config')->first();
-        $additional_data_image = $addon_settings['additional_data'] != null ? json_decode($addon_settings['additional_data']) : null;
+        $validation = $request->validate(array_merge($validation, $additionalData));
+        $addonSettings = $this->addonSettings->where('key_name', $request['gateway'])->where('settings_type', 'payment_config')->first();
+        $additionalDataImage = $addonSettings['additional_data'] != null ? json_decode($addonSettings['additional_data']) : null;
 
         if ($request->has('gateway_image')) {
-            $gateway_image = file_uploader('payment_modules/gateway_image/', 'png', $request['gateway_image'], $additional_data_image != null ? $additional_data_image->gateway_image : '');
+            $gatewayImage = file_uploader('payment_modules/gateway_image/', 'png', $request['gateway_image'], $additionalDataImage != null ? $additionalDataImage->gateway_image : '');
         } else {
-            $gateway_image = $additional_data_image != null ? $additional_data_image->gateway_image : '';
+            $gatewayImage = $additionalDataImage != null ? $additionalDataImage->gateway_image : '';
         }
 
-        $payment_additional_data = [
+        $paymentAdditionalData = [
             'gateway_title' => $request['gateway_title'],
-            'gateway_image' => $gateway_image,
+            'gateway_image' => $gatewayImage,
         ];
 
-        $validator = Validator::make($request->all(), array_merge($validation, $additional_data));
+        $validator = Validator::make($request->all(), array_merge($validation, $additionalData));
 
 
-        $this->addon_settings->updateOrCreate(['key_name' => $request['gateway'], 'settings_type' => 'payment_config'], [
+        $this->addonSettings->updateOrCreate(['key_name' => $request['gateway'], 'settings_type' => 'payment_config'], [
             'key_name' => $request['gateway'],
             'live_values' => $validation,
             'test_values' => $validation,
             'settings_type' => 'payment_config',
             'mode' => $request['mode'],
             'is_active' => $request['status'],
-            'additional_data' => json_encode($payment_additional_data),
+            'additional_data' => json_encode($paymentAdditionalData),
         ]);
 
-        Toastr::success(DEFAULT_UPDATE_200['message']);
+        Toastr::success(translate(DEFAULT_UPDATE_200['message']));
         return back();
     }
 }

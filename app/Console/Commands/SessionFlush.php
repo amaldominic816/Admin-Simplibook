@@ -42,7 +42,6 @@ class SessionFlush extends Command
         Session::getHandler()->gc(0);
         Artisan::call('cache:clear');
         Artisan::call('debugbar:clear');
-        //DB::table('sessions')->truncate();
         return 0;
     }
 }

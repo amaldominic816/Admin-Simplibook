@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::group(['prefix' => 'admin', 'as'=>'admin.', 'namespace' => 'Api\V1\Admin','middleware'=>['auth:api']], function () {
     Route::group(['prefix'=>'sms-config'],function (){
-        Route::get('get', 'SMSConfigController@sms_config_get');
-        Route::put('set', 'SMSConfigController@sms_config_set');
+        Route::get('get', 'SMSConfigController@smsConfigGet');
+        Route::put('set', 'SMSConfigController@smsConfigSet');
     });
 });

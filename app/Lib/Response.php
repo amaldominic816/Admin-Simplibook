@@ -3,7 +3,7 @@
 //default responses
 const DEFAULT_200 = [
     'response_code' => 'default_200',
-    'message' => 'successfully loaded'
+    'message' => 'successfully data fetched'
 ];
 
 const DEFAULT_SENT_OTP_200 = [
@@ -95,6 +95,16 @@ const DEFAULT_STORE_200 = [
     'message' => 'successfully added'
 ];
 
+const DEFAULT_CART_STORE_200 = [
+    'response_code' => 'default_cart_store_200',
+    'message' => 'Successfully added to the cart'
+];
+
+const DEFAULT_CART_ALREADY_ADDED_200 = [
+    'response_code' => 'default_cart_already_added_store_200',
+    'message' => 'Already Added'
+];
+
 const DEFAULT_UPDATE_200 = [
     'response_code' => 'default_update_200',
     'message' => 'successfully updated'
@@ -103,6 +113,16 @@ const DEFAULT_UPDATE_200 = [
 const DEFAULT_STATUS_UPDATE_200 = [
     'response_code' => 'default_status_update_200',
     'message' => 'successfully status updated'
+];
+
+const DEFAULT_SUSPEND_UPDATE_200 = [
+    'response_code' => 'default_suspend_update_200',
+    'message' => 'successfully suspend status updated'
+];
+
+const DEFAULT_SUSPEND_200 = [
+    'response_code' => 'default_suspend_update_200',
+    'message' => 'Your account has been supended'
 ];
 
 const TOO_MANY_ATTEMPT_403 = [
@@ -132,9 +152,28 @@ const AUTH_LOGIN_401 = [
     'message' => 'user credential does not match'
 ];
 
+const ACCOUNT_UNDER_REVIEW = [
+    'response_code' => 'account_under_review_401',
+    'message' => 'Your account registration is currently under review by our admin. Thank you for your patience.'
+];
+
+const ACCOUNT_REJECTED = [
+    'response_code' => 'account_rejected_401',
+    'message' => 'Sorry, your registration has been denied. Please contact admin for further assistance.'
+];
+
 const ACCOUNT_DISABLED = [
     'response_code' => 'account_disabled_401',
     'message' => 'user account has been disabled, please talk to the admin.'
+];
+const ACCOUNT_DISABLED_SERVICEMAN = [
+    'response_code' => 'account_disabled_401',
+    'message' => 'user account has been disabled, please talk to the provider.'
+];
+
+const PROVIDER_ACCOUNT_NOT_APPROVED = [
+    'response_code' => 'provider_account_not_approved_401',
+    'message' => 'Your account is currently under review. Contact with admin for any kind of query'
 ];
 
 const AUTH_LOGIN_403 = [
@@ -254,10 +293,41 @@ const SERVICE_STORE_200 = [
     'message' => 'successfully added'
 ];
 
+const SERVICE_REQUEST_STORE_200 = [
+    'response_code' => 'service_request_store_200',
+    'message' => 'your request has been successfully added. thank you for the request.'
+];
+
+const SERVICE_ADD_TO_FAVORITE_200 = [
+    'response_code' => 'service_favorite_store_200',
+    'message' => 'service added as favorite successfully'
+];
+
+const SERVICE_REMOVE_FAVORITE_200 = [
+    'response_code' => 'service_remove_favorite_200',
+    'message' => 'service removed as favorite successfully'
+];
+
 //coupon section
 const COUPON_UPDATE_200 = [
     'response_code' => 'coupon_update_200',
     'message' => 'successfully updated'
+];
+const COUPON_APPLIED_200 = [
+    'response_code' => 'coupon_applied_200',
+    'message' => 'coupon applied successfully'
+];
+const COUPON_NOT_VALID_FOR_ZONE = [
+    'response_code' => 'coupon_not_valid_for_zone',
+    'message' => 'only applicable for chosen zone'
+];
+const COUPON_NOT_VALID_FOR_CATEGORY = [
+    'response_code' => 'coupon_not_valid_for_category',
+    'message' => 'only applicable for chosen category'
+];
+const COUPON_NOT_VALID_FOR_SERVICE = [
+    'response_code' => 'coupon_not_valid_for_service',
+    'message' => 'only applicable for chosen service'
 ];
 
 const CAMPAIGN_UPDATE_200 = [
@@ -276,10 +346,14 @@ const BANNER_UPDATE_200 = [
     'message' => 'successfully updated'
 ];
 
-
 const COUPON_NOT_VALID_FOR_CART=[
     'response_code' => 'coupon_not_valid_for_your_cart',
-    'message' => 'this coupon is not valid for your cart'
+    'message' => 'you have exceeded this coupon usage limit.'
+];
+
+const COUPON_IS_VALID_FOR_FIRST_TIME=[
+    'response_code' => 'coupon_is_valid_for_first_time',
+    'message' => 'this coupon is valid for first-time bookings only.'
 ];
 
 //provider management module
@@ -289,12 +363,22 @@ const PROVIDER_STORE_200 = [
 ];
 const PROVIDER_REGISTERED_200 = [
     'response_code' => 'provider_store_200',
-    'message' => 'successfully registered'
+    'message' => 'successfully registered. Thanks for joining us! Your registration is under review. Hang tight, we will notify you once approved!'
 ];
 
 const PROVIDER_400 = [
     'response_code' => 'provider_store_400',
     'message' => 'invalid or missing information'
+];
+
+const PROVIDER_ADD_TO_FAVORITE_200 = [
+    'response_code' => 'provider_favorite_store_200',
+    'message' => 'provider added as favorite successfully'
+];
+
+const PROVIDER_REMOVE_FAVORITE_200 = [
+    'response_code' => 'provider_remove_favorite_200',
+    'message' => 'provider removed as favorite successfully'
 ];
 
 
@@ -320,7 +404,11 @@ const BOOKING_PLACE_FAIL_200 = [
 ];
 const BOOKING_STATUS_UPDATE_SUCCESS_200 = [
     'response_code' => 'status_update_success_200',
-    'message' => 'status changed successfully'
+    'message' => 'booking status updated successfully'
+];
+const PAYMENT_STATUS_UPDATE_SUCCESS_200 = [
+    'response_code' => 'payment_status_update_success_200',
+    'message' => 'payment status updated successfully'
 ];
 const BOOKING_STATUS_UPDATE_FAIL_200 = [
     'response_code' => 'status_update_fail_200',
@@ -332,14 +420,61 @@ const DELIVERYMAN_ASSIGN_200 = [
     'message' => 'Deliveryman must assign first'
 ];
 
+
+const SERVICEMAN_ASSIGN_SUCCESS_200 = [
+    'response_code' => 'serviceman_assign_success_200',
+    'message' => 'Serviceman assigned successfully'
+];
+
+const SERVICE_SCHEDULE_UPDATE_200 = [
+    'response_code' => 'service_schedule_update_200',
+    'message' => 'Service schedule updated successfully'
+];
+
 const MINIMUM_BOOKING_AMOUNT_200 = [
     'response_code' => 'minimum_booking_amount_200',
     'message' => 'Booking amount must be greater than minimum booking amount'
 ];
 
+const PROVIDER_EXCEED_CASH_IN_HAND = [
+    'response_code' => 'provider_exceed_cash_in_hand_200',
+    'message' => 'You exceeded the cash in hand limit'
+];
+
+
+
 const UPDATE_FAILED_FOR_OFFLINE_PAYMENT_VERIFICATION_200 = [
+    'response_code' => 'update_failed_for_offline_payment_200',
+    'message' => 'Admin must verify the offline payment'
+];
+const CHECK_OFFLINE_PAYMENT_AND_VERIFIED_200 = [
     'response_code' => 'minimum_booking_amount_200',
-    'message' => 'Admin must verify the offline payment before completing the booking'
+    'message' => 'Admin must verify the offline payment'
+];
+
+const BOOKING_ALREADY_CANCELED_200 = [
+    'response_code' => 'booking_already_canceled_200',
+    'message' => 'This Booking is already canceled'
+];
+
+const BOOKING_ALREADY_ACCEPTED = [
+    'response_code' => 'booking_already_accepted_200',
+    'message' => 'Booking is already accepted, you can not cancel this booking'
+];
+
+const BOOKING_ALREADY_ONGOING = [
+    'response_code' => 'booking_already_ongoing_200',
+    'message' => 'Booking is already ongoing, you can not cancel this booking'
+];
+
+const BOOKING_ALREADY_COMPLETED = [
+    'response_code' => 'booking_already_completed_200',
+    'message' => 'Booking is already completed, you can not cancel this booking'
+];
+
+const BOOKING_ALREADY_EDITED = [
+    'response_code' => 'booking_already_edited_200',
+    'message' => 'You can not cancel this booking. Please contact with admin'
 ];
 
 
@@ -361,4 +496,9 @@ const NOTIFICATION_SEND_SUCCESSFULLY_200 = [
 const NOTIFICATION_SEND_FAILED_200 = [
     'response_code' => 'notification_send_failed_200',
     'message' => 'Notification has been failed to send'
+];
+
+const ADJUST_AMOUNT_SUCCESS_200 = [
+    'response_code' => 'adjusted_successfully_200',
+    'message' => 'Amount adjusted successfully'
 ];

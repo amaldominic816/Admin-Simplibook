@@ -2,38 +2,39 @@
 
 @section('title',translate('dashboard'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
+    @can('dashboard')
     <div class="main-content">
         <div class="container-fluid">
             @if(access_checker('dashboard'))
                 <div class="row mb-4 g-4">
                     <div class="col-lg-3 col-sm-6">
-                        <!-- Business Summary -->
-                        <div class="business-summary business-summary-earning">
-                            <h2>{{with_currency_symbol($data[1]['admin_total_earning'])}}</h2>
-                            <h3>{{translate('commission_earning')}}</h3>
-                            <img src="{{asset('public/assets/admin-module')}}/img/icons/total-earning.png"
-                                 class="absolute-img" alt="">
-                        </div>
-                        <!-- End Business Summary -->
-                    </div>
-                    <div class="col-lg-3 col-sm-6">
-                        <!-- Business Summary -->
                         <div class="business-summary business-summary-customers">
-                            <h2>{{with_currency_symbol(array_sum($chart_data['commission_earning']))}}</h2>
+                            <h2>{{with_currency_symbol(data_get($data[0], 'top_cards.total_commission_earning', 0) + data_get($data[0], 'top_cards.total_fee_earning', 0))}}</h2>
                             <h3>{{translate('total_earning')}}</h3>
                             <img src="{{asset('public/assets/admin-module')}}/img/icons/customers.png"
                                  class="absolute-img"
                                  alt="">
                         </div>
-                        <!-- End Business Summary -->
                     </div>
                     <div class="col-lg-3 col-sm-6">
-                        <!-- Business Summary -->
+                        <div class="business-summary business-summary-earning">
+                            <h2>{{data_get($data[0], 'top_cards.total_commission_earning', 0)}}</h2>
+                            <h3>{{translate('commission_earning')}}</h3>
+                            <img src="{{asset('public/assets/admin-module')}}/img/icons/total-earning.png"
+                                 class="absolute-img" alt="">
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-sm-6">
+                        <div class="business-summary business-summary-providers">
+                            <h2>{{data_get($data[0], 'top_cards.total_fee_earning', 0)}}</h2>
+                            <h3>{{translate('Total Fee Earning')}}</h3>
+                            <img src="{{asset('public/assets/admin-module')}}/img/icons/providers.png"
+                                 class="absolute-img"
+                                 alt="">
+                        </div>
+                    </div>
+                    {{--<div class="col-lg-3 col-sm-6">
                         <div class="business-summary business-summary-providers">
                             <h2>{{$data[0]['top_cards']['total_customer']}}</h2>
                             <h3>{{translate('customers')}}</h3>
@@ -41,10 +42,8 @@
                                  class="absolute-img"
                                  alt="">
                         </div>
-                        <!-- End Business Summary -->
-                    </div>
+                    </div>--}}
                     <div class="col-lg-3 col-sm-6">
-                        <!-- Business Summary -->
                         <div class="business-summary business-summary-services">
                             <h2>{{$data[0]['top_cards']['total_provider']}}</h2>
                             <h3>{{translate('providers')}}</h3>
@@ -52,12 +51,10 @@
                                  class="absolute-img"
                                  alt="">
                         </div>
-                        <!-- End Business Summary -->
                     </div>
                 </div>
                 <div class="row g-4">
                     <div class="col-lg-9">
-                        <!-- Earning Statistics -->
                         <div class="card earning-statistics">
                             <div class="card-body ps-0">
                                 <div class="ps-20 d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -65,12 +62,6 @@
                                     <div
                                         class="position-relative index-2 d-flex flex-wrap gap-3 align-items-center justify-content-between">
                                         <ul class="option-select-btn">
-                                            {{--<li>
-                                                <label>
-                                                    <input type="radio" name="statistics" hidden checked>
-                                                    <span>Monthly</span>
-                                                </label>
-                                            </li>--}}
                                             <li>
                                                 <label>
                                                     <input type="radio" name="statistics" hidden checked>
@@ -80,7 +71,7 @@
                                         </ul>
 
                                         <div class="select-wrap d-flex flex-wrap gap-10">
-                                            <select class="js-select" onchange="update_chart(this.value)">
+                                            <select class="js-select update-chart">
                                                 @php($from_year=date('Y'))
                                                 @php($to_year=$from_year-10)
                                                 @while($from_year!=$to_year)
@@ -91,32 +82,24 @@
                                                     @php($from_year--)
                                                 @endwhile
                                             </select>
-                                            {{--<select class="js-select">
-                                                <option value="jan">Month: Jan</option>
-                                                <option value="jan">Month: Feb</option>
-                                                <option value="jan">Month: Mar</option>
-                                                <option value="jan">Month: April</option>
-                                                <option value="jan">Month: May</option>
-                                                <option value="jan">Month: Jun</option>
-                                                <option value="jan">Month: July</option>
-                                            </select>--}}
                                         </div>
                                     </div>
                                 </div>
                                 <div id="apex_line-chart"></div>
                             </div>
                         </div>
-                        <!-- End Earning Statistics -->
                     </div>
                     <div class="col-lg-3 col-sm-6">
-                        <!-- Recent Transaction -->
                         <div class="card recent-transactions h-100">
                             <div class="card-body">
                                 <h4 class="mb-3">{{translate('recent_transactions')}}</h4>
-                                <div class="d-flex align-items-center gap-3 mb-4">
-                                    <img src="{{asset('public/assets/admin-module')}}/img/icons/arrow-up.png" alt="">
-                                    <p class="opacity-75">{{$data[2]['this_month_trx_count']}} {{translate('transactions_this_month')}}</p>
-                                </div>
+                                @if(isset($data[2]['recent_transactions']) && count($data[2]['recent_transactions']) > 0)
+                                    <div class="d-flex align-items-center gap-3 mb-4">
+                                        <img src="{{asset('public/assets/admin-module')}}/img/icons/arrow-up.png"
+                                             alt="">
+                                        <p class="opacity-75">{{$data[2]['this_month_trx_count']}} {{translate('transactions_this_month')}}</p>
+                                    </div>
+                                @endif
                                 <div class="events">
                                     @foreach($data[2]['recent_transactions'] as $transaction)
                                         <div class="event">
@@ -137,25 +120,24 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- End Recent Transaction -->
                     </div>
                     <div class="col-lg-4 col-sm-6">
-                        <!-- Top Providers -->
                         <div class="card top-providers">
                             <div class="card-header d-flex justify-content-between gap-10">
                                 <h5>{{translate('top_providers')}}</h5>
-                                <a href="{{route('admin.provider.list')}}" class="btn-link">{{translate('view_all')}}</a>
+                                <a href="{{route('admin.provider.list')}}"
+                                   class="btn-link">{{translate('view_all')}}</a>
                             </div>
                             <div class="card-body">
                                 <ul class="common-list">
                                     @foreach($data[4]['top_providers'] as $provider)
-                                        <li onclick="location.href='{{route('admin.provider.details',[$provider->id])}}?web_page=overview'">
+                                        <li class="provider-redirect"
+                                            data-route="{{route('admin.provider.details',[$provider->id])}}?web_page=overview">
                                             <div class="media gap-3">
                                                 <div class="avatar avatar-lg">
                                                     <img class="avatar-img rounded-circle"
-                                                         onerror="this.src='{{asset('public/assets/admin-module/img/user2x.png')}}'"
-                                                         src="{{asset('storage/app/public/provider/logo')}}/{{$provider->logo}}"
-                                                         alt="">
+                                                    src="{{onErrorImage($provider->logo, asset('storage/app/public/provider/logo').'/' . $provider->logo, asset('public/assets/admin-module/img/placeholder.png') ,'provider/logo/')}}"
+                                                    alt="{{ translate('logo') }}">
                                                 </div>
                                                 <div class="media-body ">
                                                     <h5>{{\Illuminate\Support\Str::limit($provider->company_name,20)}}</h5>
@@ -163,7 +145,6 @@
                                                         <span class="material-icons">star</span>
                                                         {{$provider->avg_rating}}
                                                     </span>
-{{--                                                    <span class="common-list_success-rate">{{translate('success_rate')}} {{divnum($provider->reviews->sum('review_rating'),$provider->reviews_count)/100}}%</span>--}}
                                                 </div>
                                             </div>
                                         </li>
@@ -171,29 +152,28 @@
                                 </ul>
                             </div>
                         </div>
-                        <!-- End Top Providers -->
                     </div>
                     <div class="col-lg-5 col-sm-6">
-                        <!-- Top Providers -->
                         <div class="card recent-activities">
                             <div class="card-header d-flex justify-content-between gap-10">
                                 <h5>{{translate('recent_bookings')}}</h5>
-                                <a href="{{route('admin.booking.list', ['booking_status'=>'pending'])}}" class="btn-link">{{translate('view_all')}}</a>
+                                <a href="{{route('admin.booking.list', ['booking_status'=>'pending'])}}"
+                                   class="btn-link">{{translate('view_all')}}</a>
                             </div>
                             <div class="card-body">
                                 <ul class="common-list">
                                     @foreach($data[3]['bookings'] as $booking)
-                                        <li class="d-flex flex-wrap gap-2 align-items-center justify-content-between"
-                                            onclick="location.href='{{route('admin.booking.details',[$booking->id])}}?web_page=details'" style="cursor: pointer">
+                                        <li class="d-flex flex-wrap gap-2 align-items-center justify-content-between cursor-pointer recent-booking-redirect"
+                                            data-route="{{route('admin.booking.details',[$booking->id])}}?web_page=details">
                                             <div class="media align-items-center gap-3">
                                                 <div class="avatar avatar-lg">
                                                     <img class="avatar-img rounded"
-                                                         src="{{asset('storage/app/public/service')}}/{{$booking->detail[0]->service->thumbnail??''}}"
-                                                         onerror="this.src='{{asset('public/assets/admin-module')}}/img/placeholder.png'"
-                                                         alt="">
+                                                         src="{{onErrorImage($booking->detail[0]->service?->thumbnail??'', asset('storage/app/public/service').'/' . $booking->detail[0]->service?->thumbnail??'',
+                                                         asset('public/assets/admin-module/img/placeholder.png') ,'service/')}}"
+                                                         alt="{{ translate('provider-logo') }}">
                                                 </div>
                                                 <div class="media-body ">
-                                                    <h5>Booking# {{$booking->readable_id}}</h5>
+                                                    <h5>{{translate('Booking')}}# {{$booking->readable_id}}</h5>
                                                     <p>{{date('d-m-Y, H:i a',strtotime($booking->created_at))}}</p>
                                                 </div>
                                             </div>
@@ -204,39 +184,40 @@
                                 </ul>
                             </div>
                         </div>
-                        <!-- End Top Providers -->
                     </div>
                     <div class="col-lg-3 col-sm-6">
-                        <!-- Booking Statistics -->
                         <div class="card top-providers">
                             <div class="card-header d-flex flex-column gap-10">
                                 <h5>{{translate('booking_statistics')}} - {{date('M, Y')}}</h5>
                             </div>
-                            <div class="card-body" style="height: 392px;overflow-y: auto;">
+                            <div class="card-body booking-statistics-info">
                                 @if(isset($data[5]['zone_wise_bookings']))
                                     <ul class="common-list after-none gap-10 d-flex flex-column">
                                         @foreach($data[5]['zone_wise_bookings'] as $booking)
                                             <li>
                                                 <div
                                                     class="mb-2 d-flex align-items-center justify-content-between gap-10 flex-wrap">
-                                                    <span class="zone-name">{{$booking->zone?$booking->zone->name:translate('zone_not_available')}}</span>
-                                                    <span class="booking-count">{{$booking->total}} {{translate('bookings')}}</span>
+                                                    <span
+                                                        class="zone-name">{{$booking->zone?$booking->zone->name:translate('zone_not_available')}}</span>
+                                                    <span
+                                                        class="booking-count">{{$booking->total}} {{translate('bookings')}}</span>
                                                 </div>
                                                 <div class="progress">
-                                                    <div class="progress-bar" role="progressbar" style="width: {{$booking->total}}%" aria-valuenow="{{$booking->total}}" aria-valuemin="0" aria-valuemax="100"></div>
+                                                    <div class="progress-bar" role="progressbar"
+                                                         style="width: {{$booking->total}}%"
+                                                         aria-valuenow="{{$booking->total}}" aria-valuemin="0"
+                                                         aria-valuemax="100"></div>
                                                 </div>
                                             </li>
                                         @endforeach
                                     </ul>
                                 @else
-                                    {{-- for empty statistics --}}
                                     <div class="d-flex align-items-center justify-content-center h-100">
                                         <span class="opacity-50">{{translate('No Bookings Found')}}</span>
                                     </div>
                                 @endif
                             </div>
                         </div>
-                        <!-- End Booking Statistics -->
                     </div>
                 </div>
             @else
@@ -254,11 +235,32 @@
             @endif
         </div>
     </div>
+    @else
+        <div class="main-content">
+            <div class="container-fluid">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="text-center">
+                            <h4>{{translate('This page was not authorized by the administrator for you.')}}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endcan
 @endsection
+
 
 @push('script')
     <script src="{{asset('public/assets/admin-module')}}/plugins/apex/apexcharts.min.js"></script>
     <script>
+        'use strict';
+
+        $('.js-select.update-chart').on('change', function() {
+            var selectedYear = $(this).val();
+            update_chart(selectedYear);
+        });
+
         var options = {
             series: [
                 {
@@ -288,17 +290,7 @@
             yaxis: {
                 labels: {
                     offsetX: 0,
-                    formatter: function(value) {
-                        /*var val = Math.abs(value)
-                        if (val >= 10000000000000) {
-                            val = (val / 10000000000000).toFixed(0) + ' T'
-                        } else if (val >= 10000000000) {
-                            val = (val / 10000000000).toFixed(0) + ' B'
-                        } else if (val >= 1000000) {
-                            val = (val / 1000000).toFixed(0) + ' M'
-                        } else if (val >= 1000) {
-                            val = (val / 1000).toFixed(0) + ' K'
-                        }*/
+                    formatter: function (value) {
                         return Math.abs(value)
                     }
                 },
@@ -373,5 +365,13 @@
                 }])
             });
         }
+
+        $(".provider-redirect").on('click', function(){
+            location.href = $(this).data('route');
+        });
+
+        $(".recent-booking-redirect").on('click', function(){
+            location.href = $(this).data('route');
+        });
     </script>
 @endpush

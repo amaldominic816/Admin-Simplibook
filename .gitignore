@@ -16,6 +16,7 @@ yarn-error.log
 /.vscode
 .DS_Store
 storage/backup/
+storage/.DS_Store
 /Modules/Gateways
 /storage/install.zip
 /storage/update.zip

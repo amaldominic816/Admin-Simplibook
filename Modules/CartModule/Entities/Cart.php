@@ -24,6 +24,7 @@ class Cart extends Model
         'campaign_discount' => 'float',
         'tax_amount' => 'float',
         'total_cost' => 'float',
+        'referral_discount' => 'float',
     ];
 
     protected $fillable = [];

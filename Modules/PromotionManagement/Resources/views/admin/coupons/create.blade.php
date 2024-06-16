@@ -10,13 +10,29 @@
                     <div class="page-title-wrap mb-3">
                         <h2 class="page-title">{{translate('add_new_coupon')}}</h2>
                     </div>
-
                     <div class="card">
                         <div class="card-body p-30">
                             <form action="{{route('admin.coupon.store')}}" method="POST">
                                 @csrf
+                                @php($language= Modules\BusinessSettingsModule\Entities\BusinessSettings::where('key_name','system_language')->first())
+                                @php($default_lang = str_replace('_', '-', app()->getLocale()))
+                                @if($language)
+                                    <ul class="nav nav-tabs mb-4">
+                                        <li class="nav-item">
+                                            <a class="nav-link lang_link active"
+                                               href="#"
+                                               id="default-link">{{translate('default')}}</a>
+                                        </li>
+                                        @foreach ($language?->live_values as $lang)
+                                            <li class="nav-item">
+                                                <a class="nav-link lang_link"
+                                                   href="#"
+                                                   id="{{ $lang['code'] }}-link">{{ get_language_name($lang['code']) }}</a>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                @endif
                                 <div class="discount-type">
-
                                     <div class="row">
                                         <div class="col-lg-6">
                                             <div class="mb-30">
@@ -32,10 +48,11 @@
                                         </div>
                                         <div class="col-lg-6">
                                             <div class="mb-30">
-                                                <div class="form-floating">
+                                                <div class="form-floating form-floating__icon">
                                                     <input type="text" class="form-control" name="coupon_code"
                                                            placeholder="{{translate('coupon_code')}}" required>
                                                     <label>{{translate('coupon_code')}}</label>
+                                                    <span class="material-icons">subtitles</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -51,7 +68,6 @@
                                             </div>
                                         </div>
                                     </div>
-
                                     <div class="mb-3">{{translate('discount_type')}}</div>
                                     <div class="d-flex flex-wrap align-items-center gap-4 mb-30">
                                         <div class="custom-radio">
@@ -68,26 +84,45 @@
                                             <label for="mixed">{{translate('mixed')}}</label>
                                         </div>
                                     </div>
-
-                                    <div class="mb-30">
-                                        <div class="form-floating">
-                                            <input type="text" class="form-control" name="discount_title"
-                                                   placeholder="{{translate('discount_title')}} *"
-                                                   required="">
-                                            <label>{{translate('discount_title')}} *</label>
+                                    @if ($language)
+                                        <div class="form-floating form-floating__icon mb-30 lang-form" id="default-form">
+                                            <input type="text" name="discount_title[]" class="form-control"
+                                                   placeholder="{{translate('discount_title')}}" required>
+                                            <label>{{translate('discount_title')}} ({{ translate('default') }})</label>
+                                            <span class="material-icons">title</span>
                                         </div>
-                                    </div>
+                                        <input type="hidden" name="lang[]" value="default">
+                                        @foreach ($language?->live_values as $lang)
+                                            <div class="form-floating form-floating__icon mb-30 d-none lang-form" id="{{$lang['code']}}-form">
+                                                <input type="text" name="discount_title[]" class="form-control"
+                                                       placeholder="{{translate('discount_title')}}">
+                                                <label>{{translate('discount_title')}} ({{strtoupper($lang['code'])}})</label>
+                                                <span class="material-icons">title</span>
+                                            </div>
+                                            <input type="hidden" name="lang[]" value="{{$lang['code']}}">
+                                        @endforeach
+                                    @else
+                                        <div class="form-floating form-floating__icon mb-30">
+                                            <input type="text" name="discount_title[]" class="form-control"
+                                                   placeholder="{{translate('discount_title')}}" required>
+                                            <label>{{translate('discount_title')}}</label>
+                                            <span class="material-icons">title</span>
+                                        </div>
+                                        <input type="hidden" name="lang[]" value="default">
+                                    @endif
                                     <div class="mb-30" id="category_selector">
                                         <select class="category-select theme-input-style w-100" name="category_ids[]"
                                                 multiple="multiple" id="category_selector__select" required>
+                                            <option value="all">{{translate('Select All')}}</option>
                                             @foreach($categories as $category)
                                                 <option value="{{$category->id}}">{{$category->name}}</option>
                                             @endforeach
                                         </select>
                                     </div>
-                                    <div class="mb-30" id="service_selector" style="display: none">
+                                    <div class="mb-30 service_selector" id="service_selector">
                                         <select class="service-select theme-input-style w-100" name="service_ids[]"
                                                 multiple="multiple" id="service_selector__select">
+                                            <option value="all">{{translate('Select All')}}</option>
                                             @foreach($services as $service)
                                                 <option value="{{$service->id}}">{{$service->name}}</option>
                                             @endforeach
@@ -95,7 +130,8 @@
                                     </div>
                                     <div class="mb-30">
                                         <select class="zone-select theme-input-style w-100" name="zone_ids[]"
-                                                multiple="multiple" required>
+                                                multiple="multiple" id="zone_selector__select" required>
+                                            <option value="all">{{translate('Select All')}}</option>
                                             @foreach($zones as $zone)
                                                 <option value="{{$zone->id}}">{{$zone->name}}</option>
                                             @endforeach
@@ -121,12 +157,13 @@
                                     <div class="row">
                                         <div class="col-lg-4">
                                             <div class="mb-30">
-                                                <div class="form-floating">
+                                                <div class="form-floating form-floating__icon">
                                                     <input type="number" class="form-control" name="discount_amount"
                                                            placeholder="{{translate('amount')}}" id="discount_amount"
-                                                           min="0" max="100" step="any" value="0">
+                                                           min="0.01" max="100" step="any" value="0">
                                                     <label id="discount_amount__label">{{translate('amount')}}
                                                         (%)</label>
+                                                    <span class="material-icons">price_change</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -150,34 +187,35 @@
                                         </div>
                                         <div class="col-lg-4">
                                             <div class="mb-30">
-                                                <div class="form-floating">
+                                                <div class="form-floating form-floating__icon">
                                                     <input type="number" class="form-control" step="any"
                                                            name="min_purchase"
-                                                           placeholder="{{translate('min_purchase')}} ({{currency_symbol()}}) *"
+                                                           placeholder="{{translate('min_purchase')}} ({{currency_symbol()}})"
                                                            min="0" value="0">
-                                                    <label>{{translate('min_purchase')}} ({{currency_symbol()}})
-                                                        *</label>
+                                                    <label>{{translate('min_purchase')}} ({{currency_symbol()}})</label>
+                                                    <span class="material-icons">price_change</span>
                                                 </div>
                                             </div>
                                         </div>
                                         <div class="col-lg-4" id="max_discount_amount">
                                             <div class="mb-30">
-                                                <div class="form-floating">
+                                                <div class="form-floating form-floating__icon">
                                                     <input type="number" class="form-control" step="any"
                                                            name="max_discount_amount"
-                                                           placeholder="{{translate('max_discount')}} ({{currency_symbol()}}) *"
+                                                           placeholder="{{translate('max_discount')}} ({{currency_symbol()}})"
                                                            min="0" value="0">
-                                                    <label>{{translate('max_discount')}} ({{currency_symbol()}})
-                                                        *</label>
+                                                    <label>{{translate('max_discount')}} ({{currency_symbol()}})</label>
+                                                    <span class="material-icons">price_change</span>
                                                 </div>
                                             </div>
                                         </div>
                                         <div class="col-lg-4" id="limit_per_user__div">
                                             <div class="mb-30">
-                                                <div class="form-floating">
+                                                <div class="form-floating form-floating__icon">
                                                     <input type="number" class="form-control" name="limit_per_user"
                                                            id="limit_per_user" placeholder="1" required>
                                                     <label>{{translate('Limit For Same User')}}</label>
+                                                    <span class="material-icons">person</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -190,7 +228,6 @@
                             </form>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -200,6 +237,30 @@
 @push('script')
     <script>
         "use Strict"
+
+        $('#category_selector__select').on('change', function() {
+            var selectedValues = $(this).val();
+            if (selectedValues !== null && selectedValues.includes('all')) {
+                $(this).find('option').not(':disabled').prop('selected', 'selected');
+                $(this).find('option[value="all"]').prop('selected', false);
+            }
+        });
+
+        $('#service_selector__select').on('change', function() {
+            var selectedValues = $(this).val();
+            if (selectedValues !== null && selectedValues.includes('all')) {
+                $(this).find('option').not(':disabled').prop('selected', 'selected');
+                $(this).find('option[value="all"]').prop('selected', false);
+            }
+        });
+
+        $('#zone_selector__select').on('change', function() {
+            var selectedValues = $(this).val();
+            if (selectedValues !== null && selectedValues.includes('all')) {
+                $(this).find('option').not(':disabled').prop('selected', 'selected');
+                $(this).find('option[value="all"]').prop('selected', false);
+            }
+        });
         $('#category').on('click', function () {
             $('#category_selector').show();
             $('#service_selector').hide();
@@ -260,22 +321,32 @@
             }
         });
 
-
         //Select 2
         $(".category-select").select2({
-            placeholder: "Select Category",
+            placeholder: "{{translate('Select Category')}}",
         });
         $(".service-select").select2({
-            placeholder: "Select Service",
+            placeholder: "{{translate('Select Service')}}",
         });
         $(".zone-select").select2({
-            placeholder: "Select Zone",
+            placeholder: "{{translate('Select Zone')}}",
         });
 
         $(document).ready(function () {
             $("#customer-select").select2({
                 placeholder: "{{translate('Select_customer')}}",
             });
+        });
+
+        $(".lang_link").on('click', function (e) {
+            e.preventDefault();
+            $(".lang_link").removeClass('active');
+            $(".lang-form").addClass('d-none');
+            $(this).addClass('active');
+
+            let form_id = this.id;
+            let lang = form_id.substring(0, form_id.length - 5);
+            $("#" + lang + "-form").removeClass('d-none');
         });
     </script>
 @endpush

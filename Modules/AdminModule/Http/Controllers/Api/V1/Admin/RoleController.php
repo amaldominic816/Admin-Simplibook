@@ -8,7 +8,6 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Modules\UserManagement\Entities\Role;
-use function now;
 use function response;
 use function response_formatter;
 
@@ -191,12 +190,12 @@ class RoleController extends Controller
 
         $keys = explode(' ', base64_decode($request['string']));
         $roles = $this->role->where(function ($query) use ($keys) {
-                foreach ($keys as $key) {
-                    $query->orWhere('role_name', 'LIKE', '%' . $key . '%');
-                }
-            })->when($request['status'] != 'all', function ($query) use ($request) {
-                return $query->ofStatus(($request['status'] == 'active') ? 1 : 0);
-            })->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+            foreach ($keys as $key) {
+                $query->orWhere('role_name', 'LIKE', '%' . $key . '%');
+            }
+        })->when($request['status'] != 'all', function ($query) use ($request) {
+            return $query->ofStatus(($request['status'] == 'active') ? 1 : 0);
+        })->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
         if ($roles->count() > 0) {
             return response()->json(response_formatter(DEFAULT_200, $roles), 200);

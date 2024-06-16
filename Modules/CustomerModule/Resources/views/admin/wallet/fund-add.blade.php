@@ -2,10 +2,6 @@
 
 @section('title',translate('Add_fund'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
     <div class="main-content">
         <div class="container-fluid">
@@ -17,7 +13,8 @@
 
                     <div class="card">
                         <div class="card-body p-30">
-                            <form action="{{route('admin.customer.wallet.add-fund')}}" method="post" enctype="multipart/form-data"
+                            <form action="{{route('admin.customer.wallet.add-fund')}}" method="post"
+                                  enctype="multipart/form-data"
                                   id="customer-fund-form">
                                 @csrf
                                 <div class="row">
@@ -26,7 +23,8 @@
                                             <select class="js-select" name="user_id" id="user_id" required>
                                                 <option selected disabled>{{translate('Select_customer')}}</option>
                                                 @foreach($users as $user)
-                                                    <option value="{{$user->id}}" {{$user->id == old('user_id') ? 'selected' : ''}}>
+                                                    <option
+                                                        value="{{$user->id}}" {{$user->id == old('user_id') ? 'selected' : ''}}>
                                                         {{$user->first_name.' '.$user->last_name}} ({{$user->phone}})
                                                     </option>
                                                 @endforeach
@@ -35,12 +33,13 @@
                                     </div>
                                     <div class="col-lg-6">
                                         <div class="mb-30">
-                                            <div class="form-floating">
+                                            <div class="form-floating form-floating__icon">
                                                 <input type="number" class="form-control" name="amount" id="amount"
                                                        placeholder="{{translate('amount')}}"
                                                        required value="{{old('amount')}}"
-                                                        min="0" max="99999999999999999999" step="any">
+                                                       min="0" max="99999999999999999999" step="any">
                                                 <label>{{translate('Amount')}} *</label>
+                                                <span class="material-icons">price_change</span>
                                             </div>
                                         </div>
                                     </div>
@@ -55,15 +54,15 @@
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div class="col-12">
-                                        <div class="d-flex justify-content-end">
-                                            <button class="btn btn--primary" type="button"
-                                                    onclick="fund_alert('customer-fund-form')">
-                                                {{translate('submit')}}
-                                            </button>
+                                    @can('wallet_add')
+                                        <div class="col-12">
+                                            <div class="d-flex justify-content-end">
+                                                <button class="btn btn--primary customer-fund-form" type="button">
+                                                    {{translate('submit')}}
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
+                                    @endcan
                                 </div>
                             </form>
                         </div>
@@ -76,9 +75,34 @@
 
 @push('script')
     <script>
+        "use strict"
+
+        $('.customer-fund-form').on('click', function () {
+            fund_alert('customer-fund-form')
+        })
+
         function fund_alert(id) {
+            if ($("#user_id").val() == null) {
+                toastr.error("{{translate('Please select a customer')}}", {
+                    CloseButton: true,
+                    ProgressBar: true
+                });
+                return false;
+            }
+
+            if ($("#amount").val() == '') {
+                toastr.error("{{translate('Enter add fund amount')}}", {
+                    CloseButton: true,
+                    ProgressBar: true
+                });
+                return false;
+            }
+
             if ($("#amount").val() <= 0) {
-                toastr.error("{{translate('Amount can not be less than or equal to zero')}}", {CloseButton: true, ProgressBar: true});
+                toastr.error("{{translate('Amount can not be less than or equal to zero')}}", {
+                    CloseButton: true,
+                    ProgressBar: true
+                });
                 return false;
             }
             var message = '{{translate('Do you really want to add fund ')}}' + $("#amount").val() + " {{currency_code()}} to " + $('#user_id').find(":selected").text();

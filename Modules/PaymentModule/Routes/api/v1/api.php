@@ -23,8 +23,8 @@ Route::group(['prefix' => 'admin', 'as'=>'admin.', 'namespace' => 'Api\V1\Admin'
     });
 });
 
-Route::get('customer/offline-payment/methods', [OfflinePaymentController::class, 'get_methods']);
+Route::get('customer/offline-payment/methods', [OfflinePaymentController::class, 'getMethods']);
 
 Route::group(['prefix' => 'customer', 'as'=>'customer.', 'middleware'=>['auth:api']], function () {
-    Route::get('bonus-list', [BonusController::class, 'get_bonuses']);
+    Route::get('bonus-list', [BonusController::class, 'getBonuses']);
 });

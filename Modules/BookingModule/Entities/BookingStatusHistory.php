@@ -4,7 +4,6 @@ namespace Modules\BookingModule\Entities;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Modules\ServiceManagement\Entities\Service;
 use Modules\UserManagement\Entities\User;
 
 class BookingStatusHistory extends Model

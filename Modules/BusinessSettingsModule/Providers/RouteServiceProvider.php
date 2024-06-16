@@ -53,20 +53,8 @@ class RouteServiceProvider extends ServiceProvider
     }
 
     /**
-     * Define the "api" routes for the application.
-     *
-     * These routes are typically stateless.
-     *
      * @return void
      */
-    protected function mapApiRoutes()
-    {
-        Route::prefix('api')
-            ->middleware('api')
-            ->namespace($this->moduleNamespace)
-            ->group(module_path('BusinessSettingsModule', '/Routes/api/v1/api.php'));
-    }
-
     protected function mapApiV1Routes()
     {
         Route::prefix('api/v1')

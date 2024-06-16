@@ -1,13 +1,8 @@
 @extends('auth::layouts.master')
 
-@section('title',translate('Reset Password'))
-
-@push('css_or_js')
-
-@endpush
+@section('title', translate('Reset Password'))
 
 @section('content')
-    <!-- Login Form -->
     <div class="register-form dark-support"
          data-bg-img="{{asset('public/assets/provider-module')}}/img/media/login-bg.png">
         <div class="container">
@@ -49,10 +44,4 @@
             </div>
         </div>
     </div>
-    <!-- End Login Form -->
 @endsection
-
-@push('script')
-
-
-@endpush

@@ -153,7 +153,7 @@ class FAQController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',

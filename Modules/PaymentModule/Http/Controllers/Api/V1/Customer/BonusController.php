@@ -2,12 +2,10 @@
 
 namespace Modules\PaymentModule\Http\Controllers\Api\V1\Customer;
 
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\ValidationException;
 use Modules\PaymentModule\Entities\Bonus;
 
 class BonusController extends Controller
@@ -21,9 +19,10 @@ class BonusController extends Controller
 
     /**
      * Display a listing of the resource.
+     * @param Request $request
      * @return JsonResponse
      */
-    public function get_bonuses(Request $request): JsonResponse
+    public function getBonuses(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -34,11 +33,14 @@ class BonusController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
+        $currentDate = now()->toDateString();
+
         $bonuses = $this->bonus->ofStatus(1)
-        ->where('start_date', '<=', now())
-            ->where('end_date', '>=', now())
+            ->whereDate('start_date', '<=', $currentDate)
+            ->whereDate('end_date', '>=', $currentDate)
             ->paginate($request['limit'], ['*'], 'offset', $request['offset']);
 
         return response()->json(response_formatter(DEFAULT_200, $bonuses), 200);
     }
+
 }

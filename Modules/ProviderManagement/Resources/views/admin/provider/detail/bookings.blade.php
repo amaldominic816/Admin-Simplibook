@@ -8,49 +8,45 @@
 @endpush
 
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="page-title-wrap mb-3">
                 <h2 class="page-title">{{translate('Provider_Details')}}</h2>
             </div>
 
-            <!-- Nav Tabs -->
             <div class="mb-3">
                 <ul class="nav nav--tabs nav--tabs__style2">
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='overview'?'active':''}}"
+                        <a class="nav-link {{$webPage=='overview'?'active':''}}"
                            href="{{url()->current()}}?web_page=overview">{{translate('Overview')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='subscribed_services'?'active':''}}"
+                        <a class="nav-link {{$webPage=='subscribed_services'?'active':''}}"
                            href="{{url()->current()}}?web_page=subscribed_services">{{translate('Subscribed_Services')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='bookings'?'active':''}}"
+                        <a class="nav-link {{$webPage=='bookings'?'active':''}}"
                            href="{{url()->current()}}?web_page=bookings">{{translate('Bookings')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='serviceman_list'?'active':''}}"
+                        <a class="nav-link {{$webPage=='serviceman_list'?'active':''}}"
                            href="{{url()->current()}}?web_page=serviceman_list">{{translate('Service_Man_List')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='settings'?'active':''}}"
+                        <a class="nav-link {{$webPage=='settings'?'active':''}}"
                            href="{{url()->current()}}?web_page=settings">{{translate('Settings')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='bank_information'?'active':''}}"
+                        <a class="nav-link {{$webPage=='bank_information'?'active':''}}"
                            href="{{url()->current()}}?web_page=bank_information">{{translate('Bank_Information')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='reviews'?'active':''}}"
+                        <a class="nav-link {{$webPage=='reviews'?'active':''}}"
                            href="{{url()->current()}}?web_page=reviews">{{translate('Reviews')}}</a>
                     </li>
                 </ul>
             </div>
-            <!-- End Nav Tabs -->
 
-            <!-- Tab Content -->
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="boookings-tab-pane">
                     <div class="d-flex justify-content-end border-bottom mb-10">
@@ -144,12 +140,6 @@
                     </div>
                 </div>
             </div>
-            <!-- End Tab Content -->
         </div>
     </div>
-    <!-- End Main Content -->
 @endsection
-
-@push('script')
-
-@endpush

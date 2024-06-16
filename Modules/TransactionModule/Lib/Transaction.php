@@ -12,8 +12,8 @@ use Modules\TransactionModule\Entities\LoyaltyPointTransaction;
 
 
 //============ Booking Place ============
-if (!function_exists('place_booking_transaction_for_digital_payment')) {
-    function place_booking_transaction_for_digital_payment($booking): void
+if (!function_exists('placeBookingTransactionForDigitalPayment')) {
+    function placeBookingTransactionForDigitalPayment($booking): void
     {
         if ($booking['payment_method'] != 'cash_after_service') {
             $admin_user_id = User::where('user_type', ADMIN_USER_TYPES[0])->first()->id;
@@ -42,14 +42,14 @@ if (!function_exists('place_booking_transaction_for_digital_payment')) {
     }
 }
 
-if (!function_exists('place_booking_transaction_for_partial_cas')) {
+if (!function_exists('placeBookingTransactionForPartialCas')) {
     /**
      * Admin (+balance_pending)
      * Customer (-wallet_balance)
      * @param $booking
      * @return void
      */
-    function place_booking_transaction_for_partial_cas($booking): void
+    function placeBookingTransactionForPartialCas($booking): void
     {
         $admin_user_id = User::where('user_type', ADMIN_USER_TYPES[0])->first()->id;
         $user_wallet_balance = User::find($booking->customer_id)?->wallet_balance;
@@ -97,7 +97,7 @@ if (!function_exists('place_booking_transaction_for_partial_cas')) {
     }
 }
 
-if (!function_exists('place_booking_transaction_for_partial_digital')) {
+if (!function_exists('placeBookingTransactionForPartialDigital')) {
     /**
      * Admin (+balance_pending) [wallet payment]
      * Customer (-wallet_balance) [wallet payment]
@@ -105,7 +105,7 @@ if (!function_exists('place_booking_transaction_for_partial_digital')) {
      * @param $booking
      * @return void
      */
-    function place_booking_transaction_for_partial_digital($booking): void
+    function placeBookingTransactionForPartialDigital($booking): void
     {
         $admin_user_id = User::where('user_type', ADMIN_USER_TYPES[0])->first()->id;
         $user_wallet_balance = User::find($booking->customer_id)?->wallet_balance;
@@ -174,8 +174,8 @@ if (!function_exists('place_booking_transaction_for_partial_digital')) {
     }
 }
 
-if (!function_exists('place_booking_transaction_for_wallet_payment')) {
-    function place_booking_transaction_for_wallet_payment($booking)
+if (!function_exists('placeBookingTransactionForWalletPayment')) {
+    function placeBookingTransactionForWalletPayment($booking): void
     {
         $admin_user_id = User::where('user_type', ADMIN_USER_TYPES[0])->first()->id;
         DB::transaction(function () use ($booking, $admin_user_id) {
@@ -226,7 +226,7 @@ if (!function_exists('place_booking_transaction_for_wallet_payment')) {
 
 
 //============ Booking Edit ============
-if (!function_exists('remove_booking_service_transaction_for_digital_payment')) {
+if (!function_exists('removeBookingServiceTransactionForDigitalPayment')) {
     /**
      * Admin -$amount [balance_pending]
      * Customer +$amount [wallet_balance]
@@ -234,7 +234,7 @@ if (!function_exists('remove_booking_service_transaction_for_digital_payment')) 
      * @param $removed_total
      * @return void
      */
-    function remove_booking_service_transaction_for_digital_payment($booking, $removed_total): void
+    function removeBookingServiceTransactionForDigitalPayment($booking, $removed_total): void
     {
         $amount = 0;
 
@@ -303,10 +303,10 @@ if (!function_exists('remove_booking_service_transaction_for_digital_payment')) 
 
 
 //============ After Complete Booking ============
-if (!function_exists('complete_booking_transaction_for_digital_payment')) {
-    function complete_booking_transaction_for_digital_payment($booking): void
+if (!function_exists('completeBookingTransactionForDigitalPayment')) {
+    function completeBookingTransactionForDigitalPayment($booking): void
     {
-        $service_cost = $booking['total_booking_amount'] - $booking['total_tax_amount'] + $booking['total_discount_amount'] + $booking['total_campaign_discount_amount'] + $booking['total_coupon_discount_amount'];
+        $service_cost = $booking['total_booking_amount'] - $booking['total_tax_amount'] + $booking['total_discount_amount'] + $booking['total_campaign_discount_amount'] + $booking['total_coupon_discount_amount'] - $booking['extra_fee'];
 
         //cost bearing (promotional)
         $booking_details_amounts = BookingDetailsAmount::where('booking_id', $booking->id)->get();
@@ -442,10 +442,10 @@ if (!function_exists('complete_booking_transaction_for_digital_payment')) {
     }
 }
 
-if (!function_exists('complete_booking_transaction_for_cash_after_service')) {
-    function complete_booking_transaction_for_cash_after_service($booking): void
+if (!function_exists('completeBookingTransactionForCashAfterService')) {
+    function completeBookingTransactionForCashAfterService($booking): void
     {
-        $service_cost = $booking['total_booking_amount'] - $booking['total_tax_amount'] + $booking['total_discount_amount'] + $booking['total_campaign_discount_amount'] + $booking['total_coupon_discount_amount'];
+        $service_cost = $booking['total_booking_amount'] - $booking['total_tax_amount'] + $booking['total_discount_amount'] + $booking['total_campaign_discount_amount'] + $booking['total_coupon_discount_amount'] - $booking['extra_fee'];
 
         //cost bearing (promotional)
         $booking_details_amounts = BookingDetailsAmount::where('booking_id', $booking->id)->get();
@@ -560,7 +560,7 @@ if (!function_exists('complete_booking_transaction_for_cash_after_service')) {
                 Transaction::create([
                     'ref_trx_id' => $primary_transaction['id'],
                     'booking_id' => $booking['id'],
-                    'trx_type' => TRX_TYPE['receivable_extra_fee'],
+                    'trx_type' => TRX_TYPE['received_extra_fee'],
                     'debit' => 0,
                     'credit' => $booking['extra_fee'],
                     'balance' => $account->account_receivable,
@@ -584,7 +584,7 @@ if (!function_exists('complete_booking_transaction_for_cash_after_service')) {
     }
 }
 
-if (!function_exists('complete_booking_transaction_for_partial_cas')) {
+if (!function_exists('completeBookingTransactionForPartialCas')) {
     /**
      * //digital
      * Admin (-pending) [customer paid]
@@ -599,14 +599,14 @@ if (!function_exists('complete_booking_transaction_for_partial_cas')) {
      * @param $booking
      * @return void
      */
-    function complete_booking_transaction_for_partial_cas($booking): void
+    function completeBookingTransactionForPartialCas($booking): void
     {
         $booking_partial_payment = BookingPartialPayment::where('booking_id', $booking->id)->where('paid_with', 'wallet')->first();
 
         $paid_amount = $booking_partial_payment->paid_amount;
         $due_amount = $booking['total_booking_amount'] - $paid_amount;
 
-        $service_cost = $booking['total_booking_amount'] - $booking['total_tax_amount'] + $booking['total_discount_amount'] + $booking['total_campaign_discount_amount'] + $booking['total_coupon_discount_amount'];
+        $service_cost = $booking['total_booking_amount'] - $booking['total_tax_amount'] + $booking['total_discount_amount'] + $booking['total_campaign_discount_amount'] + $booking['total_coupon_discount_amount'] - $booking['extra_fee'];
 
         if($booking['additional_charge'] > 0) {
             $service_cost = $service_cost - $booking['additional_charge'] + $booking['additional_tax_amount'] + $booking['additional_discount_amount'] + $booking['additional_campaign_discount_amount'] -  $booking['total_coupon_discount_amount'];
@@ -776,14 +776,14 @@ if (!function_exists('complete_booking_transaction_for_partial_cas')) {
     }
 } //partially paid
 
-if (!function_exists('complete_booking_transaction_for_partial_digital')) {
+if (!function_exists('completeBookingTransactionForPartialDigital')) {
     /**
      * @param $booking
      * @return void
      */
-    function complete_booking_transaction_for_partial_digital($booking): void
+    function completeBookingTransactionForPartialDigital($booking): void
     {
-        $service_cost = $booking['total_booking_amount'] - $booking['total_tax_amount'] + $booking['total_discount_amount'] + $booking['total_campaign_discount_amount'] + $booking['total_coupon_discount_amount'];
+        $service_cost = $booking['total_booking_amount'] - $booking['total_tax_amount'] + $booking['total_discount_amount'] + $booking['total_campaign_discount_amount'] + $booking['total_coupon_discount_amount'] - $booking['extra_fee'];
         if($booking['additional_charge'] > 0) {
             $service_cost = $service_cost - $booking['additional_charge'] + $booking['additional_tax_amount'] + $booking['additional_discount_amount'] + $booking['additional_campaign_discount_amount'] -  $booking['total_coupon_discount_amount'];
         }
@@ -901,8 +901,8 @@ if (!function_exists('complete_booking_transaction_for_partial_digital')) {
     }
 } //partially paid
 
-if (!function_exists('complete_booking_transaction_for_digital_payment_and_extra_service')) {
-    function complete_booking_transaction_for_digital_payment_and_extra_service($booking): void
+if (!function_exists('completeBookingTransactionForDigitalPaymentAndExtraService')) {
+    function completeBookingTransactionForDigitalPaymentAndExtraService($booking): void
     {
         $service_cost = $booking['total_booking_amount'] - $booking['total_tax_amount'] + $booking['total_discount_amount'] + $booking['total_campaign_discount_amount'] + $booking['total_coupon_discount_amount'];
 
@@ -1081,22 +1081,6 @@ if (!function_exists('complete_booking_transaction_for_digital_payment_and_extra
                 'to_user_account' => null
             ]);
 
-            /*if($booking['extra_fee'] > 0){
-                Transaction::create([
-                    'ref_trx_id' => $primary_transaction['id'],
-                    'booking_id' => $booking['id'],
-                    'trx_type' => TRX_TYPE['payable_extra_fee'],
-                    'debit' => 0,
-                    'credit' => $booking['extra_fee'],
-                    'balance' => $account->account_payable,
-                    'from_user_id' => $provider_user_id,
-                    'to_user_id' => $provider_user_id,
-                    'from_user_account' => ACCOUNT_STATES[2]['value'],
-                    'to_user_account' => null
-                ]);
-
-            }*/
-
             //Admin transactions (for commission)
             $account = Account::where('user_id', $admin_user_id)->first();
             $account->account_receivable += $commission_for_cas;
@@ -1115,22 +1099,6 @@ if (!function_exists('complete_booking_transaction_for_digital_payment_and_extra
                 'to_user_account' => null
             ]);
 
-            /*if($booking['extra_fee']){
-                Transaction::create([
-                    'ref_trx_id' => $primary_transaction['id'],
-                    'booking_id' => $booking['id'],
-                    'trx_type' => TRX_TYPE['receivable_extra_fee'],
-                    'debit' => 0,
-                    'credit' => $booking['extra_fee'],
-                    'balance' => $account->account_receivable,
-                    'from_user_id' => $provider_user_id,
-                    'to_user_id' => $admin_user_id,
-                    'from_user_account' => ACCOUNT_STATES[3]['value'],
-                    'to_user_account' => null
-                ]);
-            }*/
-
-
             //expense
             $account = Account::where('user_id', $admin_user_id)->first();
             $account->total_expense += $promotional_cost_by_admin;
@@ -1145,8 +1113,8 @@ if (!function_exists('complete_booking_transaction_for_digital_payment_and_extra
 
 
 //*** (admin) collect cash from provider ***
-if (!function_exists('collect_cash_transaction')) {
-    function collect_cash_transaction($provider_id, $collect_amount) {
+if (!function_exists('collectCashTransaction')) {
+    function collectCashTransaction($provider_id, $collect_amount) {
         $admin_user_id = User::where('user_type', ADMIN_USER_TYPES[0])->first()->id;
         $provider_user_id = get_user_id($provider_id, PROVIDER_USER_TYPES[0]);
 
@@ -1211,8 +1179,8 @@ if (!function_exists('collect_cash_transaction')) {
 
 
 //*** (provider) withdraw from admin ***
-if (!function_exists('withdraw_request_transaction')) {
-    function withdraw_request_transaction($provider_user_id, $withdrawal_amount) {
+if (!function_exists('withdrawRequestTransaction')) {
+    function withdrawRequestTransaction($provider_user_id, $withdrawal_amount) {
 
         DB::transaction(function () use ($withdrawal_amount, $provider_user_id) {
 
@@ -1255,8 +1223,8 @@ if (!function_exists('withdraw_request_transaction')) {
     }
 }
 
-if (!function_exists('withdraw_request_accept_transaction')) {
-    function withdraw_request_accept_transaction($provider_user_id, $withdrawal_amount) {
+if (!function_exists('withdrawRequestAcceptTransaction')) {
+    function withdrawRequestAcceptTransaction($provider_user_id, $withdrawal_amount) {
         $admin_user_id = User::where('user_type', ADMIN_USER_TYPES[0])->first()->id;
 
         DB::transaction(function () use ($admin_user_id, $withdrawal_amount, $provider_user_id) {
@@ -1318,8 +1286,71 @@ if (!function_exists('withdraw_request_accept_transaction')) {
     }
 }
 
-if (!function_exists('withdraw_request_deny_transaction')) {
-    function withdraw_request_deny_transaction($provider_user_id, $withdrawal_amount) {
+if (!function_exists('withdrawRequestAcceptForAdjustTransaction')) {
+    function withdrawRequestAcceptForAdjustTransaction($provider_user_id, $withdrawal_amount) {
+        $admin_user_id = User::where('user_type', ADMIN_USER_TYPES[0])->first()->id;
+
+        DB::transaction(function () use ($admin_user_id, $withdrawal_amount, $provider_user_id) {
+
+            //Provider transactions
+            $account = Account::where('user_id', $provider_user_id)->first();
+            $account->account_receivable -= $withdrawal_amount;
+            $account->save();
+
+            $primary_transaction = Transaction::create([
+                'ref_trx_id' => null,
+                'booking_id' => null,
+                'trx_type' => TRX_TYPE['withdrawable_amount'],
+                'debit' => $withdrawal_amount,
+                'credit' => 0,
+                'balance' => $account->account_receivable,
+                'from_user_id' => $provider_user_id,
+                'to_user_id' => $provider_user_id,
+                'from_user_account' => ACCOUNT_STATES[3]['value'],
+                'to_user_account' => null
+            ]);
+
+            //Provider transactions
+            $account = Account::where('user_id', $provider_user_id)->first();
+            $account->total_withdrawn += $withdrawal_amount;
+            $account->save();
+
+            $primary_transaction = Transaction::create([
+                'ref_trx_id' => null,
+                'booking_id' => null,
+                'trx_type' => TRX_TYPE['received_amount'],
+                'debit' => 0,
+                'credit' => $withdrawal_amount,
+                'balance' => $account->total_withdrawn,
+                'from_user_id' => $provider_user_id,
+                'to_user_id' => $admin_user_id,
+                'from_user_account' => ACCOUNT_STATES[4]['value'],
+                'to_user_account' => null
+            ]);
+
+            //Admin transactions
+            $account = Account::where('user_id', $admin_user_id)->first();
+            $account->account_payable -= $withdrawal_amount;
+            $account->save();
+
+            Transaction::create([
+                'ref_trx_id' => $primary_transaction['id'],
+                'booking_id' => null,
+                'trx_type' => TRX_TYPE['paid_amount'],
+                'debit' => $withdrawal_amount,
+                'credit' => 0,
+                'balance' => $account->account_payable,
+                'from_user_id' => $provider_user_id,
+                'to_user_id' => $admin_user_id,
+                'from_user_account' => null,
+                'to_user_account' => ACCOUNT_STATES[2]['value']
+            ]);
+        });
+    }
+}
+
+if (!function_exists('withdrawRequestDenyTransaction')) {
+    function withdrawRequestDenyTransaction($provider_user_id, $withdrawal_amount) {
 
         DB::transaction(function () use ($withdrawal_amount, $provider_user_id) {
 
@@ -1364,8 +1395,8 @@ if (!function_exists('withdraw_request_deny_transaction')) {
 
 
 //*** FUND ***
-if (!function_exists('add_fund_transaction')) {
-    function add_fund_transaction($user_id, $amount, $reference) {
+if (!function_exists('addFundTransaction')) {
+    function addFundTransaction($user_id, $amount, $reference) {
 
         DB::transaction(function () use ($user_id, $amount, $reference) {
 
@@ -1393,8 +1424,8 @@ if (!function_exists('add_fund_transaction')) {
 }
 
 //*** Referral Earn ***
-if (!function_exists('referral_earning_transaction_during_registration')) {
-    function referral_earning_transaction_during_registration($user, $amount) {
+if (!function_exists('referralEarningTransactionDuringRegistration')) {
+    function referralEarningTransactionDuringRegistration($user, $amount) {
 
         DB::transaction(function () use ($user, $amount) {
 
@@ -1421,8 +1452,8 @@ if (!function_exists('referral_earning_transaction_during_registration')) {
     }
 }
 
-if (!function_exists('referral_earning_transaction_after_booking_complete')) {
-    function referral_earning_transaction_after_booking_complete($user, $amount) {
+if (!function_exists('referralEarningTransactionAfterBookingComplete')) {
+    function referralEarningTransactionAfterBookingComplete($user, $amount) {
 
         DB::transaction(function () use ($user, $amount) {
 
@@ -1468,10 +1499,35 @@ if (!function_exists('referral_earning_transaction_after_booking_complete')) {
     }
 }
 
+if (!function_exists('referralEarningTransactionAfterBookingCompleteFirst')) {
+    function referralEarningTransactionAfterBookingCompleteFirst($user, $amount, $bookingId) {
+
+        DB::transaction(function () use ($user, $amount, $bookingId) {
+
+            $admin_user_id = User::where('user_type', ADMIN_USER_TYPES[0])->first()->id;
+
+            Transaction::create([
+                'ref_trx_id' => null,
+                'booking_id' => $bookingId,
+                'trx_type' => TRX_TYPE['referral_discount'],
+                'debit' => $amount,
+                'credit' => 0,
+                'balance' => 0,
+                'from_user_id' => $admin_user_id,
+                'to_user_id' => $admin_user_id,
+                'from_user_account' => null,
+                'to_user_account' => null,
+                'reference_note' => $user->ref_code,
+            ]);
+
+        });
+    }
+}
+
 
 //*** Loyalty point ***
-if (!function_exists('loyalty_point_wallet_transfer_transaction')) {
-    function loyalty_point_wallet_transfer_transaction($user_id, $point, $amount) {
+if (!function_exists('loyaltyPointWalletTransferTransaction')) {
+    function loyaltyPointWalletTransferTransaction($user_id, $point, $amount) {
 
         DB::transaction(function () use ($user_id, $point, $amount) {
 
@@ -1509,8 +1565,8 @@ if (!function_exists('loyalty_point_wallet_transfer_transaction')) {
     }
 }
 
-if (!function_exists('loyalty_point_transaction')) {
-    function loyalty_point_transaction($user_id, $point) {
+if (!function_exists('loyaltyPointTransaction')) {
+    function loyaltyPointTransaction($user_id, $point) {
 
         DB::transaction(function () use ($user_id, $point) {
 
@@ -1533,8 +1589,8 @@ if (!function_exists('loyalty_point_transaction')) {
 }
 
 //*** Add Fund ***
-if (!function_exists('add_fund_transactions')) {
-    function add_fund_transactions($customer_user_id, $amount): void
+if (!function_exists('addFundTransactions')) {
+    function addFundTransactions($customer_user_id, $amount): void
     {
         $admin_user_id = User::where('user_type', ADMIN_USER_TYPES[0])->first()->id;
         $bonus = get_add_money_bonus($amount);
@@ -1565,6 +1621,16 @@ if (!function_exists('add_fund_transactions')) {
                 $user->wallet_balance += $bonus;
                 $user->save();
 
+                //send notification
+                $user = User::find($customer_user_id);
+                $title =  with_currency_symbol($bonus) . ' ' . get_push_notification_message('add_fund_wallet_bonus', 'customer_notification', $user?->current_language_key);
+                $data_info = [
+                    'user_name' => $user?->first_name . ' '. $user->last_name
+                ];
+                if ($user->fcm_token && $title) {
+                    device_notification($user->fcm_token, $title, null, null, null, NOTIFICATION_TYPE['wallet'], null, $customer_user_id, $data_info);
+                }
+
                 Transaction::create([
                     'ref_trx_id' => null,
                     'booking_id' => null,
@@ -1578,6 +1644,11 @@ if (!function_exists('add_fund_transactions')) {
                     'to_user_account' => 'user_wallet',
                     'reference_note' => null,
                 ]);
+
+                //expense
+                $account = Account::where('user_id', $admin_user_id)->first();
+                $account->total_expense += $bonus;
+                $account->save();
             }
         });
     }
@@ -1585,12 +1656,12 @@ if (!function_exists('add_fund_transactions')) {
 
 
 //*** Refund ***
-if (!function_exists('refund_transaction_for_canceled_booking')) {
+if (!function_exists('refundTransactionForCanceledBooking')) {
     /**
      * @param $booking
      * @return void
      */
-    function refund_transaction_for_canceled_booking($booking): void
+    function refundTransactionForCanceledBooking($booking): void
     {
         $refund_amount = 0;
         if ($booking->booking_partial_payments->isEmpty()) {
@@ -1654,7 +1725,10 @@ if (!function_exists('refund_transaction_for_canceled_booking')) {
                 'from_user_account' => null,
                 'to_user_account' => 'user_wallet'
             ]);
-            device_notification($booking?->customer?->fcm_token, with_currency_symbol($refund_amount) . ' ' . translate('has been refunded to your wallet'), null, null, $booking->id, 'wallet');
+            $title =  get_push_notification_message('refund', 'customer_notification', $booking?->customer?->current_language_key);
+            if($title && $booking?->customer?->fcm_token){
+                device_notification($booking?->customer?->fcm_token, with_currency_symbol($refund_amount) . ' ' . $title, null, null, $booking->id, 'booking');
+            }
         });
     }
 }

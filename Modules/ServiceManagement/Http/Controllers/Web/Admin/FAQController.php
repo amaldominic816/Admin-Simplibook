@@ -124,7 +124,7 @@ class FAQController extends Controller
      * @param $id
      * @return JsonResponse
      */
-    public function status_update(Request $request, $id): JsonResponse
+    public function statusUpdate(Request $request, $id): JsonResponse
     {
         $this->faq->where('id', $id)->update(['is_active' => !$this->faq->where('id', $id)->first()->is_active]);
         return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);

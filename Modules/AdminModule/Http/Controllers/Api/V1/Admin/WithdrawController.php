@@ -2,7 +2,6 @@
 
 namespace Modules\AdminModule\Http\Controllers\Api\V1\Admin;
 
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -30,9 +29,10 @@ class WithdrawController extends Controller
 
     /**
      * Display a listing of the resource.
+     * @param Request $request
      * @return JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -52,7 +52,6 @@ class WithdrawController extends Controller
 
         return response()->json(response_formatter(DEFAULT_200, $withdraw_request), 200);
     }
-
 
     /**
      * Update the specified resource in storage.
@@ -77,7 +76,7 @@ class WithdrawController extends Controller
         }
 
         if($request['request_status'] == 'approved') {
-            withdraw_request_accept_transaction($withdraw_request['request_updated_by'], $withdraw_request['amount']);
+            withdrawRequestAcceptTransaction($withdraw_request['request_updated_by'], $withdraw_request['amount']);
 
             $withdraw_request->request_status = 'approved';
             $withdraw_request->request_updated_by = $request->user()->id;
@@ -86,7 +85,7 @@ class WithdrawController extends Controller
             $withdraw_request->save();
 
         } else {
-            withdraw_request_deny_transaction($withdraw_request['request_updated_by'], $withdraw_request['amount']);
+            withdrawRequestDenyTransaction($withdraw_request['request_updated_by'], $withdraw_request['amount']);
 
             $withdraw_request->request_status = 'denied';
             $withdraw_request->request_updated_by = $request->user()->id;

@@ -2,12 +2,7 @@
 
 @section('title',translate('Serviceman_List'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="row">
@@ -39,7 +34,6 @@
                         </div>
                     </div>
 
-
                     <div class="tab-content">
                         <div class="">
                             <div class="card">
@@ -57,8 +51,7 @@
                                                        value="{{$search}}" name="search"
                                                        placeholder="{{translate('search_here')}}">
                                             </div>
-                                            <button type="submit"
-                                                    class="btn btn--primary">{{translate('search')}}</button>
+                                            <button type="submit" class="btn btn--primary">{{translate('search')}}</button>
                                         </form>
 
                                         <div class="d-flex flex-wrap align-items-center gap-3">
@@ -71,7 +64,7 @@
                                                 </button>
                                                 <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
                                                     <li>
-                                                        <a class="dropdown-item" href="{{route('provider.serviceman.download',['search'=>$search])}}">
+                                                        <a class="dropdown-item" href="{{route('provider.serviceman.download',['status' => $status, 'search'=>$search])}}">
                                                             {{translate('excel')}}
                                                         </a>
                                                     </li>
@@ -107,8 +100,9 @@
                                                     </td>
                                                     <td>
                                                         <label class="switcher">
-                                                            <input class="switcher_input"
-                                                                   onclick="route_alert('{{route('provider.serviceman.status-update',[$serviceman->id])}}','{{translate('want_to_update_status')}}')"
+                                                            <input class="switcher_input route-alert"
+                                                                   data-route="{{route('provider.serviceman.status-update',[$serviceman->id])}}"
+                                                                   data-message="{{translate('want_to_update_status')}}"
                                                                    type="checkbox" {{$serviceman->is_active?'checked':''}}>
                                                             <span class="switcher_control"></span>
                                                         </label>
@@ -116,17 +110,18 @@
                                                     <td>
                                                         <div class="table-actions">
                                                             <a href="{{route('provider.serviceman.edit', [$serviceman->serviceman->id])}}"
-                                                               class="table-actions_edit">
+                                                               class="action-btn btn--light-primary fw-medium text-capitalize fz-14" style="--size: 30px">
                                                                 <span class="material-icons">edit</span>
                                                             </a>
                                                             <a href="{{route('provider.serviceman.show', [$serviceman->serviceman->id])}}"
-                                                               class="table-actions_view">
+                                                               class="action-btn btn--light-primary" style="--size: 30px">
                                                                 <span class="material-icons">visibility</span>
                                                             </a>
                                                             <button type="button"
-                                                                    onclick="form_alert('delete-{{$serviceman->serviceman->id}}','{{translate('want_to_delete_this_serviceman')}}?')"
-                                                                    class="table-actions_delete bg-transparent border-0 p-0">
-                                                                <span class="material-icons">delete</span>
+                                                                    data-id="delete-{{$serviceman->serviceman->id}}"
+                                                                    data-message="{{translate('want_to_delete_this_serviceman')}}?"
+                                                                    class="action-btn btn--danger form-alert" style="--size: 30px">
+                                                                <span class="material-symbols-outlined">delete</span>
                                                             </button>
                                                             <form
                                                                 action="{{route('provider.serviceman.delete', [$serviceman->serviceman->id])}}"
@@ -154,10 +149,4 @@
             </div>
         </div>
     </div>
-    <!-- End Main Content -->
 @endsection
-
-@push('script')
-
-
-@endpush

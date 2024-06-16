@@ -2,55 +2,46 @@
 
 @section('title',translate('provider_details'))
 
-@push('css_or_js')
-
-
-@endpush
-
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="page-title-wrap mb-3">
                 <h2 class="page-title">{{translate('Provider_Details')}}</h2>
             </div>
 
-            <!-- Nav Tabs -->
             <div class="mb-3">
                 <ul class="nav nav--tabs nav--tabs__style2">
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='overview'?'active':''}}"
+                        <a class="nav-link {{$webPage=='overview'?'active':''}}"
                            href="{{url()->current()}}?web_page=overview">{{translate('Overview')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='subscribed_services'?'active':''}}"
+                        <a class="nav-link {{$webPage=='subscribed_services'?'active':''}}"
                            href="{{url()->current()}}?web_page=subscribed_services">{{translate('Subscribed_Services')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='bookings'?'active':''}}"
+                        <a class="nav-link {{$webPage=='bookings'?'active':''}}"
                            href="{{url()->current()}}?web_page=bookings">{{translate('Bookings')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='serviceman_list'?'active':''}}"
+                        <a class="nav-link {{$webPage=='serviceman_list'?'active':''}}"
                            href="{{url()->current()}}?web_page=serviceman_list">{{translate('Service_Man_List')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='settings'?'active':''}}"
+                        <a class="nav-link {{$webPage=='settings'?'active':''}}"
                            href="{{url()->current()}}?web_page=settings">{{translate('Settings')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='bank_information'?'active':''}}"
+                        <a class="nav-link {{$webPage=='bank_information'?'active':''}}"
                            href="{{url()->current()}}?web_page=bank_information">{{translate('Bank_Information')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='reviews'?'active':''}}"
+                        <a class="nav-link {{$webPage=='reviews'?'active':''}}"
                            href="{{url()->current()}}?web_page=reviews">{{translate('Reviews')}}</a>
                     </li>
                 </ul>
             </div>
-            <!-- End Nav Tabs -->
 
-            <!-- Tab Content -->
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="subscribed-tab-pane">
                     <div
@@ -72,7 +63,7 @@
 
                         <div class="d-flex gap-2 fw-medium">
                             <span class="opacity-75">{{translate('Total_Sub_Categories')}}:</span>
-                            <span class="title-color">{{$sub_categories->total()}}</span>
+                            <span class="title-color">{{$subCategories->total()}}</span>
                         </div>
                     </div>
 
@@ -81,9 +72,10 @@
                             <div class="card">
                                 <div class="card-body">
                                     <div class="data-table-top d-flex flex-wrap gap-10 justify-content-between">
-                                        <form action="{{url()->current()}}?web_page=subscribed_services&status={{$status}}"
-                                              class="search-form search-form_style-two"
-                                              method="POST">
+                                        <form
+                                            action="{{url()->current()}}?web_page=subscribed_services&status={{$status}}"
+                                            class="search-form search-form_style-two"
+                                            method="POST">
                                             @csrf
                                             <div class="input-group search-form__input_group">
                                             <span class="search-form__icon">
@@ -109,7 +101,7 @@
                                             </tr>
                                             </thead>
                                             <tbody>
-                                            @foreach($sub_categories as $sub_category)
+                                            @foreach($subCategories as $sub_category)
                                                 <tr>
                                                     <td>
                                                         <div data-bs-toggle="modal"
@@ -117,13 +109,16 @@
                                                     </td>
                                                     <td>{{$sub_category->sub_category?$sub_category->sub_category->services_count:0}}</td>
                                                     <td>
-                                                        <label class="switcher" data-bs-toggle="modal"
-                                                               data-bs-target="#deactivateAlertModal">
-                                                            <input class="switcher_input"
-                                                                   onclick="route_alert('{{route('admin.provider.sub_category.update_subscription',[$sub_category->id])}}','{{translate('want_to_update_status')}}')"
-                                                                   type="checkbox" {{$sub_category->is_subscribed == 1 ? 'checked' : ''}}>
-                                                            <span class="switcher_control"></span>
-                                                        </label>
+                                                        @can('provider_manage_status')
+                                                            <label class="switcher" data-bs-toggle="modal"
+                                                                   data-bs-target="#deactivateAlertModal">
+                                                                <input class="switcher_input route-alert"
+                                                                       data-route="{{route('admin.provider.sub_category.update_subscription',[$sub_category->id])}}"
+                                                                       data-message="{{translate('want_to_update_status')}}"
+                                                                       type="checkbox" {{$sub_category->is_subscribed == 1 ? 'checked' : ''}}>
+                                                                <span class="switcher_control"></span>
+                                                            </label>
+                                                        @endcan
                                                     </td>
                                                 </tr>
                                             @endforeach
@@ -131,7 +126,7 @@
                                         </table>
                                     </div>
                                     <div class="d-flex justify-content-end">
-                                        {!! $sub_categories->links() !!}
+                                        {!! $subCategories->links() !!}
                                     </div>
                                 </div>
                             </div>
@@ -139,12 +134,6 @@
                     </div>
                 </div>
             </div>
-            <!-- End Tab Content -->
         </div>
     </div>
-    <!-- End Main Content -->
 @endsection
-
-@push('script')
-
-@endpush

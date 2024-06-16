@@ -10,19 +10,19 @@ trait AddonHelper
         $directories = self::getDirectories($dir);
         $addons = [];
         foreach ($directories as $directory) {
-            $sub_dirs = self::getDirectories('Modules/' . $directory);
-            if (in_array('Addon', $sub_dirs)) {
+            $subDirectories = self::getDirectories('Modules/' . $directory);
+            if (in_array('Addon', $subDirectories)) {
                 $addons[] = 'Modules/' . $directory;
             }
         }
 
         $array = [];
         foreach ($addons as $item) {
-            $full_data = include($item . '/Addon/info.php');
+            $fullData = include($item . '/Addon/info.php');
             $array[] = [
-                'addon_name' => $full_data['name'],
-                'software_id' => $full_data['software_id'],
-                'is_published' => $full_data['is_published'],
+                'addon_name' => $fullData['name'],
+                'software_id' => $fullData['software_id'],
+                'is_published' => $fullData['is_published'],
             ];
         }
 
@@ -35,49 +35,47 @@ trait AddonHelper
         $directories = self::getDirectories($dir);
         $addons = [];
         foreach ($directories as $directory) {
-            $sub_dirs = self::getDirectories('Modules/' . $directory);
-            if (in_array('Addon', $sub_dirs)) {
+            $subDirectories = self::getDirectories('Modules/' . $directory);
+            if (in_array('Addon', $subDirectories)) {
                 $addons[] = 'Modules/' . $directory;
             }
         }
 
-        $full_data = [];
+        $fullData = [];
         foreach ($addons as $item) {
             $info = include($item . '/Addon/info.php');
-            if ($info['is_published']){
-                $full_data[] = include($item . '/Addon/admin_routes.php');
+            if ($info['is_published']) {
+                $fullData[] = include($item . '/Addon/admin_routes.php');
             }
         }
 
-        return $full_data;
+        return $fullData;
     }
 
     public function get_payment_publish_status(): array
     {
-        $dir = 'Modules'; // Update the directory path to Modules/Gateways
+        $dir = 'Modules';
         $directories = self::getDirectories($dir);
-        // dd($directories);
         $addons = [];
         foreach ($directories as $directory) {
-            $sub_dirs = self::getDirectories($dir . '/' . $directory); // Use $dir instead of 'Modules/'
-            if($directory == 'Gateways'){
-                if (in_array('Addon', $sub_dirs)) {
-                    $addons[] = $dir . '/' . $directory; // Use $dir instead of 'Modules/'
+            $subDirectories = self::getDirectories($dir . '/' . $directory);
+            if ($directory == 'Gateways') {
+                if (in_array('Addon', $subDirectories)) {
+                    $addons[] = $dir . '/' . $directory;
                 }
             }
         }
 
         $array = [];
         foreach ($addons as $item) {
-            $full_data = include($item . '/Addon/info.php');
+            $fullData = include($item . '/Addon/info.php');
             $array[] = [
-                'is_published' => $full_data['is_published'],
+                'is_published' => $fullData['is_published'],
             ];
         }
 
         return $array;
     }
-
 
     function getDirectories(string $path): array
     {

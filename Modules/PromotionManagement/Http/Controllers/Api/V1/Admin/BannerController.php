@@ -93,9 +93,11 @@ class BannerController extends Controller
     public function edit(string $id): JsonResponse
     {
         $banner = $this->banner->with(['service', 'category'])->where('id', $id)->first();
+
         if (isset($banner)) {
             return response()->json(response_formatter(DEFAULT_200, $banner), 200);
         }
+
         return response()->json(response_formatter(DEFAULT_204, $banner), 200);
     }
 
@@ -146,12 +148,15 @@ class BannerController extends Controller
 
         $banners = $this->banner->whereIn('id', $request['banner_ids']);
         if ($banners->count() > 0) {
+
             foreach ($banners->get() as $banner) {
                 file_remover('banner/', $banner['banner_image']);
             }
+
             $banners->delete();
             return response()->json(response_formatter(DEFAULT_DELETE_200), 200);
         }
+
         return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
@@ -160,7 +165,7 @@ class BannerController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',

@@ -1,12 +1,10 @@
 <?php
 
-//passport address type
 const ADMIN_PANEL_ACCESS = "AccessToAdmin";
 const PROVIDER_PANEL_ACCESS = "AccessToProvider";
 const CUSTOMER_PANEL_ACCESS = "AccessToCustomer";
 const SERVICEMAN_APP_ACCESS = "AccessToServicemanApp";
 
-//users
 const ADMIN_USER_TYPES = ['super-admin', 'admin-employee'];
 const PROVIDER_USER_TYPES = ['provider-admin', 'provider-employee', 'provider-serviceman'];
 const CUSTOMER_USER_TYPES = ['customer'];
@@ -20,21 +18,36 @@ const USER_TYPES = [
     ['key' => 'customer', 'value' => CUSTOMER_USER_TYPES[0]],
 ];
 
-//booking statuses
 const BOOKING_STATUSES = [
     ['key' => 'pending', 'value' => 'Pending'],
     ['key' => 'accepted', 'value' => 'Accepted'],
     ['key' => 'ongoing', 'value' => 'Ongoing'],
     ['key' => 'completed', 'value' => 'Completed'],
     ['key' => 'canceled', 'value' => 'Canceled'],
-//    ['key' => 'refund_request', 'value' => 'Refund Request'],
-//    ['key' => 'refunded', 'value' => 'Refunded'],
 ];
 
-//system defaults
+const IMAGEEXTENSION = [
+    ['key' => 'png', 'value' => 'Png'],
+    ['key' => 'jpg', 'value' => 'Jpg'],
+    ['key' => 'jpeg', 'value' => 'Jpeg'],
+    ['key' => 'gif', 'value' => 'gif'],
+];
+
+const IMAGEFILESIZE = [
+    ['key' => '1mb', 'value' => '1024'],
+    ['key' => '2mb', 'value' => '2048'],
+    ['key' => '3mb', 'value' => '3072'],
+    ['key' => '4mb', 'value' => '4096'],
+    ['key' => '5mb', 'value' => '5120'],
+    ['key' => '6mb', 'value' => '6144'],
+    ['key' => '7mb', 'value' => '7168'],
+    ['key' => '8mb', 'value' => '8192'],
+    ['key' => '9mb', 'value' => '9216'],
+    ['key' => '10mb', 'value' => '10240'],
+];
+
 const DEFAULT_PAGINATION = 25;
 
-//coupon types
 const COUPON_TYPES = [
     'default' => 'Default',
     'first_booking' => 'First Booking',
@@ -46,17 +59,15 @@ const COUPON_TYPES_REACT_FORMAT = [
     ['value' => 'first_order', 'name' => 'First Order']
 ];
 
-//payment methods
 const PAYMENT_METHODS = [
     ['key' => 'cash_after_service', 'value' => 'Cash After Service'],
-    ['key' => 'ssl_commerz', 'value' => 'SSLCOMMERZ'],//
-    ['key' => 'stripe', 'value' => 'Stripe'],//
-//    ['key' => 'paypal', 'value' => 'PayPal'],
-    ['key' => 'paytm', 'value' => 'Paytm'],//
-    ['key' => 'razor_pay', 'value' => 'Razor Pay'],//
-    ['key' => 'paystack', 'value' => 'Paystack'],//
-    ['key' => 'senang_pay', 'value' => 'Senang Pay'],//
-    ['key' => 'flutterwave', 'value' => 'Flutter Wave'],//
+    ['key' => 'ssl_commerz', 'value' => 'SSLCOMMERZ'],
+    ['key' => 'stripe', 'value' => 'Stripe'],
+    ['key' => 'paytm', 'value' => 'Paytm'],
+    ['key' => 'razor_pay', 'value' => 'Razor Pay'],
+    ['key' => 'paystack', 'value' => 'Paystack'],
+    ['key' => 'senang_pay', 'value' => 'Senang Pay'],
+    ['key' => 'flutterwave', 'value' => 'Flutter Wave'],
     ['key' => 'wallet_payment', 'value' => 'wallet payment'],
     ['key' => 'offline_payment', 'value' => 'offline payment'],
 ];
@@ -71,7 +82,6 @@ const DIGITAL_PAYMENT_METHODS = [
     ['key' => 'flutterwave', 'value' => 'Flutter Wave'],
 ];
 
-//Sms Gateway
 const SMS_GATEWAY = [
     ['key' => 'msg91', 'value' => 'Msg91'],
     ['key' => '2factor', 'value' => '2factor'],
@@ -80,7 +90,7 @@ const SMS_GATEWAY = [
     ['key' => 'releans', 'value' => 'Releans'],
 ];
 
-//currencies
+
 const CURRENCIES = [
     ["code" => "AED", "symbol" => "د.إ", "name" => "UAE dirham"],
     ["code" => "AFN", "symbol" => "Afs", "name" => "Afghan afghani"],
@@ -240,7 +250,6 @@ const CURRENCIES = [
     ["code" => "ZWR", "symbol" => "Z$", "name" => "Zimbabwean dollar"]
 ];
 
-//countries
 const COUNTRIES = [
     ["name" => 'Afghanistan', "code" => 'AF'],
     ["name" => 'Åland Islands', "code" => 'AX'],
@@ -487,7 +496,6 @@ const COUNTRIES = [
     ["name" => 'Zimbabwe', "code" => 'ZW']
 ];
 
-//languages
 const LANGUAGES = [
     ["code" => "ab", "name" => "Abkhaz", "nativeName" => "аҧсуа"],
     ["code" => "aa", "name" => "Afar", "nativeName" => "Afaraf"],
@@ -547,7 +555,7 @@ const LANGUAGES = [
     ["code" => "ha", "name" => "Hausa", "nativeName" => "Hausa, هَوُسَ"],
     ["code" => "he", "name" => "Hebrew (modern)", "nativeName" => "עברית"],
     ["code" => "hz", "name" => "Herero", "nativeName" => "Otjiherero"],
-    ["code" => "hi", "name" => "Hindi", "nativeName" => "हिन्दी, हिंदी"],
+    ["code" => "hi", "name" => "Hindi", "nativeName" => "हिन्दी"],
     ["code" => "ho", "name" => "Hiri Motu", "nativeName" => "Hiri Motu"],
     ["code" => "hu", "name" => "Hungarian", "nativeName" => "Magyar"],
     ["code" => "ia", "name" => "Interlingua", "nativeName" => "Interlingua"],
@@ -673,21 +681,67 @@ const LANGUAGES = [
     ["code" => "za", "name" => "Zhuang, Chuang", "nativeName" => "Saɯ cueŋƅ, Saw cuengh"]
 ];
 
-//system Modules
 const SYSTEM_MODULES = [
     ['key' => 'dashboard', 'value' => 'Dashboard'],
-    ['key' => 'service_management', 'value' => 'Service Management'],
-    ['key' => 'customer_management', 'value' => 'Customer Management'],
-    ['key' => 'employee_management', 'value' => 'Employee Management'],
-    ['key' => 'promotion_management', 'value' => 'Promotion Management'],
-    ['key' => 'booking_management', 'value' => 'Booking Management'],
-    ['key' => 'provider_management', 'value' => 'Provider Management'],
-    ['key' => 'system_management', 'value' => 'System Management'],
-    ['key' => 'transaction_management', 'value' => 'Transaction Management'],
-    ['key' => 'report_management', 'value' => 'Report Management']
+    ['key' => 'booking', 'value' => 'Booking Management'],
+    ['key' => 'promotion', 'value' => 'Promotion Management',
+        'submodules' => [
+            ['key' => 'discount', 'value' => 'Discounts'],
+            ['key' => 'coupon', 'value' => 'Coupons'],
+            ['key' => 'bonus', 'value' => 'Wallet Bonus'],
+            ['key' => 'campaign', 'value' => 'Campaigns'],
+            ['key' => 'advertisement', 'value' => 'Advertisements'],
+            ['key' => 'banner', 'value' => 'Promotional Banners'],
+            ['key' => 'push_notification', 'value' => 'Send Notifications']
+        ]
+    ],
+    ['key' => 'provider_management', 'value' => 'Provider Management',
+        'submodules' => [
+            ['key' => 'onboarding_request','value' => 'Onboarding Request'],
+            ['key' => 'provider','value' => 'Providers'],
+            ['key' => 'withdraw','value' => 'Withdraws']
+        ]
+    ],
+    ['key' => 'service_management', 'value' => 'Service Management',
+        'submodules' => [
+            ['key' => 'zone','value' => 'Service Zones Setup'],
+            ['key' => 'category','value' => 'Categories'],
+            ['key' => 'service','value' => 'Services']
+        ]
+    ],
+    ['key' => 'customer_management', 'value' => 'Customer Management',
+        'submodules' => [
+            ['key' => 'customer','value' => 'Customers'],
+            ['key' => 'wallet','value' => 'Customer Wallet'],
+            ['key' => 'point','value' => 'Loyalty Point']
+        ]
+    ],
+    ['key' => 'employee_management', 'value' => 'Employee Management',
+        'submodules' => [
+            ['key' => 'role','value' => 'Employee Role Setup'],
+            ['key' => 'employee','value' => 'Employee List']
+        ]
+    ],
+    ['key' => 'transaction', 'value' => 'Transaction Management'],
+    ['key' => 'report_management', 'value' => 'Report Management',
+        'submodules' => [
+            ['key' => 'report','value' => 'Reports'],
+            ['key' => 'analytics','value' => 'Analytics']
+        ]
+    ],
+    ['key' => 'addon', 'value' => 'System Addon'],
+    ['key' => 'system_management', 'value' => 'System Management',
+        'submodules' => [
+            ['key' => 'business','value' => 'Business Settings'],
+            ['key' => 'landing','value' => 'Landing Page Settings'],
+            ['key' => 'configuration','value' => 'Configurations'],
+            ['key' => 'page','value' => 'Page Settings'],
+            ['key' => 'gallery','value' => 'Gallery'],
+            ['key' => 'backup','value' => 'Backup Database'],
+        ]
+    ],
 ];
 
-//file type
 const FILE_TYPE = [
     ['key' => 'png', 'value' => 'png'],
     ['key' => 'jpg', 'value' => 'jpg'],
@@ -701,11 +755,11 @@ const FILE_TYPE = [
 
 //User accounts
 const ACCOUNT_STATES = [
-    ['key' => 'balance_pending', 'value' => 'balance_pending'],         // 0
-    ['key' => 'received_balance', 'value' => 'received_balance'],       // 1
-    ['key' => 'account_payable', 'value' => 'account_payable'],         // 2
-    ['key' => 'account_receivable', 'value' => 'account_receivable'],   // 3
-    ['key' => 'total_withdrawn', 'value' => 'total_withdrawn']        // 4
+    ['key' => 'balance_pending', 'value' => 'balance_pending'],
+    ['key' => 'received_balance', 'value' => 'received_balance'],
+    ['key' => 'account_payable', 'value' => 'account_payable'],
+    ['key' => 'account_receivable', 'value' => 'account_receivable'],
+    ['key' => 'total_withdrawn', 'value' => 'total_withdrawn']
 ];
 
 const TRX_TYPE = [
@@ -726,6 +780,7 @@ const TRX_TYPE = [
     'fund_by_admin' => 'fund_by_admin',
     'loyalty_point_earning' => 'loyalty_point_earning',
     'referral_earning' => 'referral_earning',
+    'referral_discount' => 'referral_discount',
     'booking_placed_by_customer_wallet' => 'booking_placed_by_customer_wallet',
     'add_fund' => 'add_fund',
     'add_fund_bonus' => 'add_fund_bonus',
@@ -736,24 +791,18 @@ const WALLET_TRX_TYPE = [
     'fund_by_admin' => 'fund_by_admin',
     'loyalty_point_earning' => 'loyalty_point_earning',
     'referral_earning' => 'referral_earning',
-//    'booking_placed_by_customer_wallet' => 'booking_placed_by_customer_wallet',
     'wallet_payment' => 'wallet_payment',
     'booking_refund' => 'booking_refund',
     'add_fund' => 'add_fund',
     'add_fund_bonus' => 'add_fund_bonus'
 ];
 
-
-
-//transaction type
 const TRANSACTION_TYPE = [
     ['key' => 'collect_cash', 'value' => 'collect_cash'],
     ['key' => 'withdraw', 'value' => 'withdraw'],
     ['key' => 'payment', 'value' => 'payment'],
     ['key' => 'commission', 'value' => 'commission'],
 ];
-
-//time zones
 
 const TIME_ZONES = [
     [
@@ -3519,4 +3568,76 @@ const TELEPHONE_CODES = [
 
 const NOTIFICATION_TYPE = [
     'wallet' => 'wallet'
+];
+
+const NOTIFICATION_FOR_USER = [
+    ['key' => 'booking_place', 'value' => 'Booking Place'],
+    ['key' => 'booking_accepted', 'value' => 'Booking Accepted'],
+    ['key' => 'serviceman_assign', 'value' => 'Serviceman Assign'],
+    ['key' => 'booking_ongoing', 'value' => 'Booking Ongoing'],
+    ['key' => 'otp', 'value' => 'Confirmation OTP'],
+    ['key' => 'booking_complete', 'value' => 'Booking Complete'],
+    ['key' => 'booking_cancel', 'value' => 'Booking Cancel'],
+    ['key' => 'booking_schedule_time_change', 'value' => 'Booking schedule time change'],
+    ['key' => 'add_fund_wallet', 'value' => 'Add Fund Wallet'],
+    ['key' => 'add_fund_wallet_bonus', 'value' => 'Add Fund Wallet Bonus'],
+    ['key' => 'customized_booking_request', 'value' => 'Customized Booking Request'],
+    ['key' => 'customized_booking_request_delete', 'value' => 'Customized Booking Request Delete'],
+    ['key' => 'offline_payment_approved', 'value' => 'Offline Payment Approved'],
+    ['key' => 'booking_edit_service_add', 'value' => 'Booking Edit Service Add'],
+    ['key' => 'booking_edit_service_remove', 'value' => 'Booking Edit Service Remove'],
+    ['key' => 'booking_edit_service_quantity_increase', 'value' => 'Booking Edit Service Quantity Increase'],
+    ['key' => 'booking_edit_service_quantity_decrease', 'value' => 'Booking Edit Service Quantity Decrease'],
+    ['key' => 'referral_earning', 'value' => 'Referral Earning'],
+    ['key' => 'referral_earning_first_booking', 'value' => 'Referral Earning First Booking'],
+    ['key' => 'referral_code_used', 'value' => 'Referral code used'],
+    ['key' => 'loyalty_point', 'value' => 'Loyalty Point'],
+    ['key' => 'refund', 'value' => 'Refund'],
+    ['key' => 'customer_notification_for_provider_bid_offer', 'value' => 'customer notification for provider bid offer'],
+    ['key' => 'customer_notification_for_provider_bid_withdraw', 'value' => 'Customer notification for provider bid withdraw'],
+];
+
+const NOTIFICATION_FOR_PROVIDER = [
+    ['key' => 'new_service_request_arrived', 'value' => 'New Service Request Arrived'],
+    ['key' => 'booking_accepted', 'value' => 'Booking Accepted'],
+    ['key' => 'serviceman_assign', 'value' => 'Serviceman Assign'],
+    ['key' => 'ongoing_booking', 'value' => 'Ongoing Booking'],
+    ['key' => 'booking_complete', 'value' => 'Booking Complete'],
+    ['key' => 'booking_cancel', 'value' => 'Booking Cancel'],
+    ['key' => 'booking_schedule_time_change', 'value' => 'Booking schedule time change'],
+    ['key' => 'provider_bid_request_denied', 'value' => 'Provider Bid Request Denied'],
+    ['key' => 'booking_edit_service_add', 'value' => 'Booking Edit Service Add'],
+    ['key' => 'booking_edit_service_remove', 'value' => 'Booking Edit Service Remove'],
+    ['key' => 'booking_edit_service_quantity_increase', 'value' => 'Booking Edit Service Quantity Increase'],
+    ['key' => 'booking_edit_service_quantity_decrease', 'value' => 'Booking Edit Service Quantity Decrease'],
+    ['key' => 'widthdraw_request_approve', 'value' => 'Withdraw Request Approve'],
+    ['key' => 'widthdraw_request_deny', 'value' => 'Withdraw Request Deny'],
+    ['key' => 'admin_payable', 'value' => 'Admin Payable'],
+    ['key' => 'service_request_approve', 'value' => 'Service Request Review'],
+    ['key' => 'service_request_deny', 'value' => 'Service Request Reject'],
+    ['key' => 'provider_suspend', 'value' => 'Provider Suspend'],
+    ['key' => 'provider_suspension_remove', 'value' => 'Provider Suspension removed'],
+    ['key' => 'advertisement_approved', 'value' => 'Advertisement Approved'],
+    ['key' => 'advertisement_denied', 'value' => 'Advertisement Denied'],
+    ['key' => 'advertisement_resumed', 'value' => 'Advertisement Resumed'],
+    ['key' => 'advertisement_paused', 'value' => 'Advertisement Paused'],
+    ['key' => 'advertisement_created_by_admin', 'value' => 'Advertisement Created By Admin'],
+];
+
+const NOTIFICATION_FOR_SERVICEMAN = [
+    ['key' => 'serviceman_assign', 'value' => 'Serviceman Assign'],
+    ['key' => 'ongoing_booking', 'value' => 'Ongoing Booking'],
+    ['key' => 'booking_complete', 'value' => 'Booking Complete'],
+    ['key' => 'booking_cancel', 'value' => 'Booking Cancel'],
+    ['key' => 'booking_schedule_time_change', 'value' => 'Booking Schedule Time Change'],
+    ['key' => 'booking_edit_service_add', 'value' => 'Booking Edit Service Add'],
+    ['key' => 'booking_edit_service_quantity_increase', 'value' => 'Booking Edit Service Quantity Increase'],
+    ['key' => 'booking_edit_service_quantity_decrease', 'value' => 'Booking Edit Service Quantity Decrease'],
+    ['key' => 'booking_edit_service_remove', 'value' => 'Booking Edit Service Remove'],
+];
+
+const DISCOUNT_TYPE = [
+    'zone' => 'zone',
+    'category' => 'category',
+    'service' => 'service',
 ];

@@ -2,12 +2,7 @@
 
 @section('title',translate('withdrawal_method'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="row">
@@ -20,21 +15,72 @@
                         </button>
                     </div>
 
+                    @php($language= Modules\BusinessSettingsModule\Entities\BusinessSettings::where('key_name','system_language')->first())
+                    @php($default_lang = str_replace('_', '-', app()->getLocale()))
+                    @if($language)
+                        <ul class="nav nav--tabs border-color-primary mb-4">
+                            <li class="nav-item">
+                                <a class="nav-link lang_link active"
+                                   href="#"
+                                   id="default-link">{{translate('default')}}</a>
+                            </li>
+                            @foreach ($language?->live_values as $lang)
+                                <li class="nav-item">
+                                    <a class="nav-link lang_link"
+                                       href="#"
+                                       id="{{ $lang['code'] }}-link">{{ get_language_name($lang['code']) }}</a>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+
                     <div class="card">
                         <form action="{{route('admin.withdraw.method.update')}}" method="POST">
                             @csrf
                             @method('PUT')
-                            <input type="hidden" value="{{$withdrawal_method['id']}}" name="id">
+                            <input type="hidden" value="{{$withdrawalMethod['id']}}" name="id">
                             <div class=" p-30">
-                                <div class="form-floating card mb-30">
-                                    <input type="text" class="form-control" name="method_name" id="method_name"
-                                           placeholder="Select method name"
-                                           value="{{$withdrawal_method['method_name']}}" required>
-                                    <label>{{translate('method_name')}} *</label>
-                                </div>
+                                @if ($language)
+                                    <div class="form-floating form-floating__icon mb-30 lang-form" id="default-form">
+                                        <input type="text" name="method_name[]" class="form-control"
+                                               placeholder="{{translate('method_name')}}"
+                                               value="{{$withdrawalMethod?->getRawOriginal('method_name')}}" required>
+                                        <label>{{translate('method_name')}} ({{ translate('default') }})</label>
+                                        <span class="material-icons">note_alt</span>
+                                    </div>
+                                    <input type="hidden" name="lang[]" value="default">
+                                    @foreach ($language?->live_values as $lang)
+                                            <?php
+                                            if (count($withdrawalMethod['translations'])) {
+                                                $translate = [];
+                                                foreach ($withdrawalMethod['translations'] as $t) {
+                                                    if ($t->locale == $lang['code'] && $t->key == "method_name") {
+                                                        $translate[$lang['code']]['method_name'] = $t->value;
+                                                    }
+                                                }
+                                            }
+                                            ?>
+                                        <div class="form-floating form-floating__icon mb-30 d-none lang-form" id="{{$lang['code']}}-form">
+                                            <input type="text" name="method_name[]" class="form-control"
+                                                   placeholder="{{translate('method_name')}}"
+                                                   value="{{$translate[$lang['code']]['method_name']??''}}">
+                                            <label>{{translate('method_name')}} ({{strtoupper($lang['code'])}})</label>
+                                            <span class="material-icons">note_alt</span>
+                                        </div>
+                                        <input type="hidden" name="lang[]" value="{{$lang['code']}}">
+                                    @endforeach
+                                @else
+                                    <div class="form-floating form-floating__icon mb-30">
+                                        <input type="text" name="method_name[]" class="form-control"
+                                               placeholder="{{translate('method_name')}}" value="{{$withdrawalMethod['method_name']}}" required>
+                                        <label>{{translate('method_name')}}</label>
+                                        <span class="material-icons">note_alt</span>
+                                    </div>
+                                    <input type="hidden" name="lang[]" value="default">
+                                @endif
 
-                                @if($withdrawal_method['method_fields'][0])
-                                @php($field = $withdrawal_method['method_fields'][0])
+                                @if($withdrawalMethod['method_fields'][0])
+                                @php($field = $withdrawalMethod['method_fields'][0])
                                 <div class="card card-body mb-30">
                                     <div class="row gy-4 align-items-center">
                                         <div class="col-md-6 col-12">
@@ -50,21 +96,23 @@
                                             </div>
                                         </div>
                                         <div class="col-md-6 col-12">
-                                            <div class="form-floating">
+                                            <div class="form-floating form-floating__icon">
                                                 <input type="text" class="form-control" name="field_name[]"
-                                                       placeholder="Select field name"
+                                                       placeholder="{{translate('Select field name')}}"
                                                        value="{{$field['input_name']??''}}"
                                                        required>
                                                 <label>{{translate('field_name')}} *</label>
+                                                <span class="material-icons">article</span>
                                             </div>
                                         </div>
                                         <div class="col-md-6 col-12">
-                                            <div class="form-floating">
+                                            <div class="form-floating form-floating__icon">
                                                 <input type="text" class="form-control" name="placeholder_text[]"
-                                                       placeholder="Select placeholder text"
+                                                       placeholder="{{translate('Select placeholder text')}}"
                                                        value="{{$field['placeholder']??''}}"
                                                        required>
                                                 <label>{{translate('placeholder_text')}} *</label>
+                                                <span class="material-icons">edit_note</span>
                                             </div>
                                         </div>
                                         <div class="col-md-6 col-12">
@@ -75,15 +123,15 @@
                                                 <label class="form-check-label" for="flexCheckDefault">
                                                     {{translate('This_field_required')}}
                                                 </label>
+
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                                 @endif
 
-                                <!-- HERE CUSTOM FIELDS WILL BE ADDED -->
                                 <div id="custom-field-section">
-                                    @foreach($withdrawal_method['method_fields'] as $key=>$field)
+                                    @foreach($withdrawalMethod['method_fields'] as $key=>$field)
                                         @if($key>0)
                                             <div class="card card-body mb-30" id="field-row--{{$key}}">
                                                 <div class="row gy-4 align-items-center">
@@ -100,21 +148,23 @@
                                                         </div>
                                                     </div>
                                                     <div class="col-md-6 col-12">
-                                                        <div class="form-floating">
+                                                        <div class="form-floating form-floating__icon">
                                                             <input type="text" class="form-control" name="field_name[{{$key}}]"
-                                                                   placeholder="Select field name"
+                                                                   placeholder="{{translate('Select field name')}}"
                                                                    value="{{$field['input_name']??''}}"
                                                                    required>
                                                             <label>{{translate('field_name')}} *</label>
+                                                            <span class="material-icons">article</span>
                                                         </div>
                                                     </div>
                                                     <div class="col-md-6 col-12">
-                                                        <div class="form-floating">
+                                                        <div class="form-floating form-floating__icon">
                                                             <input type="text" class="form-control" name="placeholder_text[{{$key}}]"
-                                                                   placeholder="Select placeholder text"
+                                                                   placeholder="{{translate('Select placeholder text')}}"
                                                                    value="{{$field['placeholder']??''}}"
                                                                    required>
                                                             <label>{{translate('placeholder_text')}} *</label>
+                                                            <span class="material-icons">edit_note</span>
                                                         </div>
                                                     </div>
                                                     <div class="col-md-6 col-12">
@@ -128,7 +178,7 @@
                                                         </div>
                                                     </div>
                                                     <div class="d-flex justify-content-end">
-                                                        <span class="btn btn--danger" onclick="remove_field({{$key}})">
+                                                        <span class="btn btn--danger remove-field-btn" data-counter="{{$key}}">
                                                             <span class="material-icons">delete</span>
                                                                 {{translate('Remove')}}
                                                         </span>
@@ -141,14 +191,13 @@
 
                                 <div class="d-flex justify-content-start">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" value="1" name="is_default" id="flexCheckDefaultMethod" {{$withdrawal_method['is_default'] == 1 ? 'checked' : ''}}>
+                                        <input class="form-check-input" type="checkbox" value="1" name="is_default" id="flexCheckDefaultMethod" {{$withdrawalMethod['is_default'] == 1 ? 'checked' : ''}}>
                                         <label class="form-check-label" for="flexCheckDefaultMethod">
                                             {{translate('default_method')}}
                                         </label>
                                     </div>
                                 </div>
 
-                                <!-- BUTTON -->
                                 <div class="d-flex justify-content-end">
                                     <button type="reset" class="btn btn--secondary mx-2">{{translate('Reset')}}</button>
                                     <button type="submit" class="btn btn--primary demo_check">{{translate('Submit')}}</button>
@@ -160,20 +209,26 @@
             </div>
         </div>
     </div>
-    <!-- End Main Content -->
 
 
 @endsection
 
 @push('script')
     <script>
+        "use strict";
+
         function remove_field(fieldRowId) {
             $( `#field-row--${fieldRowId}` ).remove();
             counter--;
         }
 
         jQuery(document).ready(function ($) {
-            counter = {{count($withdrawal_method['method_fields']) ?? 0 }};
+             var counter = {{count($withdrawalMethod['method_fields']) ?? 0 }};
+
+            $(document).on('click', '.remove-field-btn', function () {
+                var counter = $(this).data('counter');
+                remove_field(counter);
+            });
 
             $('#add-more-field').on('click', function (event) {
                 if(counter < 15) {
@@ -195,17 +250,19 @@
                                     </div>
                                 </div>
                                 <div class="col-md-6 col-12">
-                                    <div class="form-floating">
+                                    <div class="form-floating form-floating__icon">
                                         <input type="text" class="form-control" name="field_name[${counter}]"
-                                               placeholder="Select field name" value="" required>
+                                               placeholder="{{translate('Select field name')}}" value="" required>
                                         <label>{{translate('field_name')}} *</label>
+                                        <span class="material-icons">article</span>
                                     </div>
                                 </div>
                                 <div class="col-md-6 col-12">
-                                    <div class="form-floating">
+                                    <div class="form-floating form-floating__icon">
                                         <input type="text" class="form-control" name="placeholder_text[${counter}]"
-                                               placeholder="Select placeholder text" value="" required>
+                                               placeholder="{{translate('Select placeholder text')}}" value="" required>
                                         <label>{{translate('placeholder_text')}} *</label>
+                                        <span class="material-icons">edit_note</span>
                                     </div>
                                 </div>
                                 <div class="col-md-6 col-12">
@@ -217,7 +274,7 @@
                                     </div>
                                 </div>
                                 <div class="d-flex justify-content-end">
-                                    <span class="btn btn--danger" onclick="remove_field(${counter})">
+                                    <span class="btn btn--danger remove-field-btn" data-counter="${counter}">
                                         <span class="material-icons">delete</span>
                                             {{translate('Remove')}}
                                     </span>
@@ -244,7 +301,16 @@
                 counter = 1;
             })
         });
+
+        $(".lang_link").on('click', function (e) {
+            e.preventDefault();
+            $(".lang_link").removeClass('active');
+            $(".lang-form").addClass('d-none');
+            $(this).addClass('active');
+
+            let form_id = this.id;
+            let lang = form_id.substring(0, form_id.length - 5);
+            $("#" + lang + "-form").removeClass('d-none');
+        });
     </script>
-
-
 @endpush

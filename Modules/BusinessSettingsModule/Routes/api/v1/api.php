@@ -28,7 +28,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.', 'namespace' => 'Api\V1\Admi
 
 Route::group(['prefix' => 'provider', 'as' => 'provider.', 'middleware' => ['auth:api']], function () {
     Route::group(['prefix' => 'business-settings'], function () {
-        Route::get('get-business-settings', [ProviderBusinessInformationController::class, 'business_settings_get']);
-        Route::put('set-business-settings', [ProviderBusinessInformationController::class, 'business_settings_set']);
+        Route::get('get-business-settings', [ProviderBusinessInformationController::class, 'businessSettingsGet']);
+        Route::put('set-business-settings', [ProviderBusinessInformationController::class, 'businessSettingsSet']);
     });
 });

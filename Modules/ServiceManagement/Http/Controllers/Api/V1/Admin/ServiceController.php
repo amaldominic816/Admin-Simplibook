@@ -100,10 +100,10 @@ class ServiceController extends Controller
         $service->tax = $request->tax;
         $service->save();
 
-        $variation_format = [];
+        $variationFormat = [];
         foreach ($request['variations'] as $variant) {
             foreach ($variant->zoneWiseVariations as $zone_wise_info) {
-                $variation_format[] = [
+                $variationFormat[] = [
                     'variant' => $variant->variationName,
                     'variant_key' => Str::slug($variant->variationName),
                     'zone_id' => $zone_wise_info->id,
@@ -113,7 +113,7 @@ class ServiceController extends Controller
             }
         }
 
-        $service->variations()->createMany($variation_format);
+        $service->variations()->createMany($variationFormat);
 
         return response()->json(response_formatter(SERVICE_STORE_200), 200);
     }
@@ -134,7 +134,7 @@ class ServiceController extends Controller
         })->where(['booking_status' => 'canceled'])->count();
 
         if (isset($service)) {
-            $service = self::variations_react_format($service);
+            $service = self::variationsReactFormat($service);
             $service['ongoing_count'] = $ongoing;
             $service['cancelled_count'] = $canceled;
             return response()->json(response_formatter(DEFAULT_200, $service), 200);
@@ -151,13 +151,13 @@ class ServiceController extends Controller
     {
         $service = $this->service->where('id', $id)->with(['category.children', 'category.zones', 'variations'])->first();
         if (isset($service)) {
-            $service = self::variations_react_format($service);
+            $service = self::variationsReactFormat($service);
             return response()->json(response_formatter(DEFAULT_200, $service), 200);
         }
         return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
-    private function variations_react_format($service)
+    private function variationsReactFormat($service)
     {
         $variants = collect($service['variations'])->pluck('variant_key')->unique();
         $storage = [];
@@ -224,10 +224,10 @@ class ServiceController extends Controller
 
         $service->variations()->delete();
 
-        $variation_format = [];
+        $variationFormat = [];
         foreach ($request['variations'] as $variant) {
             foreach ($variant->zoneWiseVariations as $zone_wise_info) {
-                $variation_format[] = [
+                $variationFormat[] = [
                     'variant' => $variant->variationName,
                     'variant_key' => Str::slug($variant->variationName),
                     'zone_id' => $zone_wise_info->id,
@@ -236,7 +236,7 @@ class ServiceController extends Controller
                 ];
             }
         }
-        $service->variations()->createMany($variation_format);
+        $service->variations()->createMany($variationFormat);
 
         return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
     }
@@ -273,7 +273,7 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',

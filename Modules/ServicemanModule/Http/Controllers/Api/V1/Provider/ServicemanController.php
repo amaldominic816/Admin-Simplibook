@@ -76,8 +76,8 @@ class ServicemanController extends Controller
         $validator = Validator::make($request->all(), [
             'first_name' => 'required',
             'last_name' => 'required',
-            'phone' => 'required|unique:users,phone',
-            'email' => 'required|email|unique:users,email',
+            'phone' => 'required',
+            'email' => 'required|email',
             'password' => 'required|min:8',
             'confirm_password' => 'required|same:password',
             'profile_image' => 'required|image|mimes:jpeg,jpg,png,gif|max:10000',
@@ -91,12 +91,19 @@ class ServicemanController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $identity_images = [];
-        foreach ($request->identity_images as $image) {
-            $identity_images[] = file_uploader('serviceman/identity/', 'png', $image);
+        if (User::where('email', $request['email'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [['error_code' => 'email', 'message' =>translate('Email already taken')]]), 400);
+        }
+        if (User::where('phone', $request['phone'])->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [['error_code' => 'phone', 'message' =>translate('Phone already taken')]]), 400);
         }
 
-        DB::transaction(function () use ($request, $identity_images) {
+        $identityImages = [];
+        foreach ($request->identity_images as $image) {
+            $identityImages[] = file_uploader('serviceman/identity/', 'png', $image);
+        }
+
+        DB::transaction(function () use ($request, $identityImages) {
             $employee = $this->employee;
             $employee->first_name = $request->first_name;
             $employee->last_name = $request->last_name;
@@ -105,7 +112,7 @@ class ServicemanController extends Controller
             $employee->profile_image = file_uploader('serviceman/profile/', 'png', $request->file('profile_image'));
             $employee->identification_number = $request->identity_number;
             $employee->identification_type = $request->identity_type;
-            $employee->identification_image = $identity_images;
+            $employee->identification_image = $identityImages;
             $employee->password = bcrypt($request->password);
             $employee->user_type = 'provider-serviceman';
             $employee->is_active = 1;
@@ -132,18 +139,18 @@ class ServicemanController extends Controller
             ->groupBy('booking_status')
             ->get();
 
-        $booking_count = ['ongoing'=>0,'completed'=>0,'canceled'=>0];
+        $bookingCount = ['ongoing'=>0,'completed'=>0,'canceled'=>0];
         foreach ($bookings as $booking) {
             if ($booking->booking_status == 'ongoing')
-                $booking_count['ongoing'] = $booking->total_booking ?? 0;
+                $bookingCount['ongoing'] = $booking->total_booking ?? 0;
             if ($booking->booking_status == 'completed')
-                $booking_count['completed'] = $booking->total_booking ?? 0;
+                $bookingCount['completed'] = $booking->total_booking ?? 0;
             if ($booking->booking_status == 'canceled')
-                $booking_count['canceled'] = $booking->total_booking ?? 0;
+                $bookingCount['canceled'] = $booking->total_booking ?? 0;
         }
 
         $serviceman = $this->serviceman::with(['user'])->find($id);
-        $serviceman->bookings_count = $booking_count;
+        $serviceman->bookings_count = $bookingCount;
 
         if (!isset($serviceman)) {
             return response()->json(response_formatter(DEFAULT_204), 204);
@@ -185,8 +192,8 @@ class ServicemanController extends Controller
         $validator = Validator::make($request->all(), [
             'first_name' => 'required',
             'last_name' => 'required',
-            'phone' => 'required|unique:users,phone,' . $employee->id,
-            'email' => 'required|email|unique:users,email,' . $employee->id,
+            'phone' => 'required',
+            'email' => 'required|email',
             'password' => 'min:8',
             'profile_image' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
             'identity_type' => 'in:passport,driving_license,company_id,nid,trade_license',
@@ -199,14 +206,21 @@ class ServicemanController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $identity_images = [];
+        if (User::where('email', $request['email'])->where('id', '!=', $employee->id)->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [['error_code' => 'email', 'message' =>translate('Email already taken')]]), 400);
+        }
+        if (User::where('phone', $request['phone'])->where('id', '!=', $employee->id)->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [['error_code' => 'phone', 'message' =>translate('Phone already taken')]]), 400);
+        }
+
+        $identityImages = [];
         if ($request->has('identity_images')) {
             foreach ($request['identity_images'] as $image) {
-                $identity_images[] = file_uploader('serviceman/identity/', 'png', $image);
+                $identityImages[] = file_uploader('serviceman/identity/', 'png', $image);
             }
         }
 
-        DB::transaction(function () use ($request, $identity_images, $employee) {
+        DB::transaction(function () use ($request, $identityImages, $employee) {
             $employee->first_name = $request->first_name;
             $employee->last_name = $request->last_name;
             $employee->email = $request->email;
@@ -216,8 +230,8 @@ class ServicemanController extends Controller
             }
             $employee->identification_number = $request->identity_number;
             $employee->identification_type = $request->identity_type;
-            if(count($identity_images) > 0) {
-                $employee->identification_image = $identity_images;
+            if(count($identityImages) > 0) {
+                $employee->identification_image = $identityImages;
             }
             if ($request->has('password')) {
                 $employee->password = bcrypt($request->password);
@@ -244,24 +258,26 @@ class ServicemanController extends Controller
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
-
-        $serviceman_ids = $this->serviceman->whereIn('id', $request->serviceman_id)->pluck('user_id')->toArray();
-        if (count($serviceman_ids) < 1) {
-            return response()->json(response_formatter(DEFAULT_204), 200);
-        }
-        $this->serviceman->whereIn('id', $request->serviceman_id)->delete();
-
-        $employees = $this->employee->whereIn('id', $serviceman_ids);
-        if ($employees->count() > 0) {
-            foreach ($employees->get() as $employee) {
-                file_remover('serviceman/profile/', $employee->profile_image);
-                foreach ($employee->identification_image as $image) {
-                    file_remover('serviceman/identity/', $image);
-                }
-                $employee->forceDelete();
+        $servicemanIds = $this->serviceman
+            ->whereIn('id', $request->serviceman_id)
+            ->pluck('user_id')
+            ->toArray();
+            if (count($servicemanIds) < 1) {
+                return response()->json(response_formatter(DEFAULT_204), 200);
             }
-            return response()->json(response_formatter(DEFAULT_DELETE_200), 200);
-        }
+            $this->serviceman->whereIn('id', $request->serviceman_id)->delete();
+
+            $employees = $this->employee->whereIn('id', $servicemanIds);
+            if ($employees->count() > 0) {
+                foreach ($employees->get() as $employee) {
+                    file_remover('serviceman/profile/', $employee->profile_image);
+                    foreach ($employee->identification_image as $image) {
+                        file_remover('serviceman/identity/', $image);
+                    }
+                    $employee->delete();
+                }
+                return response()->json(response_formatter(DEFAULT_DELETE_200), 200);
+            }
         return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
@@ -270,7 +286,7 @@ class ServicemanController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function change_active_status(Request $request): JsonResponse
+    public function changeActiveStatus(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'serviceman_id' => 'required|array',
@@ -281,13 +297,12 @@ class ServicemanController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-
-        $serviceman_ids = $this->serviceman->whereIn('id', $request->serviceman_id)->pluck('user_id')->toArray();
-        if (count($serviceman_ids) < 1) {
+        $servicemanIds = $this->serviceman->whereIn('id', $request->serviceman_id)->pluck('user_id')->toArray();
+        if (count($servicemanIds) < 1) {
             return response()->json(response_formatter(DEFAULT_204), 200);
         }
 
-        $employees = $this->employee->whereIn('id', $serviceman_ids)->get();
+        $employees = $this->employee->whereIn('id', $servicemanIds)->get();
 
         foreach ($employees as $employee) {
             if(isset($employee)) {

@@ -6,19 +6,25 @@ use Modules\CartModule\Entities\AddedToCart;
 
 trait AddedToCartTrait
 {
-    protected function added_to_cart_update($user_id, $service_id, $is_guest): void
+    /**
+     * @param $user_id
+     * @param $service_id
+     * @param $is_guest
+     * @return void
+     */
+    protected function addedToCartUpdate($user_id, $service_id, $is_guest): void
     {
-        $added_to_cart = AddedToCart::where(['user_id' => $user_id, 'service_id' => $service_id])->first();
+        $addedToCart = AddedToCart::where(['user_id' => $user_id, 'service_id' => $service_id])->first();
 
-        if (!isset($added_to_cart)) {
-            $added_to_cart = new AddedToCart();
-            $added_to_cart->user_id = $user_id;
-            $added_to_cart->service_id = $service_id;
-            $added_to_cart->count = 1;
-            $added_to_cart->is_guest = $is_guest;
-            $added_to_cart->save();
+        if (!isset($addedToCart)) {
+            $addedToCart = new AddedToCart();
+            $addedToCart->user_id = $user_id;
+            $addedToCart->service_id = $service_id;
+            $addedToCart->count = 1;
+            $addedToCart->is_guest = $is_guest;
+            $addedToCart->save();
         } else {
-            $added_to_cart->increment('count');
+            $addedToCart->increment('count');
         }
     }
 }

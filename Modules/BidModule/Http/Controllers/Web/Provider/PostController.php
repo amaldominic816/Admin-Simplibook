@@ -38,7 +38,7 @@ class PostController extends Controller
      * @return RedirectResponse|Renderable
      * @throws ValidationException
      */
-    public function index(Request $request)
+    public function index(Request $request): Renderable|RedirectResponse
     {
         Validator::make($request->all(), [
             'type' => 'required|in:all,new_booking_request,placed_offer'
@@ -69,9 +69,24 @@ class PostController extends Controller
                 });
             })
             ->when($request['type'] != 'all' && $request['type'] == 'new_booking_request', function ($query) use ($request) {
-                $query->whereDoesntHave('bids', function ($query) use ($request) {
-                    $query->where('provider_id', $request->user()->provider->id);
-                });
+                if ($request->user()?->provider?->service_availability && (!$request->user()->provider->is_suspended || !business_config('suspend_on_exceed_cash_limit_provider', 'provider_config')->live_values)) {
+                    $query->whereDoesntHave('bids', function ($query) use ($request) {
+                        $query->where('provider_id', $request->user()->provider->id);
+                    });
+                } else {
+                    $query->whereNull('id');
+                }
+            })
+            ->when($request['type'] == 'all', function ($query) use ($request) {
+                if (!$request->user()?->provider?->service_availability || ($request->user()->provider->is_suspended && business_config('suspend_on_exceed_cash_limit_provider', 'provider_config')->live_values)) {
+                    $query->whereHas('bids', function ($query) use ($request) {
+                        if ($request['type'] == 'placed_offer') {
+                            $query->where('status', 'pending')->where('provider_id', $request->user()->provider->id);
+                        } else if ($request['type'] == 'booking_placed') {
+                            $query->where('status', 'accepted');
+                        }
+                    });
+                }
             })
             ->when($request->has('search'), function ($query) use ($request) {
                 $keys = explode(' ', $request['search']);
@@ -88,7 +103,7 @@ class PostController extends Controller
             ->appends($query_param);
 
         if ($request['type'] == 'all') {
-            foreach ($posts as $key=>$post) {
+            foreach ($posts as $key => $post) {
                 if ($post->bids) {
                     foreach ($post->bids as $bid) {
                         if ($bid->status == 'denied') unset($posts[$key]);
@@ -97,16 +112,15 @@ class PostController extends Controller
             }
         }
 
-        //find distance
         $coordinates = auth()->user()->provider->coordinates ?? null;
         foreach ($posts as $post) {
             $distance = null;
-            if(!is_null($coordinates) && $post->service_address) {
+            if (!is_null($coordinates) && $post->service_address) {
                 $distance = get_distance(
-                    [$coordinates['latitude']??null, $coordinates['longitude']??null],
+                    [$coordinates['latitude'] ?? null, $coordinates['longitude'] ?? null],
                     [$post->service_address?->lat, $post->service_address?->lon]
                 );
-                $distance = ($distance) ? number_format($distance, 2) .' km' : null;
+                $distance = ($distance) ? number_format($distance, 2) . ' km' : null;
             }
             $post->distance = $distance;
         }
@@ -115,7 +129,6 @@ class PostController extends Controller
         $type = $request['type'];
         $search = $request['search'];
 
-        //check posts
         $this->post->where('is_checked', 0)->update(['is_checked' => 1]);
         return view('bidmodule::provider.customize-list', compact('posts', 'bid_offers_visibility_for_providers', 'type', 'search'));
     }
@@ -156,8 +169,8 @@ class PostController extends Controller
     /**
      * Display a listing of the resource.
      * @param Request $request
+     * @param $post_id
      * @return RedirectResponse|Renderable
-     * @throws ValidationException
      */
     public function details(Request $request, $post_id): Renderable|RedirectResponse
     {
@@ -166,19 +179,18 @@ class PostController extends Controller
             ->where('id', $post_id)
             ->first();
 
-        //find distance
         $coordinates = auth()->user()->provider->coordinates ?? null;
         $distance = null;
-        if(!is_null($coordinates) && $post->service_address) {
+        if (!is_null($coordinates) && $post->service_address) {
             $distance = get_distance(
-                [$coordinates['latitude']??null, $coordinates['longitude']??null],
+                [$coordinates['latitude'] ?? null, $coordinates['longitude'] ?? null],
                 [$post->service_address?->lat, $post->service_address?->lon]
             );
-            $distance = ($distance) ? number_format($distance, 2) .' km' : null;
+            $distance = ($distance) ? number_format($distance, 2) . ' km' : null;
         }
 
         if (!isset($post)) {
-            Toastr::success(DEFAULT_404['message']);
+            Toastr::success(translate(DEFAULT_404['message']));
             return back();
         }
 
@@ -193,7 +205,7 @@ class PostController extends Controller
      * @return Application|Redirector|RedirectResponse
      * @throws ValidationException
      */
-    public function update_status(Request $request, $id): Redirector|RedirectResponse|Application
+    public function updateStatus(Request $request, $id): Redirector|RedirectResponse|Application
     {
         Validator::make($request->all(), [
             'status' => 'in:accept,ignore',
@@ -211,7 +223,7 @@ class PostController extends Controller
             $post_bid->provider_id = $request->user()->provider->id;
             $post_bid->save();
 
-            Toastr::success(DEFAULT_UPDATE_200['message']);
+            Toastr::success(translate(DEFAULT_UPDATE_200['message']));
             return back();
 
         } else if ($request['status'] == 'ignore') {
@@ -230,7 +242,7 @@ class PostController extends Controller
      * @return JsonResponse
      * @throws ValidationException
      */
-    public function multi_ignore(Request $request): JsonResponse
+    public function multiIgnore(Request $request): JsonResponse
     {
         Validator::make($request->all(), [
             'post_ids' => 'required|array',
@@ -247,7 +259,7 @@ class PostController extends Controller
         return response()->json(response_formatter(DEFAULT_UPDATE_200), 200);
     }
 
-    public function withdraw($id, Request $request)
+    public function withdraw($id, Request $request): RedirectResponse
     {
         $post_bids = $this->post_bid
             ->where('status', 'pending')
@@ -255,13 +267,13 @@ class PostController extends Controller
             ->where('provider_id', auth()->user()->provider->id);
 
         if ($post_bids->count() < 1) {
-            Toastr::success(DEFAULT_404['message']);
+            Toastr::success(translate(DEFAULT_404['message']));
             return back();
         }
 
         $post_bids->delete();
 
-        Toastr::success(DEFAULT_DELETE_200['message']);
+        Toastr::success(translate(DEFAULT_DELETE_200['message']));
         return back();
     }
 

@@ -12,7 +12,8 @@ use Modules\ProviderManagement\Entities\SubscribedService;
 class CategoryController extends Controller
 {
 
-    private $category, $subscribedService;
+    private Category $category;
+    private SubscribedService $subscribedService;
 
     public function __construct(SubscribedService $subscribedService, Category $category)
     {
@@ -72,10 +73,10 @@ class CategoryController extends Controller
             ->ofStatus(1)->ofType('sub')->orderBY('name', 'asc')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $subscribed_subcategory_id = $this->subscribedService->where('provider_id', $request->user()->provider->id)
+        $subSubCategoryIds = $this->subscribedService->where('provider_id', $request->user()->provider->id)
             ->where('is_subscribed', 1)->pluck('sub_category_id')->toArray();
         foreach ($childes as $child) {
-            $child->is_subscribed = in_array($child->id, $subscribed_subcategory_id) ? 1 : 0;
+            $child->is_subscribed = in_array($child->id, $subSubCategoryIds) ? 1 : 0;
         }
 
         return response()->json(response_formatter(DEFAULT_200, $childes), 200);
@@ -87,7 +88,7 @@ class CategoryController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function sub_category(Request $request): JsonResponse
+    public function subCategory(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -99,12 +100,12 @@ class CategoryController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $subcategory_id = $this->subscribedService->where('provider_id', $request->user()->provider->id)
+        $subCategoryId = $this->subscribedService->where('provider_id', $request->user()->provider->id)
             ->when($request->has('status') && $request['status'] != 'all', function ($query) use ($request) {
                 return $query->where('is_subscribed', ($request['status'] == 'subscribed') ? 1 : 0);
             })->pluck('sub_category_id')->toArray();
 
-        $sub_categories = $this->category
+        $subCategories = $this->category
             ->withCount('services')->with(['parent:id,name,image,description'])
             ->when($request->has('string'), function ($query) use ($request) {
                 $query->where(function ($query) use ($request) {
@@ -114,15 +115,15 @@ class CategoryController extends Controller
                     }
                 });
             })
-            ->whereIn('id', $subcategory_id)
+            ->whereIn('id', $subCategoryId)
             ->ofStatus(1)->ofType('sub')->orderBY('name', 'asc')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $subscribed_subcategory_id = $this->subscribedService->where('provider_id', $request->user()->provider->id)->where('is_subscribed', 1)->pluck('sub_category_id')->toArray();
-        foreach ($sub_categories as $sub_category) {
-            $sub_category->is_subscribed = in_array($sub_category->id, $subscribed_subcategory_id) ? 1 : 0;
+        $subSubCategoryIds = $this->subscribedService->where('provider_id', $request->user()->provider->id)->where('is_subscribed', 1)->pluck('sub_category_id')->toArray();
+        foreach ($subCategories as $subCategory) {
+            $subCategory->is_subscribed = in_array($subCategory->id, $subSubCategoryIds) ? 1 : 0;
         }
 
-        return response()->json(response_formatter(DEFAULT_200, $sub_categories), 200);
+        return response()->json(response_formatter(DEFAULT_200, $subCategories), 200);
     }
 }

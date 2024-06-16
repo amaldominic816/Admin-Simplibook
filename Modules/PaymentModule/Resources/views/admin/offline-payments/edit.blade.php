@@ -2,30 +2,30 @@
 
 @section('title',translate('edit_offline_payment'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="row">
                 <div class="col-12">
-                    <div class="page-title-wrap d-flex justify-content-between flex-wrap align-items-center gap-3 mb-4">
-                        <h2 class="page-title">{{translate('payment_gateway_configuration')}}</h2>
+                    <div class="page-title-wrap mb-3">
+                        <h2 class="page-title">{{translate('3rd_party')}}</h2>
                     </div>
 
-                    <!-- Tab Menu -->
-                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-3">
+                    <div class="mb-3">
+                        <ul class="nav nav--tabs nav--tabs__style2">
+                            @include('businesssettingsmodule::admin.partials.third-party-partial')
+                        </ul>
+                    </div>
+
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-3 mt-5">
                         <ul class="nav nav--tabs nav--tabs__style2" role="tablist">
                             <li class="nav-item">
                                 <a class="nav-link {{$type=='digital_payment'?'active':''}}"
-                                href="{{route('admin.configuration.payment-get')}}??type=digital_payment">{{translate('Digital Payment Gateways')}}</a>
+                                   href="{{url('admin/configuration/get-third-party-config')}}?web_page=payment_config&type=digital_payment">{{translate('Digital Payment Gateways')}}</a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link {{$type=='offline_payment'?'active':''}}"
-                                href="{{route('admin.configuration.offline-payment.list')}}?type=offline_payment">{{translate('Offline Payment')}}</a>
+                                   href="{{route('admin.configuration.offline-payment.list')}}?web_page=payment_config&type=offline_payment">{{translate('Offline Payment')}}</a>
                             </li>
                         </ul>
                     </div>
@@ -36,15 +36,18 @@
                             @csrf
                             @method('PUT')
 
-                            <input type="hidden" value="{{$withdrawal_method['id']}}" name="id">
+                            <input type="hidden" value="{{$withdrawalMethod['id']}}" name="id">
                             <div class="d-flex justify-content-end mb-3 mt-3">
-                                <div class="d-flex gap-2 justify-content-end text-primary fw-bold" id="bkashInfoModalButton">
-                                    Section View <i class="material-icons" data-bs-toggle="tooltip" title="{{translate('Admin needs to add the payment information for any offline payment, which customers will use to pay.')}}">info</i>
+                                <div class="d-flex gap-2 justify-content-end text-primary fw-bold"
+                                     id="bkashInfoModalButton">
+                                    Section View <i class="material-icons" data-bs-toggle="tooltip"
+                                                    title="{{translate('Admin needs to add the payment information for any offline payment, which customers will use to pay.')}}">info</i>
                                 </div>
                             </div>
 
                             <div class="card">
-                                <div class="card-header d-flex align-items-center flex-wrap justify-content-between gap-2 mb-2">
+                                <div
+                                    class="card-header d-flex align-items-center flex-wrap justify-content-between gap-2 mb-2">
                                     <h5 class="page-title">{{translate('payment_information')}}</h5>
                                     <button class="btn btn-outline--primary" id="add-more-field-payment">
                                         <span class="material-icons">add</span> {{translate('Add_new_field')}}
@@ -54,57 +57,68 @@
                                     <div class="row gy-3 align-items-center">
                                         <div class="col-md-6 col-12">
                                             <div class="form-floating">
-                                                <input type="text" class="form-control" name="method_name" id="method_name"
-                                                placeholder="Select method name" value="{{$withdrawal_method['method_name']??''}}" required>
+                                                <input type="text" class="form-control" name="method_name"
+                                                       id="method_name"
+                                                       placeholder="Select method name"
+                                                       value="{{$withdrawalMethod['method_name']??''}}" required>
                                                 <label>{{translate('payment_method_name')}} *</label>
                                             </div>
                                         </div>
 
                                         <div id="custom-field-section-payment">
-                                            @foreach($withdrawal_method['payment_information'] as $key=>$field)
-                                            @if($key>=0)
-                                                <div class="card card-body mb-30 field-row-payment" id="field-row-payment--{{$key}}">
-                                                    <div class="row gy-4 align-items-center">
-                                                        <div class="col-md-4">
-                                                            <div class="form-floating">
-                                                                <input type="text" class="form-control" name="title[]"
-                                                                    placeholder="Select field name" value="{{ $field['title'] ? str_replace('_', ' ', $field['title']) : '' }}" required>
-                                                                <label>{{translate('title')}} *</label>
+                                            @foreach($withdrawalMethod['payment_information'] as $key=>$field)
+                                                @if($key>=0)
+                                                    <div class="card card-body mb-30 field-row-payment"
+                                                         id="field-row-payment--{{$key}}">
+                                                        <div class="row gy-4 align-items-center">
+                                                            <div class="col-md-4">
+                                                                <div class="form-floating">
+                                                                    <input type="text" class="form-control"
+                                                                           name="title[]"
+                                                                           placeholder="Select field name"
+                                                                           value="{{ $field['title'] ? str_replace('_', ' ', $field['title']) : '' }}"
+                                                                           required>
+                                                                    <label>{{translate('title')}} *</label>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                        <div class="col-md-4">
-                                                            <div class="form-floating">
-                                                                <input type="text" class="form-control" name="data[]"
-                                                                    placeholder="Select data" value="{{$field['data']??''}}" required>
-                                                                <label>{{translate('data')}} *</label>
+                                                            <div class="col-md-4">
+                                                                <div class="form-floating">
+                                                                    <input type="text" class="form-control"
+                                                                           name="data[]"
+                                                                           placeholder="Select data"
+                                                                           value="{{$field['data']??''}}" required>
+                                                                    <label>{{translate('data')}} *</label>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                        <div class="col-md-4">
-                                                            <div class="d-flex justify-content-end">
-                                                                <span class="text-danger" onclick="remove_field_payment({{$key}})"  style="cursor: pointer;">
+                                                            <div class="col-md-4">
+                                                                <div class="d-flex justify-content-end">
+                                                                <span class="text-danger cursor-pointer remove-field-payment-btn"
+                                                                      data-counter-payment="{{$key}}">
                                                                     <span class="material-icons">delete</span>
                                                                 </span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            @endif
-                                        @endforeach
+                                                @endif
+                                            @endforeach
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="mt-3">
-                                <!-- HERE CUSTOM FIELDS WILL BE ADDED -->
                                 <div class="d-flex justify-content-end mb-3 mt-4">
-                                    <div class="d-flex gap-2 justify-content-end text-primary fw-bold" id="paymentInfoModalButton">
-                                        Section View <i class="material-icons" data-bs-toggle="tooltip" title="{{translate('Admin needs to set the required customer information, which needs to be provided to the customers before placing a booking through offline payment')}}">info</i>
+                                    <div class="d-flex gap-2 justify-content-end text-primary fw-bold"
+                                         id="paymentInfoModalButton">
+                                        Section View <i class="material-icons" data-bs-toggle="tooltip"
+                                                        title="{{translate('Admin needs to set the required customer information, which needs to be provided to the customers before placing a booking through offline payment')}}">info</i>
                                     </div>
                                 </div>
 
                                 <div class="card">
-                                    <div class="card-header d-flex align-items-center flex-wrap justify-content-between gap-2 mb-2">
+                                    <div
+                                        class="card-header d-flex align-items-center flex-wrap justify-content-between gap-2 mb-2">
                                         <h5 class="page-title">{{translate('customer_information')}}</h5>
                                         <button class="btn btn-outline--primary" id="add-more-field-customer">
                                             <span class="material-icons">add</span> {{translate('Add_new_field')}}
@@ -114,7 +128,8 @@
                                         <div class="col-md-6 col-12">
                                             <div class="form-floating">
                                                 <textarea class="form-control" name="payment_note" id="payment_note"
-                                                    placeholder="Select Payment Note" value="" disabled></textarea>
+                                                          placeholder="Select Payment Note" value=""
+                                                          disabled></textarea>
                                                 <label for="payment_note">{{translate('payment_note')}} *</label>
                                             </div>
                                         </div>
@@ -122,38 +137,48 @@
                                 </div>
 
                                 <div class="mt-3">
-                                    <!-- HERE CUSTOM FIELDS WILL BE ADDED -->
                                     <div id="custom-field-section-customer">
-                                        @foreach($withdrawal_method['customer_information'] as $key=>$field)
+                                        @foreach($withdrawalMethod['customer_information'] as $key=>$field)
                                             @if($key>=0 && $field['field_name'] != 'payment_note')
-                                                <div class="card card-body mb-30 field-row-customer" id="field-row-customer--{{$key}}">
+                                                <div class="card card-body mb-30 field-row-customer"
+                                                     id="field-row-customer--{{$key}}">
                                                     <div class="row gy-4 align-items-center">
                                                         <div class="col-md-4">
                                                             <div class="form-floating">
-                                                                <input type="text" class="form-control" name="field_name[{{$key}}]"
-                                                                placeholder="Select Field Name" value="{{ $field['field_name'] ? str_replace('_', ' ', $field['field_name']) : '' }}" required>
+                                                                <input type="text" class="form-control"
+                                                                       name="field_name[{{$key}}]"
+                                                                       placeholder="Select Field Name"
+                                                                       value="{{ $field['field_name'] ? str_replace('_', ' ', $field['field_name']) : '' }}"
+                                                                       required>
 
                                                                 <label>{{translate('input_field_name')}} *</label>
                                                             </div>
                                                         </div>
                                                         <div class="col-md-4">
                                                             <div class="form-floating">
-                                                                <input type="text" class="form-control" name="placeholder[{{$key}}]"
-                                                                       placeholder="Select placeholder" value="{{$field['placeholder']??''}}" required>
+                                                                <input type="text" class="form-control"
+                                                                       name="placeholder[{{$key}}]"
+                                                                       placeholder="Select placeholder"
+                                                                       value="{{$field['placeholder']??''}}" required>
                                                                 <label>{{translate('placeholder')}} *</label>
                                                             </div>
                                                         </div>
                                                         <div class="col-md-4">
-                                                            <div class="d-flex justify-content-between gap-2 align-items-center">
+                                                            <div
+                                                                class="d-flex justify-content-between gap-2 align-items-center">
                                                                 <div class="form-check">
-                                                                    <input class="form-check-input" type="checkbox" value="1"
-                                                                        name="is_required[{{$key}}]" id="flexCheckDefault__{{$key}}"
-                                                                            {{$field['is_required'] ? 'checked' : ''}}>
-                                                                    <label class="form-check-label" for="flexCheckDefault__{{$key}}">
+                                                                    <input class="form-check-input" type="checkbox"
+                                                                           value="1"
+                                                                           name="is_required[{{$key}}]"
+                                                                           id="flexCheckDefault__{{$key}}"
+                                                                        {{$field['is_required'] ? 'checked' : ''}}>
+                                                                    <label class="form-check-label"
+                                                                           for="flexCheckDefault__{{$key}}">
                                                                         {{translate('This_field_required')}}
                                                                     </label>
                                                                 </div>
-                                                                <span class="text-danger" onclick="remove_field({{$key}})"  style="cursor: pointer;">
+                                                                <span class="text-danger cursor-pointer remove-field-btn"
+                                                                      data-counter="{{$key}}">
                                                                     <span class="material-icons">delete</span>
                                                                 </span>
                                                             </div>
@@ -161,14 +186,14 @@
                                                     </div>
                                                 </div>
                                             @endif
-                                    @endforeach
+                                        @endforeach
                                     </div>
                                 </div>
 
-                                <!-- BUTTON -->
                                 <div class="d-flex justify-content-end mb-3 mt-3">
                                     <button type="reset" class="btn btn--secondary mx-2">{{translate('Reset')}}</button>
-                                    <button type="submit" class="btn btn--primary demo_check">{{translate('Submit')}}</button>
+                                    <button type="submit"
+                                            class="btn btn--primary demo_check">{{translate('Submit')}}</button>
                                 </div>
                             </div>
                         </form>
@@ -177,71 +202,69 @@
             </div>
         </div>
     </div>
-    <!-- End Main Content -->
 
-        <!-- Section View Modal -->
-        <div class="modal fade" id="sectionViewModal" tabindex="-1" aria-labelledby="sectionViewModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal fade" id="sectionViewModal" tabindex="-1" aria-labelledby="sectionViewModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header border-0">
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                <div class="d-flex align-items-center flex-column gap-3 text-center">
-                    <h3>{{translate('Offline Payment')}}</h3>
-                    <img width="100" src="{{asset('public/assets/admin-module/img/offline_payment.png')}}" alt="">
-                    <p class="text-muted">{{translate('This view is from the user app.')}} <br class="d-none d-sm-block"> {{translate('This is how customer will see in the app')}}</p>
-                </div>
+                    <div class="d-flex align-items-center flex-column gap-3 text-center">
+                        <h3>{{translate('Offline Payment')}}</h3>
+                        <img width="100" src="{{asset('public/assets/admin-module/img/offline_payment.png')}}" alt="">
+                        <p class="text-muted">{{translate('This view is from the user app.')}} <br
+                                class="d-none d-sm-block"> {{translate('This is how customer will see in the app')}}</p>
+                    </div>
 
-                <div class="rounded p-4 mt-3" id="offline_payment_top_part">
-                    <div class="d-flex justify-content-between gap-2 mb-3">
-                        <h4 id="payment_modal_method_name"><span></span></h4>
-                        <div class="text-primary d-flex align-items-center gap-2">
-                            {{translate('Pay on this account')}}
-                            <span class="material-icons">check_circle</span>
+                    <div class="rounded p-4 mt-3" id="offline_payment_top_part">
+                        <div class="d-flex justify-content-between gap-2 mb-3">
+                            <h4 id="payment_modal_method_name"><span></span></h4>
+                            <div class="text-primary d-flex align-items-center gap-2">
+                                {{translate('Pay on this account')}}
+                                <span class="material-icons">check_circle</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-column gap-2" id="methodNameDisplay">
+
+                        </div>
+                        <div class="d-flex flex-column gap-2" id="displayDataDiv">
+
                         </div>
                     </div>
 
-                    <div class="d-flex flex-column gap-2" id="methodNameDisplay">
+                    <div class="rounded p-4 mt-3 mt-4" id="offline_payment_bottom_part">
+                        <h2 class="text-center mb-4">{{translate('Amount')}} : xxx</h2>
 
-                    </div>
-                    <div class="d-flex flex-column gap-2" id="displayDataDiv">
+                        <h4 class="mb-3">{{translate('Payment Info')}}</h4>
+                        <div class="d-flex flex-column gap-3 mb-3" id="customer-info-display-div">
 
-                    </div>
-                </div>
-
-                <div class="rounded p-4 mt-3 mt-4" id="offline_payment_bottom_part">
-                    <h2 class="text-center mb-4">{{translate('Amount')}} : xxx</h2>
-
-                    <h4 class="mb-3">{{translate('Payment Info')}}</h4>
-                    <div class="d-flex flex-column gap-3 mb-3" id="customer-info-display-div">
-
-                    </div>
-                    <div class="d-flex flex-column gap-3">
+                        </div>
+                        <div class="d-flex flex-column gap-3">
                         <textarea name="payment_note" id="payment_note" class="form-control"
-                            readonly rows="10" placeholder="Note"></textarea>
+                                  readonly rows="10" placeholder="Note"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-3 mt-3">
+                        <button type="button" class="btn btn--secondary">Close</button>
+                        <button type="button" class="btn btn--primary">Submit</button>
                     </div>
                 </div>
-
-                {{-- Buttons --}}
-                <div class="d-flex justify-content-end gap-3 mt-3">
-                    <button type="button" class="btn btn--secondary">Close</button>
-                    <button type="button" class="btn btn--primary">Submit</button>
-                </div>
-                </div>
-            </div>
             </div>
         </div>
-
+    </div>
 
 @endsection
 
 @push('script')
     <script>
 
-        //section view modal
-                // Update the modal class based on the argument
-                function openModal(contentArgument) {
+        "use strict"
+
+        function openModal(contentArgument) {
             if (contentArgument === "bkashInfo") {
                 $("#sectionViewModal #offline_payment_top_part").addClass("active");
                 $("#sectionViewModal #offline_payment_bottom_part").removeClass("active");
@@ -253,13 +276,13 @@
                 }
 
                 function extractPaymentData() {
-                var data = [];
+                    var data = [];
 
-                    $('.field-row-payment').each(function(index) {
+                    $('.field-row-payment').each(function (index) {
                         console.log('modal')
                         var title = $(this).find('input[name="title[]"]').val();
                         var dataValue = $(this).find('input[name="data[]"]').val();
-                        data.push({ title: title, data: dataValue });
+                        data.push({title: title, data: dataValue});
                     });
 
                     return data;
@@ -283,7 +306,7 @@
 
                     methodNameDisplay.append(dataRow);
 
-                    extractedData.forEach(function(item) {
+                    extractedData.forEach(function (item) {
                         var titleElement = $('<span>').text(item.title);
                         var dataElement = $('<span>').html(item.data);
 
@@ -296,17 +319,18 @@
 
                     });
                 }
+
                 displayPaymentData();
 
                 //customer info
                 function extractCustomerData() {
                     var data = [];
 
-                    $('.field-row-customer').each(function(index) {
+                    $('.field-row-customer').each(function (index) {
                         var fieldName = $(this).find('input[name="field_name[' + index + ']"]').val();
                         var placeholder = $(this).find('input[name="placeholder[' + index + ']"]').val();
                         var isRequired = $(this).find('input[name="is_required[' + index + ']"]').prop('checked');
-                        data.push({ fieldName: fieldName, placeholder: placeholder, isRequired: isRequired });
+                        data.push({fieldName: fieldName, placeholder: placeholder, isRequired: isRequired});
                     });
 
                     return data;
@@ -315,8 +339,7 @@
                 var extractedCustomerData = extractCustomerData();
                 $('#customer-info-display-div').empty();
 
-                // Loop through the extracted data and populate the display div
-                $.each(extractedCustomerData, function(index, item) {
+                $.each(extractedCustomerData, function (index, item) {
                     var isRequiredAttribute = item.isRequired ? 'required' : '';
                     var displayHtml = `
                         <input type="text" class="form-control" name="payment_by_${index}" id="payment_by_${index}"
@@ -335,16 +358,14 @@
                     $('#payment_modal_method_name').text(methodName + ' ' + 'Info');
                 }
 
-                // $('.payment_modal_method_name').text(methodName);
-
                 function extractPaymentData() {
-                var data = [];
+                    var data = [];
 
-                    $('.field-row-payment').each(function(index) {
+                    $('.field-row-payment').each(function (index) {
                         console.log('modal')
                         var title = $(this).find('input[name="title[]"]').val();
                         var dataValue = $(this).find('input[name="data[]"]').val();
-                        data.push({ title: title, data: dataValue });
+                        data.push({title: title, data: dataValue});
                     });
 
                     return data;
@@ -368,7 +389,7 @@
 
                     methodNameDisplay.append(dataRow);
 
-                    extractedData.forEach(function(item) {
+                    extractedData.forEach(function (item) {
                         var titleElement = $('<span>').text(item.title);
                         var dataElement = $('<span>').html(item.data);
 
@@ -381,17 +402,18 @@
 
                     });
                 }
+
                 displayPaymentData();
 
                 //customer info
                 function extractCustomerData() {
                     var data = [];
 
-                    $('.field-row-customer').each(function(index) {
+                    $('.field-row-customer').each(function (index) {
                         var fieldName = $(this).find('input[name="field_name[' + index + ']"]').val();
                         var placeholder = $(this).find('input[name="placeholder[' + index + ']"]').val();
                         var isRequired = $(this).find('input[name="is_required[' + index + ']"]').prop('checked');
-                        data.push({ fieldName: fieldName, placeholder: placeholder, isRequired: isRequired });
+                        data.push({fieldName: fieldName, placeholder: placeholder, isRequired: isRequired});
                     });
 
                     return data;
@@ -401,7 +423,7 @@
                 $('#customer-info-display-div').empty();
 
                 // Loop through the extracted data and populate the display div
-                $.each(extractedCustomerData, function(index, item) {
+                $.each(extractedCustomerData, function (index, item) {
                     var isRequiredAttribute = item.isRequired ? 'required' : '';
                     var displayHtml = `
                         <input type="text" class="form-control" name="payment_by_${index}" id="payment_by_${index}"
@@ -414,13 +436,14 @@
             // Open the modal
             $("#sectionViewModal").modal("show");
         }
-        $(document).ready(function() {
-            $("#bkashInfoModalButton").on('click', function() {
+
+        $(document).ready(function () {
+            $("#bkashInfoModalButton").on('click', function () {
                 console.log("something");
                 var contentArgument = "bkashInfo";
                 openModal(contentArgument);
             });
-            $("#paymentInfoModalButton").on('click', function() {
+            $("#paymentInfoModalButton").on('click', function () {
                 var contentArgument = "paymentInfo";
                 openModal(contentArgument);
             });
@@ -428,12 +451,12 @@
 
 
         function remove_field(fieldRowId) {
-            $( `#field-row-customer--${fieldRowId}` ).remove();
+            $(`#field-row-customer--${fieldRowId}`).remove();
             counter--;
         }
 
         function remove_field_payment(fieldRowId) {
-            $( `#field-row-payment--${fieldRowId}` ).remove();
+            $(`#field-row-payment--${fieldRowId}`).remove();
             counterPayment--;
         }
 
@@ -445,11 +468,21 @@
             const numberOfFieldRowsPayment = parentContainerPayment.querySelectorAll('.field-row-payment').length;
             const numberOfFieldRowsCustomer = parentContainerCustomer.querySelectorAll('.field-row-customer').length;
 
-            counter = numberOfFieldRowsCustomer;
-            counterPayment = numberOfFieldRowsPayment;
+            let counter = numberOfFieldRowsCustomer;
+            let counterPayment = numberOfFieldRowsPayment;
+
+            $(document).on('click', '.remove-field-btn', function () {
+                var counter = $(this).data('counter');
+                remove_field(counter);
+            });
+
+            $(document).on('click', '.remove-field-payment-btn', function () {
+                var counter = $(this).data('counter-payment');
+                remove_field_payment(counter);
+            });
 
             $('#add-more-field-customer').on('click', function (event) {
-                if(counter < 14) {
+                if (counter < 14) {
                     event.preventDefault();
 
                     $('#custom-field-section-customer').append(
@@ -475,10 +508,10 @@
                                             <input class="form-check-input" type="checkbox" value="1" name="is_required[${counter}]" id="flexCheckDefault__${counter}" checked>
                                             <label class="form-check-label" for="flexCheckDefault__${counter}">
                                                 {{translate('This_field_required')}}
-                                            </label>
-                                        </div>
+                        </label>
+                    </div>
 
-                                        <span class="text-danger" onclick="remove_field(${counter})"  style="cursor: pointer;">
+                    <span class="text-danger cursor-pointer remove-field-btn" data-counter="${counter}">
                                             <span class="material-icons">delete</span>
                                         </span>
                                     </div>
@@ -499,7 +532,7 @@
             })
 
             $('#add-more-field-payment').on('click', function (event) {
-                if(counterPayment < 14) {
+                if (counterPayment < 14) {
                     event.preventDefault();
 
                     $('#custom-field-section-payment').append(
@@ -521,7 +554,7 @@
                                 </div>
                                 <div class="col-md-4">
                                     <div class="d-flex justify-content-end">
-                                        <span class="text-danger" onclick="remove_field_payment(${counterPayment})"  style="cursor: pointer;">
+                                        <span class="text-danger cursor-pointer remove-field-payment-btn" data-counter-payment="${counterPayment}">
                                             <span class="material-icons">delete</span>
                                         </span>
                                     </div>
@@ -542,7 +575,7 @@
             })
 
             $('form').on('reset', function (event) {
-                if(counter > 1) {
+                if (counter > 1) {
                     $('#custom-field-section-payment').html("");
                     $('#custom-field-section-customer').html("");
                     $('#method_name').val("");
@@ -553,6 +586,5 @@
             })
         });
     </script>
-
 
 @endpush

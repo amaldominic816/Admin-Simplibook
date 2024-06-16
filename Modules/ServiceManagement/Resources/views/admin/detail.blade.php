@@ -20,87 +20,93 @@
                 <div class="col-xl-10">
                     <div class="row mb-4 g-4">
                         <div class="col-lg-4 col-sm-12">
-                            <!-- Business Summary -->
                             <div class="statistics-card statistics-card__total-orders">
                                 <h2>{{$service->bookings_count}}</h2>
                                 <h3>{{translate('total_bookings')}}</h3>
-                                <img src="{{asset('public/assets/admin-module')}}/img/icons/total-orders.png"
-                                     class="absolute-img" alt="">
+                                <img src="{{asset('public/assets/admin-module/img/icons/total-orders.png')}}"
+                                     class="absolute-img" alt="{{ translate('total-orders') }}">
                             </div>
-                            <!-- End Business Summary -->
                         </div>
                         <div class="col-lg-4 col-sm-6">
-                            <!-- Business Summary -->
                             <div class="statistics-card statistics-card__ongoing">
                                 <h2>{{$service['ongoing_count']??0}}</h2>
                                 <h3>{{translate('ongoing')}}</h3>
-                                <img src="{{asset('public/assets/admin-module')}}/img/icons/ongoing.png"
-                                     class="absolute-img" alt="">
+                                <img src="{{asset('public/assets/admin-module/img/icons/ongoing.png')}}"
+                                     class="absolute-img" alt="{{ translate('ongoing-orders') }}">
                             </div>
-                            <!-- End Business Summary -->
                         </div>
                         <div class="col-lg-4 col-sm-6">
-                            <!-- Business Summary -->
                             <div class="statistics-card statistics-card__canceled">
                                 <h2>{{$service['canceled_count']??0}}</h2>
                                 <h3>{{translate('canceled')}}</h3>
-                                <img src="{{asset('public/assets/admin-module')}}/img/icons/canceled.png"
-                                     class="absolute-img" alt="">
+                                <img src="{{asset('public/assets/admin-module/img/icons/canceled.png')}}"
+                                     class="absolute-img" alt="{{ translate('canceled-orders') }}">
                             </div>
-                            <!-- End Business Summary -->
                         </div>
                     </div>
                 </div>
             </div>
 
-
-            <!-- Nav Tabs -->
             <div class="mb-3">
                 <ul class="nav nav--tabs nav--tabs__style2">
                     <li class="nav-item">
-                        <button class="nav-link {{!isset($web_page) || $web_page=='general'?'active':''}}" data-bs-toggle="tab"
+                        <button class="nav-link {{!isset($webPage) || $webPage=='general'?'active':''}}"
+                                data-bs-toggle="tab"
                                 data-bs-target="#general-tab-pane">{{translate('general_info')}}
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link {{isset($web_page) && $web_page=='faq'?'active':''}}" data-bs-toggle="tab"
+                        <button class="nav-link {{isset($webPage) && $webPage=='faq'?'active':''}}" data-bs-toggle="tab"
                                 data-bs-target="#faq-tab-pane">{{translate('faq')}}</button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link {{isset($web_page) && $web_page=='review'?'active':''}}" data-bs-toggle="tab"
+                        <button class="nav-link {{isset($webPage) && $webPage=='review'?'active':''}}"
+                                data-bs-toggle="tab"
                                 data-bs-target="#review-tab-pane">{{translate('reviews')}}
                         </button>
                     </li>
                 </ul>
             </div>
-            <!-- End Nav Tabs -->
 
-            <!-- Tab Content -->
             <div class="tab-content">
-                <div class="tab-pane fade {{!isset($web_page) || $web_page=='general'?'show active':''}}" id="general-tab-pane">
+                <div class="tab-pane fade {{!isset($webPage) || $webPage=='general'?'show active':''}}"
+                     id="general-tab-pane">
                     <div class="card">
                         <div class="card-body p-30">
                             <div class="media flex-column flex-md-row gap-3 mb-3">
                                 <div class="">
                                     <img width="300"
-                                         src="{{asset('storage/app/public/service')}}/{{$service->cover_image}}"
-                                         class="img-dropshadow" alt="">
+                                         src="{{onErrorImage(
+                                        $service->cover_image,
+                                        asset('storage/app/public/service').'/' . $service->cover_image,
+                                        asset('public/assets/admin-module/img/media/banner-upload-file.png') ,
+                                        'service/')}}"
+                                         class="img-dropshadow" alt="{{ translate('cover-image') }}">
                                 </div>
                                 <div class="media-body ">
-                                    <div
-                                        class="d-flex flex-wrap gap-3 align-items-center justify-content-between mb-3">
+                                    <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between mb-3">
                                         <h2 class="c1">{{$service->name}}</h2>
-                                        <a href="{{route('admin.service.edit',[$service->id])}}"
-                                           class="btn btn--primary">
-                                            <span class="material-icons">border_color</span>
-                                            {{translate('edit')}}
-                                        </a>
+                                        @can('service_update')
+                                            <a href="{{route('admin.service.edit',[$service->id])}}"
+                                               class="btn btn--primary">
+                                                <span class="material-icons">border_color</span>
+                                                {{translate('edit')}}
+                                            </a>
+                                        @endcan
                                     </div>
+                                    <p class="text-secondary">@if($service?->category)
+                                            {{translate('category')}}
+                                            : {{$service?->category->name ?? translate('Unavailable')}} @if($service?->subCategory)
+                                                |
+                                            @endif
+                                        @endif  @if($service?->subCategory)
+                                            {{translate('sub-category')}}
+                                            : {{$service?->subCategory->name ?? translate('Unavailable')}}
+                                        @endif</p>
                                     <p>{{$service->short_description}}</p>
                                 </div>
                             </div>
 
-                            <!-- Nav Tabs -->
                             <div class="mb-3">
                                 <ul class="nav nav--tabs">
                                     <li class="nav-item">
@@ -115,9 +121,7 @@
                                     </li>
                                 </ul>
                             </div>
-                            <!-- End Nav Tabs -->
 
-                            <!-- Tab Content -->
                             <div class="tab-content">
                                 <div class="tab-pane fade show active" id="long-description-tab-pane">
                                     {!! $service->description !!}
@@ -125,7 +129,6 @@
                                 <div class="tab-pane fade" id="price-table-tab-pane">
                                     <div class="row justify-content-center">
                                         <div class="col-lg-10">
-                                            <!-- Nav Tabs -->
                                             <div class="mt-3 mb-4">
                                                 <ul class="nav nav--tabs nav--tabs__style3">
                                                     @php($count=0)
@@ -142,9 +145,7 @@
                                                     @endif
                                                 </ul>
                                             </div>
-                                            <!-- End Nav Tabs -->
 
-                                            <!-- Tab Content -->
                                             <div class="tab-content">
                                                 @php($count=0)
                                                 @if($service->category && $service->category->zones)
@@ -155,7 +156,6 @@
                                                                     class="c1 me-1">{{$service->variations->where('zone_id',$zone->id)->count()}}</strong>
                                                                 {{translate('available_variants')}}
                                                             </p>
-                                                            <!-- Service Price List -->
                                                             <div class="service-price-list">
                                                                 @foreach($service->variations->where('zone_id',$zone->id)->all() as $variant)
                                                                     <div class="service-price-list-item">
@@ -164,22 +164,19 @@
                                                                     </div>
                                                                 @endforeach
                                                             </div>
-                                                            <!-- End Service Price List -->
                                                         </div>
                                                         @php($count++)
                                                     @endforeach
                                                 @endif
                                             </div>
-                                            <!-- End Tab Content -->
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <!-- End Tab Content -->
                         </div>
                     </div>
                 </div>
-                <div class="tab-pane fade {{isset($web_page) && $web_page=='faq'?'show active':''}}" id="faq-tab-pane">
+                <div class="tab-pane fade {{isset($webPage) && $webPage=='faq'?'show active':''}}" id="faq-tab-pane">
                     <div class="card mb-30">
                         <div class="card-body p-30">
                             <form action="javascript:void(0)" method="POST" class="mb-30" id="faq-form">
@@ -207,7 +204,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="tab-pane fade {{isset($web_page) && $web_page=='review'?'show active':''}}" id="review-tab-pane">
+                <div class="tab-pane fade {{isset($webPage) && $webPage=='review'?'show active':''}}"
+                     id="review-tab-pane">
                     <div class="card mb-30">
                         <div class="card-body p-30">
                             <div class="row">
@@ -338,7 +336,6 @@
                                         <th>{{translate('Booking ID')}}</th>
                                         <th>{{translate('ratings')}}</th>
                                         <th>{{translate('reviews')}}</th>
-                                        {{--<th>{{translate('status')}}</th>--}}
                                     </tr>
                                     </thead>
                                     <tbody>
@@ -358,13 +355,6 @@
                                                     {{$review->review_comment}}
                                                 </p>
                                             </td>
-                                            {{--<td>
-                                                <label class="switcher">
-                                                    <input class="switcher_input" onclick="route_alert('{{route('admin.review.status-update',[$review->id])}}','{{translate('want_to_update_status')}}')"
-                                                           type="checkbox" {{$review->is_active?'checked':''}}>
-                                                    <span class="switcher_control"></span>
-                                                </label>
-                                            </td>--}}
                                         </tr>
                                     @endforeach
                                     </tbody>
@@ -377,13 +367,14 @@
                     </div>
                 </div>
             </div>
-            <!-- End Tab Content -->
         </div>
     </div>
 @endsection
 
 @push('script')
     <script>
+        "use strict"
+
         $('#faq-form').on('submit', e => {
             e.preventDefault();
 
@@ -413,6 +404,11 @@
                 }
             });
         });
+
+        $(".service-faq-update").on('click', function () {
+            let id = $(this).data('id');
+            ajax_post(id)
+        })
 
         function ajax_post(form_id) {
             "use strict";
@@ -445,6 +441,11 @@
             });
         }
 
+        $(".faq-list-ajax-delete").on('click', function () {
+            let route = $(this).data('route');
+            ajax_delete(route)
+        })
+
         function ajax_delete(route) {
             "use strict";
 
@@ -465,19 +466,23 @@
                         dataType: 'json',
                         data: {},
                         beforeSend: function () {
-                            /*$('#loading').show();*/
                         },
                         success: function (response) {
                             $('#faq-list').empty().html(response.template);
                             toastr.success('{{translate('successfully_deleted')}}');
                         },
                         complete: function () {
-                            /*$('#loading').hide();*/
                         },
                     });
                 }
             })
         }
+
+        $(".service-ajax-status-update").on('click', function () {
+            let route = $(this).data('route');
+            let id = $(this).data('id');
+            ajax_status_update(route, id)
+        })
 
         function ajax_status_update(route, id) {
             "use strict";
@@ -498,17 +503,21 @@
                         dataType: 'json',
                         data: {},
                         beforeSend: function () {
-                            /*$('#loading').show();*/
                         },
                         success: function (response) {
                             toastr.success('{{translate('successfully_updated')}}');
                         },
                         complete: function () {
-                            /*$('#loading').hide();*/
                         },
                     });
                 }
             })
         }
+
+        $(".show-service-edit-section").on('click', function () {
+            let id = $(this).data('id');
+            $(`#edit-${id}`).toggle();
+        })
     </script>
+
 @endpush

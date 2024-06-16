@@ -18,18 +18,18 @@ use Modules\PaymentModule\Http\Controllers\Web\Admin\PaymentConfigController;
 
 /** Payment */
 
-$is_published = 0;
+$isPublished = 0;
 try {
-    $full_data = include('Modules/Gateways/Addon/info.php');
-    $is_published = $full_data['is_published'] == 1 ? 1 : 0;
+    $fullData = include('Modules/Gateways/Addon/info.php');
+    $isPublished = $fullData['is_published'] == 1 ? 1 : 0;
 } catch (\Exception $exception) {}
 
 
-Route::get('payment', [PaymentController::class, 'index']);
+Route::match(['get', 'post'],'payment', [PaymentController::class, 'index']);
 
-if (!$is_published) {
+if (!$isPublished) {
     Route::group(['prefix' => 'payment'], function () {
-        Route::get('/', [PaymentController::class, 'index']);
+        Route::match(['get', 'post'],'/', [PaymentController::class, 'index']);
 
         //SSLCOMMERZ
         Route::group(['prefix' => 'sslcommerz', 'as' => 'sslcommerz.'], function () {
@@ -83,19 +83,18 @@ Route::get('payment-success', [PaymentController::class, 'success'])->name('paym
 Route::get('payment-fail', [PaymentController::class, 'fail'])->name('payment-fail');
 
 /** Admin */
-Route::group(['prefix' => 'admin', 'as' => 'admin.', 'namespace' => 'Web\Admin', 'middleware' => ['admin', 'mpc:system_management']], function () {
+Route::group(['prefix' => 'admin', 'as' => 'admin.', 'namespace' => 'Web\Admin', 'middleware' => ['admin']], function () {
     Route::group(['prefix' => 'configuration', 'as' => 'configuration.'], function () {
-        Route::get('payment-get', [PaymentConfigController::class, 'payment_config_get'])->name('payment-get');
-        Route::put('payment-set', [PaymentConfigController::class, 'payment_config_set'])->name('payment-set');
+        Route::put('payment-set', [PaymentConfigController::class, 'setPaymentConfig'])->name('payment-set');
 
         Route::group(['prefix' => 'offline-payment', 'as'=>'offline-payment.'], function () {
-            Route::any('list', 'OfflinePaymentController@method_list')->name('list');
-            Route::get('create', 'OfflinePaymentController@method_create')->name('create');
-            Route::post('store', 'OfflinePaymentController@method_store')->name('store');
-            Route::get('edit/{id}', 'OfflinePaymentController@method_edit')->name('edit');
-            Route::put('update', 'OfflinePaymentController@method_update')->name('update');
-            Route::delete('delete/{id}', 'OfflinePaymentController@method_destroy')->name('delete');
-            Route::any('status-update/{id}', 'OfflinePaymentController@method_status_update')->name('status-update');
+            Route::any('list', 'OfflinePaymentController@methodList')->name('list');
+            Route::get('create', 'OfflinePaymentController@methodCreate')->name('create');
+            Route::post('store', 'OfflinePaymentController@methodStore')->name('store');
+            Route::get('edit/{id}', 'OfflinePaymentController@methodEdit')->name('edit');
+            Route::put('update', 'OfflinePaymentController@methodUpdate')->name('update');
+            Route::delete('delete/{id}', 'OfflinePaymentController@methodDestroy')->name('delete');
+            Route::any('status-update/{id}', 'OfflinePaymentController@statusUpdate')->name('status-update');
         });
     });
 
@@ -106,7 +105,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.', 'namespace' => 'Web\Admin',
         Route::get('edit/{id}', [BonusController::class, 'edit'])->name('edit');
         Route::put('update/{id}', [BonusController::class, 'update'])->name('update');
         Route::delete('delete/{id}', [BonusController::class, 'destroy'])->name('delete');
-        Route::any('status-update/{id}', [BonusController::class, 'status_update'])->name('status-update');
+        Route::any('status-update/{id}', [BonusController::class, 'statusUpdate'])->name('status-update');
         Route::any('download', [BonusController::class, 'download'])->name('download');
     });
 });

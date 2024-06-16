@@ -20,6 +20,6 @@ Route::group(['prefix' => 'admin', 'as'=>'admin.', 'namespace' => 'Api\V1\Admin'
 
 Route::group(['prefix' => 'provider', 'as'=>'provider.', 'namespace' => 'Api\V1\Provider','middleware'=>['auth:api']], function () {
     Route::group(['prefix' => 'withdraw', 'as'=>'withdraw.'], function () {
-        Route::get('methods', 'WithdrawController@get_methods');
+        Route::get('methods', 'WithdrawController@getMethods');
     });
 });

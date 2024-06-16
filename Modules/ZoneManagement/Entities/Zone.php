@@ -3,26 +3,30 @@
 namespace Modules\ZoneManagement\Entities;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Grimzy\LaravelMysqlSpatial\Eloquent\SpatialTrait;
 use App\Traits\HasUuid;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Modules\CategoryManagement\Entities\Category;
 use Modules\ProviderManagement\Entities\Provider;
-use Modules\UserManagement\Entities\User;
+use Modules\BusinessSettingsModule\Entities\Translation;
+use MatanYadaev\EloquentSpatial\Objects\Point;
+use MatanYadaev\EloquentSpatial\Objects\Polygon;
+use MatanYadaev\EloquentSpatial\Traits\HasSpatial;
 
 class Zone extends Model
 {
     use HasFactory;
-    use SpatialTrait;
+    use HasSpatial;
     use HasUuid;
 
     protected $casts = [
-        'is_active' => 'integer'
+        'is_active' => 'integer',
+        'coordinates' => Polygon::class,
+
     ];
 
-    protected $fillable = [];
-
-    protected $spatialFields = [
+    protected $fillable = [
         'coordinates'
     ];
 
@@ -41,12 +45,29 @@ class Zone extends Model
         return $this->belongsToMany(Category::class);
     }
 
-    protected function getCoordinatesAttribute($values): array
+    public function translations(): MorphMany
     {
-        $points = [];
-        foreach ($values[0] as $point) {
-            $points[] = (object)['lat' => $point->getLat(), 'lng' => $point->getLng()];
+        return $this->morphMany(Translation::class, 'translationable');
+    }
+
+    public function getNameAttribute($value){
+        if (count($this->translations) > 0) {
+            foreach ($this->translations as $translation) {
+                if ($translation['key'] == 'zone_name') {
+                    return $translation['value'];
+                }
+            }
         }
-        return $points;
+
+        return $value;
+    }
+
+    protected static function booted()
+    {
+        static::addGlobalScope('translate', function (Builder $builder) {
+            $builder->with(['translations' => function ($query) {
+                return $query->where('locale', app()->getLocale());
+            }]);
+        });
     }
 }

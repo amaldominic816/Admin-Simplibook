@@ -614,7 +614,7 @@ trait  SmsGateway
 
     public static function get_settings($name)
     {
-        $data = config_settings($name, 'sms_config');
+        $data = config_settingss($name, 'sms_config');
         if (isset($data) && !is_null($data->live_values)) {
             return json_decode($data->live_values, true);
         }

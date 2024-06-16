@@ -1,29 +1,50 @@
-<!-- Inbox Message Header -->
 <div
     class="inbox_msg_header d-flex flex-wrap gap-3 justify-content-between align-items-center border px-3 py-2 rounded mb-4">
-    <!-- Profile -->
     <div class="media align-items-center gap-3">
         <div class="position-relative">
-            <img
-                onerror="this.src='{{asset('public/assets/admin-module/img/user2x.png')}}'"
-                @if(isset($from_user->user) && $from_user->user->user_type == 'customer')
-                src="{{asset('storage/app/public')}}/user/profile_image/{{isset($from_user->user)?$from_user->user->profile_image:'def.png'}}"
-                @elseif(isset($from_user->user) && $from_user->user->user_type == 'provider-admin')
-                src="{{asset('storage/app/public')}}/provider/logo/{{isset($from_user->user->provider)?$from_user->user->provider->logo:'def.png'}}"
-                @elseif(isset($from_user->user) && $from_user->user->user_type == 'provider-serviceman')
-                src="{{asset('storage/app/public')}}/serviceman/profile/{{isset($from_user->user)?$from_user->user->profile_image:'def.png'}}"
-                @endif
-                class="avatar rounded-circle">
+            <img class="avatar rounded-circle"
+                 @if(isset($fromUser->user) && $fromUser->user->user_type == 'customer')
+                     src="{{onErrorImage(
+                                $fromUser->user->profile_image,
+                                asset('storage/app/public/user/profile_image').'/' . $fromUser->user->profile_image,
+                                asset('public/assets/admin-module/img/media/user.png') ,
+                                'user/profile_image/'
+                                )}}"
+                 @elseif(isset($fromUser->user) && $fromUser->user->user_type == 'provider-admin')
+                     src="{{onErrorImage(
+                                $fromUser->user->provider->logo,
+                                asset('storage/app/public/provider/logo').'/' . $fromUser->user->provider->logo,
+                                asset('public/assets/admin-module/img/media/user.png') ,
+                                'provider/logo/'
+                                )}}"
+                 @elseif(isset($fromUser->user) && $fromUser->user->user_type == 'provider-serviceman')
+                     src="{{onErrorImage(
+                                $fromUser->user->profile_image,
+                                asset('storage/app/public/serviceman/profile').'/' .$fromUser->user->profile_image,
+                                asset('public/assets/admin-module/img/media/user.png') ,
+                                'serviceman/profile/'
+                                )}}"
+                 @else
+                     src="{{onErrorImage('null',
+                        asset('storage/app/public/serviceman/profile').'/',
+                        asset('public/assets/admin-module/img/media/user.png') ,
+                        'serviceman/profile/')}}"
+                 @endif
+                 alt="{{ translate('profile_image') }}">
             <span class="avatar-status bg-success"></span>
         </div>
         <div class="media-body">
-            <h5 class="profile-name">{{isset($from_user->user)?$from_user->user->first_name:translate('no_user_found')}}</h5>
-            <span class="fz-12">{{isset($from_user->user)?$from_user->user->phone:''}}</span>
+            @if(isset($fromUser->user) && isset($fromUser->user->provider))
+                <h5 class="profile-name">{{ $fromUser->user->provider->company_name }}</h5>
+                <span class="fz-12">{{$fromUser->user->provider->company_phone}}</span>
+            @else
+                <h5 class="profile-name">{{ isset($fromUser->user) ? $fromUser->user->first_name : translate('no_user_found') }}</h5>
+                <span class="fz-12">{{isset($fromUser->user)?$fromUser->user->phone:''}}</span>
+            @endif
         </div>
     </div>
-    <!-- End Profile -->
 </div>
-<!-- End Inbox Message Header -->
+
 
 <div class="messaging">
     <div class="inbox_msg d-flex flex-column-reverse" data-trigger="scrollbar">
@@ -40,16 +61,28 @@
                     @endif
 
                     @if(count($chat->conversationFiles)>0)
-                        @foreach($chat->conversationFiles as $file)
-                            @if(in_array($file->file_type,$format))
-                                <img width="150"
-                                     src="{{asset('storage/app/public/conversation')}}/{{$file->file_name}}">
-                            @else
-                                <a href="{{asset('storage/app/public/conversation')}}/{{$file->file_name}}"
-                                   download>{{$file->file_name}}</a>
-                            @endif
-                        @endforeach
+                        <div class="inbox-img-grid">
+                            @foreach($chat->conversationFiles as $file)
+                                @if(in_array($file->file_type,$format))
+                                    <div class="conv-img-wrap">
+                                        <a data-lightbox="mygallery"
+                                           href="{{asset('storage/app/public/conversation')}}/{{$file->stored_file_name}}">
+                                        <img width="150"
+                                             src="{{asset('storage/app/public/conversation')}}/{{$file->stored_file_name}}">
+                                        </a>
+                                    </div>
+                                @else
+                                    <div class="d-flex align-items-center flex-column gap-1">
+                                        <img width="50" src="{{asset('public/assets/admin-module/img/icons/folder.png')}}" alt="">
+                                        <a class="fs-12" href="{{asset('storage/app/public/conversation')}}/{{$file->stored_file_name}}" download>
+                                            {{$file->original_file_name}}
+                                        </a>
+                                    </div>
+                                @endif
+                            @endforeach
+                        </div>
                     @endif
+
                     <span class="time_date d-flex justify-content-end">
                         {{date('H:i a | M d',strtotime($chat->created_at))}}
                     </span>
@@ -64,12 +97,12 @@
 
                     @if(count($chat->conversationFiles)>0)
                         @foreach($chat->conversationFiles as $file)
-                            @if($file->file_type=='png')
+                                @if(in_array($file->file_type,$format))
                                 <img width="150"
-                                     src="{{asset('storage/app/public/conversation')}}/{{$file->file_name}}">
+                                     src="{{asset('storage/app/public/conversation')}}/{{$file->stored_file_name}}" alt="{{translate('image')}}">
                             @else
-                                <a href="{{asset('storage/app/public/conversation')}}/{{$file->file_name}}"
-                                   download>{{$file->file_name}}</a>
+                                <a href="{{asset('storage/app/public/conversation')}}/{{$file->stored_file_name}}"
+                                   download>{{$file->original_file_name}}</a>
                             @endif
                         @endforeach
                     @endif
@@ -77,28 +110,42 @@
                 </div>
             @endif
         @endforeach
+
     </div>
 
     <div class="type_msg">
         <form class="mt-4" id="send-sms-form">
-            <div class="input_msg_write">
-                <input name="channel_id" class="hide-div" value="{{$channel_id}}"
+            <div class="input_msg_write border rounded p-3">
+                <input name="channel_id" class="hide-div" value="{{$channelId}}"
                        id="chat-channel-id">
-                <textarea class="form-control h-120" id="msgInputValue" type="text"
-                          placeholder="{{translate('send_a_message')}}"
+                <textarea class="border-0 w-100 resize-none pb-0" id="msgInputValue" type="text"
+                          placeholder="{{translate('type_here...')}}"
                           aria-label="Search" name="message"></textarea>
-                <div class="send-msg-btns d-flex justify-content-end">
-                    <div class="add-img">
-                        <span class="material-icons">add_photo_alternate</span>
-                        <input type="file" class="file_input img_input" name="files[]" multiple>
+
+
+                <div class="d-flex justify-content-between gap-3">
+                    <div class="">
+                        <div class="d-flex gap-3 flex-wrap filearray"></div>
+                        <div id="selected-files-container"></div>
                     </div>
-                    <div class="add-attatchment">
-                        <span class="material-icons">attach_file</span>
-                        <input type="file" class="file_input document_input" name="files[]" multiple>
+                    <div class="send-msg-btns d-flex justify-content-end mt-3 gap-3">
+                        <div class="position-relative">
+                            <label class="cursor-pointer">
+                                <img src="{{asset('public/assets/admin-module/img/icons/img-icon.svg')}}" alt="">
+                                <input type="file" id="msgfilesValue" class="h-100 position-absolute w-100 " hidden multiple
+                                       accept=".{{ implode(',.', array_column(IMAGEEXTENSION, 'key')) }}, |image/*">
+                            </label>
+                        </div>
+                        <div class="add-attatchment">
+                            <img src="{{asset('public/assets/admin-module/img/icons/clip-icon.svg')}}" alt="">
+                            <input type="file" class="file_input document_input" name="files[]" multiple>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <button class="p-0 lh-1" type="button" id="btnSendData">
+                                <span class="material-icons">send</span>
+                            </button>
+                        </div>
                     </div>
-                    <button class="" type="button" id="btnSendData">
-                        <span class="material-icons">send</span>
-                    </button>
                 </div>
             </div>
         </form>
@@ -106,17 +153,73 @@
 </div>
 
 <script>
+    if (typeof selectedFiles === 'undefined') {
+        var selectedFiles = [];
+    }
+    $("#msgfilesValue").on('change', function () {
+        for (let i = 0; i < this.files.length; ++i) {
+            selectedFiles.push(this.files[i]);
+        }
+        console.log('hi')
+        displaySelectedFiles();
+    });
+
+    function displaySelectedFiles() {
+        /*start*/
+        const container = document.getElementById("selected-files-container");
+        container.innerHTML = ""; // Clear previous content
+        selectedFiles.forEach((file, index) => {
+            const input = document.createElement("input");
+            input.type = "file";
+            input.name = `files[${index}]`;
+            input.classList.add(`image_index${index}`);
+            input.hidden = true;
+            container.appendChild(input);
+
+            const blob = new Blob([file], {type: file.type});
+            const file_obj = new File([file], file.name);
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file_obj);
+            input.files = dataTransfer.files;
+        });
+
+        $(".filearray").empty();
+        for (let i = 0; i < selectedFiles.length; ++i) {
+            let filereader = new FileReader();
+            let $uploadDiv = jQuery.parseHTML("<div class='upload_img_box'><span class='img-clear'><span class='material-icons m-0 fs-10'>close</span></span><img src='' alt=''></div>");
+
+            filereader.onload = function () {
+                // Set the src attribute of the img tag within the created div
+                $($uploadDiv).find('img').attr('src', this.result);
+                let imageData = this.result;
+            };
+
+            filereader.readAsDataURL(selectedFiles[i]);
+            $(".filearray").append($uploadDiv);
+            // Attach a click event handler to the "tio-clear" icon to remove the associated div and file from the array
+            $($uploadDiv).find('.img-clear').on('click', function () {
+                $(this).closest('.upload_img_box').remove();
+
+                selectedFiles.splice(i, 1);
+                $('.image_index' + i).remove();
+            });
+        }
+    }
+</script>
+
+<script>
+    "use strict";
+
     $('#btnSendData').on('click', function () {
         var form = $('#send-sms-form')[0];
         var formData = new FormData(form);
-        // Set header if need any otherwise remove setup part
         $.ajaxSetup({
             headers: {
                 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
             }
         });
         $.ajax({
-            url: "{{route('admin.chat.send-message')}}",// your request url
+            url: "{{route('admin.chat.send-message')}}",
             data: formData,
             processData: false,
             contentType: false,
@@ -125,30 +228,32 @@
                 $('.inbox_msg').html(response.template);
                 $(".file_input").val("");
                 $("#send-sms-form")[0].reset();
+                $('.upload__img-wrap').html('')
+                $(".filearray").empty();
+                selectedFiles = [];
+                toastr.success("{{translate('Message sent successfully')}}", {
+                    CloseButton: true,
+                    ProgressBar: true
+                });
             },
-            error: function () {
-
+            error: function (jqXHR, exception) {
+                if (jqXHR.responseJSON && jqXHR.responseJSON.message) {
+                    toastr.error(jqXHR.responseJSON.errors[0]['message']);
+                } else {
+                    toastr.error("An unexpected error occurred.");
+                }
             }
         });
     });
 
-    //Upload File
-    $(".type_msg .img_input").on("change", function (e) {
-        var filename = $(e.target).val().split('\\').pop();
-        $(".messaging .upload_img").html( "<div class='d-flex justify-content-between gap-2 align-items-center show-upload-file'><span class=''>" + filename + "</span><span class='material-icons upload-file-close'>close</span></div>" );
-        $(".messaging .inbox_msg").scrollTop( 0 );
-        $('.upload-file-close').on('click', function() {
-            $(this).parents('.show-upload-file').remove();
-            $(".type_msg .img_input").val(null);
-        });
-    });
     $(".type_msg .document_input").on("change", function (e) {
         var filename = $(e.target).val().split('\\').pop();
-        $(".messaging .upload_file").html( "<div class='d-flex justify-content-between gap-2 align-items-center show-upload-file'><span class=''>" + filename + "</span><span class='material-icons upload-file-close'>close</span></div>" );
-        $(".messaging .inbox_msg").scrollTop( 0 );
-        $('.upload-file-close').on('click', function() {
+        $(".messaging .upload_file").html("<div class='d-flex justify-content-between gap-2 align-items-center show-upload-file'><span class=''>" + filename + "</span><span class='material-icons upload-file-close'>close</span></div>");
+        $(".messaging .inbox_msg").scrollTop(0);
+        $('.upload-file-close').on('click', function () {
             $(this).parents('.show-upload-file').remove();
             $(".type_msg .document_input").val(null);
         });
     });
+
 </script>

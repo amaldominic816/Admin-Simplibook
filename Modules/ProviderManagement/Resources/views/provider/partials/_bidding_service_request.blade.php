@@ -13,9 +13,12 @@
         <div class="mb-4 text-center d-flex flex-column align-items-center">
             <div class="avatar avatar-lg mb-2">
                 <img class="rounded"
-                     src="{{asset('storage/app/public/user/profile_image')}}/{{$post?->customer?->profile_image}}"
-                     onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                     alt="">
+                     src="{{onErrorImage(
+                    $post?->customer?->profile_image,
+                    asset('storage/app/public/user/profile_image').'/' . $post?->customer?->profile_image,
+                    asset('public/assets/placeholder.png') ,
+                    'user/profile_image/')}}"
+                     alt="{{translate('image')}}">
             </div>
             <h5 class="text-primary">{{$post?->customer?->first_name.' '.$post?->customer?->last_name}}</h5>
             <div class="text-muted fs-12">
@@ -27,9 +30,12 @@
 
         <div class="media gap-2 mb-4">
             <img width="30"
-                 src="{{asset('storage/app/public/category')}}/{{$post?->sub_category?->image}}"
-                 onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                 alt="">
+                 src="{{onErrorImage(
+                    $post?->sub_category?->image,
+                    asset('storage/app/public/category').'/' . $post?->sub_category?->image,
+                    asset('public/assets/placeholder.png') ,
+                    'category/')}}"
+                 alt="{{translate('image')}}">
             <div class="media-body">
                 <h5>{{$post?->service?->name}}</h5>
                 <div class="text-muted fs-12">{{$post?->sub_category?->name}}</div>
@@ -42,15 +48,17 @@
 </div>
 
 <script>
+    "use strict";
+
     $("#service-request-alert-close").click(function () {
         $.ajax({
             url: "{{route('provider.booking.post.check_all')}}",
             method: 'GET',
             success: function (response) {
-                //
+
             },
             error: function (xhr, status, error) {
-                //
+
             }
         });
     });

@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Modules\ProviderManagement\Entities\Provider;
 use Modules\ProviderManagement\Entities\WithdrawRequest;
@@ -48,10 +49,10 @@ class WithdrawController extends Controller
         ]);
 
         $search = $request->has('search') ? $request['search'] : '';
-        $page_type = 'overview';
-        $query_param = ['search' => $search, 'page_type' => $page_type];
+        $pageType = $request['page_type'];
+        $queryParam = ['search' => $search, 'page_type' => $pageType];
 
-        $withdraw_requests = $this->withdraw_request
+        $withdrawRequests = $this->withdraw_request
             ->with(['user.account', 'request_updater.account'])
             ->where('user_id', $request->user()->id)
             ->when($request->has('search'), function ($query) use ($request) {
@@ -63,45 +64,45 @@ class WithdrawController extends Controller
                 }
             })
             ->latest()
-            ->paginate(pagination_limit())->appends($query_param);
+            ->paginate(pagination_limit())->appends($queryParam);
 
         $total_collected_cash = $this->transaction
             ->where('from_user_id', $request->user()->id)
             ->where('trx_type', TRANSACTION_TYPE[1]['key'])
             ->sum('debit');
 
-        $withdraw_request_amount = [
+        $withdrawRequestAmount = [
             'minimum' => (float)(business_config('minimum_withdraw_amount', 'business_information'))->live_values ?? null,
             'maximum' => (float)(business_config('maximum_withdraw_amount', 'business_information'))->live_values ?? null,
         ];
 
         //random value generate
-        $min = $withdraw_request_amount['minimum']; // Set the minimum value
-        $max = $withdraw_request_amount['maximum']; // Set the maximum value
+        $min = $withdrawRequestAmount['minimum'];
+        $max = $withdrawRequestAmount['maximum'];
 
         // Generate random numbers
-        $mid = round(($min + $max) / 2 / 10) * 10; // Middle of min and max
-        $mid1 = round(($min + $mid) / 2 / 10) * 10; // Middle of min and mid
-        $mid2 = round(($mid + $max) / 2 / 10) * 10; // Middle of mid and max
-        $num4 = ceil($max / 10) * 10; // Maximum value
+        $mid = round(($min + $max) / 2 / 10) * 10;
+        $mid1 = round(($min + $mid) / 2 / 10) * 10;
+        $mid2 = round(($mid + $max) / 2 / 10) * 10;
+        $num4 = ceil($max / 10) * 10;
 
         if ($min == 0 && $max == 0) {
             $num5 = 0;
         } else {
             do {
-                $num5 = floor(rand($min, $max) / 10) * 10; // Random value between min and max
+                $num5 = floor(rand($min, $max) / 10) * 10;
             } while (in_array($num5, array($mid, $mid1, $mid2, $num4)));
         }
 
-        // Store generated numbers in an array
         $withdraw_request_amount['random'] = array($mid, $mid1, $num5, $mid2, $num4);
-        //end
 
         $collectable_cash = $this->account->where('user_id', $request->user()->id)->first()->account_receivable ?? 0;
 
         $withdrawal_methods = $this->withdrawal_method->ofStatus(1)->get();
 
-        return view('providermanagement::provider.account.withdraw', compact('withdraw_requests', 'total_collected_cash', 'search', 'page_type', 'collectable_cash', 'withdrawal_methods', 'withdraw_request_amount', 'withdraw_request_amount'));
+        $page_type = 'withdraw_transaction';
+
+        return view('providermanagement::provider.account.withdraw', compact('withdrawRequests', 'total_collected_cash', 'search', 'pageType', 'collectable_cash', 'withdrawal_methods', 'withdraw_request_amount', 'withdraw_request_amount', 'page_type'));
     }
 
     /**
@@ -129,37 +130,79 @@ class WithdrawController extends Controller
         ]);
 
         $provider_user = $this->user->with(['account'])->find($request->user()->id);
+        $account = $provider_user->account;
 
-        if ($request['amount'] > $provider_user->account->account_receivable) {
-            Toastr::error(DEFAULT_400['message']);
-            return back();
+        $receivable = $account->account_receivable;
+        $payable = $account->account_payable;
+
+        $providerinfo = $provider_user->provider;
+
+        if ($receivable > $payable && $payable != 0) {
+
+            $totalReceivable = $receivable - $payable ?? 0;
+
+            if ($request['amount'] > $totalReceivable) {
+                Toastr::error(translate(DEFAULT_400['message']));
+                return back();
+            }
+
+            //Adjust
+            //$account->account_receivable -= $payable;
+
+            if($providerinfo){
+                $providerinfo->is_suspended = 0;
+                $providerinfo->save();
+            }
+
+
+        } elseif ($receivable > $payable && $payable == 0) {
+
+            $totalReceivable = $receivable - $payable ?? 0;
+
+            if ($request['amount'] > $totalReceivable) {
+                Toastr::error(translate(DEFAULT_400['message']));
+                return back();
+            }
+
         }
 
         //min max check
-        $withdraw_request_amount = [
+        $withdrawRequestAmount = [
             'minimum' => (float)(business_config('minimum_withdraw_amount', 'business_information'))->live_values ?? null,
             'maximum' => (float)(business_config('maximum_withdraw_amount', 'business_information'))->live_values ?? null,
         ];
 
-        if($request['amount'] < $withdraw_request_amount['minimum'] || $request['amount'] > $withdraw_request_amount['maximum']) {
-            Toastr::error(DEFAULT_400['message']);
+        if($account->account_receivable < $request['amount'] || $request['amount'] < $withdrawRequestAmount['minimum'] || $request['amount'] > $withdrawRequestAmount['maximum']) {
+            Toastr::error(translate(DEFAULT_400['message']));
             return back();
         }
 
-        withdraw_request_transaction($request->user()->id, $request['amount']);
 
-        $this->withdraw_request->create([
-            'user_id' => $request->user()->id,
-            'request_updated_by' => $request->user()->id,
-            'amount' => $request['amount'],
-            'request_status' => 'pending',
-            'is_paid' => 0,
-            'note' => $request['note'],
-            'withdrawal_method_id' => $request['withdraw_method'],
-            'withdrawal_method_fields' => $data,
-        ]);
+        DB::transaction(function () use ($account, $request, $payable, $data,) {
+            withdrawRequestTransaction($request->user()->id, $request['amount']);
 
-        Toastr::success(DEFAULT_200['message']);
+            //admin payment transaction
+            if ($payable > 0){
+                $provider = Provider::where('user_id', $request->user()->id)->first();
+
+                //adjust
+                withdrawRequestAcceptForAdjustTransaction($request->user()->id, $payable);
+                collectCashTransaction($provider->id, $payable);
+            }
+
+            $this->withdraw_request->create([
+                'user_id' => $request->user()->id,
+                'request_updated_by' => $request->user()->id,
+                'amount' => $request['amount'],
+                'request_status' => 'pending',
+                'is_paid' => 0,
+                'note' => $request['note'],
+                'withdrawal_method_id' => $request['withdraw_method'],
+                'withdrawal_method_fields' => $data,
+            ]);
+        });
+
+        Toastr::success(translate(DEFAULT_200['message']));
         return back();
     }
 

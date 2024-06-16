@@ -2,7 +2,7 @@
 
 namespace Modules\CustomerModule\Traits;
 
-use Grimzy\LaravelMysqlSpatial\Types\Point;
+use MatanYadaev\EloquentSpatial\Objects\Point;
 use Modules\UserManagement\Entities\UserAddress;
 use Modules\ZoneManagement\Entities\Zone;
 
@@ -11,7 +11,7 @@ trait CustomerAddressTrait
     public function add_address($service_address, $user_id, $is_guest = 0)
     {
         $point = new Point($service_address->lat, $service_address->lon);
-        $zone = Zone::contains('coordinates', $point)->ofStatus(1)->latest()->first();
+        $zone = Zone::whereContains('coordinates', $point)->ofStatus(1)->latest()->first();
         if ($zone) {
             $zone_id = $zone->id;
         } else {

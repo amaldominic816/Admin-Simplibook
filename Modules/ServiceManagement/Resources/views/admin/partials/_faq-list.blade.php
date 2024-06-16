@@ -1,7 +1,7 @@
 <div class="accordion mb-30" id="accordionExample">
     @if($faqs->count() < 1)
-        <img src="{{asset('public/assets/admin-module')}}/img/icons/faq.png" class="mb-4"
-             alt="">
+        <img src="{{asset('public/assets/admin-module/img/icons/faq.png')}}" class="mb-4"
+             alt="{{ translate('faq') }}">
         <h3 class="text-muted">{{translate('no_faq_added_yet')}}</h3>
     @endif
     @foreach($faqs as $faq)
@@ -20,9 +20,11 @@
                           name="answer">{{$faq->answer}}</textarea>
                 <label>{{translate('answer')}}</label>
             </div>
-            <div class="d-flex justify-content-end">
-                <button type="button" onclick="ajax_post('edit-{{$faq->id}}')"
-                        class="btn btn--primary">{{translate('update_faq')}}</button>
+            <div class="d-flex justify-content-end ">
+                <button type="button" class="btn btn--primary service-faq-update"
+                        data-id="edit-{{$faq->id}}">
+                    {{translate('update_faq')}}
+                </button>
             </div>
         </form>
 
@@ -36,23 +38,29 @@
                 </button>
                 <div class="btn-group d-flex gap-3 align-items-center">
                     <div>
+                        @can('service_manage_status')
                         <label class="switcher" data-bs-toggle="modal" data-bs-target="#deactivateAlertModal">
-                            <input class="switcher_input" type="checkbox" {{$faq->is_active?'checked':''}} onclick="ajax_status_update('{{route('admin.faq.status-update',[$faq->id])}}','faq-list')">
+                            <input class="switcher_input service-ajax-status-update" type="checkbox" {{$faq->is_active?'checked':''}}
+                            data-route="{{route('admin.faq.status-update',[$faq->id])}}"
+                                   data-id="faq-list">
                             <span class="switcher_control"></span>
                         </label>
+                            @endcan
                     </div>
-
-                    <button type="button" onclick="$('#edit-{{$faq->id}}').toggle()"
-                            class="accordion-edit-btn bg-transparent border-0 p-0">
+                    @can('service_update')
+                    <button type="button"
+                            data-id="{{$faq->id}}"
+                            class="accordion-edit-btn bg-transparent border-0 p-0 show-service-edit-section">
                         <span class="material-icons">border_color</span>
                     </button>
-
+                    @endcan
+                    @can('service_delete')
                     <button type="button"
-                            onclick="ajax_delete('{{route('admin.faq.delete',[$faq->id,$faq->service_id])}}')"
-                            class="accordion-delete-btn bg-transparent border-0 p-0"
-                            data-bs-toggle="modal" data-bs-target="#deleteAlertModal">
+                            class="accordion-delete-btn bg-transparent border-0 p-0 faq-list-ajax-delete"
+                            data-route="{{route('admin.faq.delete',[$faq->id,$faq->service_id])}}">
                         <span class="material-icons">delete</span>
                     </button>
+                        @endcan
                 </div>
             </div>
             <div id="faq_{{$faq->id}}" class="accordion-collapse collapse"
@@ -64,3 +72,24 @@
         </div>
     @endforeach
 </div>
+
+@once
+    <script>
+        $(".faq-list-ajax-delete").on('click', function (){
+            let route = $(this).data('route');
+            ajax_delete(route)
+        })
+
+        $(".service-faq-update").on('click', function (){
+            let id = $(this).data('id');
+            ajax_post(id)
+        })
+
+        $(".show-service-edit-section").on('click', function (){
+            let id = $(this).data('id');
+            $(`#edit-${id}`).toggle();
+        })
+    </script>
+@endonce
+
+

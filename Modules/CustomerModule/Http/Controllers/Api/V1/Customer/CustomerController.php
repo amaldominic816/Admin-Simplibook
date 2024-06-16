@@ -12,6 +12,7 @@ use Modules\BookingModule\Entities\Booking;
 use Modules\SMSModule\Lib\SMS_gateway;
 use Modules\TransactionModule\Entities\LoyaltyPointTransaction;
 use Modules\TransactionModule\Entities\Transaction;
+use Modules\UserManagement\Entities\Guest;
 use Modules\UserManagement\Entities\User;
 use Modules\UserManagement\Entities\UserAddress;
 use Illuminate\Support\Facades\Mail;
@@ -21,14 +22,16 @@ class CustomerController extends Controller
 {
 
     private $customer;
+    private Guest $guest;
     private $transaction;
-    private $loyalty_point_transaction;
+    private LoyaltyPointTransaction $loyaltyPointTransaction;
 
-    public function __construct(User $user, Transaction $transaction, LoyaltyPointTransaction $loyalty_point_transaction)
+    public function __construct(User $user,Guest $guest, Transaction $transaction, LoyaltyPointTransaction $loyaltyPointTransaction)
     {
         $this->customer = $user;
+        $this->guest = $guest;
         $this->transaction = $transaction;
-        $this->loyalty_point_transaction = $loyalty_point_transaction;
+        $this->loyaltyPointTransaction = $loyaltyPointTransaction;
     }
 
     /**
@@ -50,7 +53,7 @@ class CustomerController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function update_profile(Request $request): JsonResponse
+    public function updateProfile(Request $request): JsonResponse
     {
         $customer = $this->customer::find($request->user()->id);
         if (!isset($customer)) {
@@ -60,13 +63,17 @@ class CustomerController extends Controller
         $validator = Validator::make($request->all(), [
             'first_name' => 'required',
             'last_name' => 'required',
-            'phone' => '',
+            'phone' => 'required',
             'password' => '',
             'profile_image' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
         ]);
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
+        }
+
+        if (User::where('phone', $request['phone'])->where('id', '!=', $customer->id)->exists()) {
+            return response()->json(response_formatter(DEFAULT_400, null, [["error_code"=>"phone","message"=>translate('Phone already taken')]]), 400);
         }
 
         $customer->first_name = $request->first_name;
@@ -91,7 +98,7 @@ class CustomerController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function update_fcm_token(Request $request): JsonResponse
+    public function updateFcmToken(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'fcm_token' => 'required',
@@ -113,7 +120,7 @@ class CustomerController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function remove_account(Request $request): JsonResponse
+    public function removeAccount(Request $request): JsonResponse
     {
         $customer = $this->customer->whereIn('user_type', CUSTOMER_USER_TYPES)->find($request->user()->id);
         if (!isset($customer)) {
@@ -124,7 +131,7 @@ class CustomerController extends Controller
         foreach ($customer->identification_image as $image_name){
             file_remover('user/identity/', $image_name);
         }
-        $customer->forceDelete();
+        $customer->delete();
 
         return response()->json(response_formatter(DEFAULT_204), 200);
     }
@@ -134,7 +141,7 @@ class CustomerController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function transfer_loyalty_point_to_wallet(Request $request): JsonResponse
+    public function transferLoyaltyPointToWallet(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'point' => 'required',
@@ -152,16 +159,16 @@ class CustomerController extends Controller
         }
 
         //minimum point check (for transferring)
-        $min_point = business_config('min_loyalty_point_to_transfer', 'customer_config')->live_values;
-        if ($request['point'] < $min_point ) {
+        $minPoint = business_config('min_loyalty_point_to_transfer', 'customer_config')->live_values;
+        if ($request['point'] < $minPoint ) {
             return response()->json(response_formatter(DEFAULT_400, null, null), 400);
         }
 
-        $point_value_per_currency_unit = business_config('loyalty_point_value_per_currency_unit', 'customer_config')->live_values;
-        $loyalty_amount = $request['point']/$point_value_per_currency_unit;
+        $pointValuePerCurrencyUnit = business_config('loyalty_point_value_per_currency_unit', 'customer_config')->live_values;
+        $loyaltyAmount = $request['point']/$pointValuePerCurrencyUnit;
 
         //point transfer transaction
-        loyalty_point_wallet_transfer_transaction($user->id, $request['point'], $loyalty_amount);
+        loyaltyPointWalletTransferTransaction($user->id, $request['point'], $loyaltyAmount);
 
         return response()->json(response_formatter(DEFAULT_200), 200);
     }
@@ -170,7 +177,7 @@ class CustomerController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function wallet_transaction(Request $request): JsonResponse
+    public function walletTransaction(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -202,7 +209,7 @@ class CustomerController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function loyalty_point_transaction(Request $request): JsonResponse
+    public function loyaltyPointTransaction(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -213,7 +220,7 @@ class CustomerController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $transactions = $this->loyalty_point_transaction
+        $transactions = $this->loyaltyPointTransaction
             ->with(['user'])
             ->where('user_id', $request->user()->id)
             ->latest()
@@ -227,6 +234,30 @@ class CustomerController extends Controller
             'min_loyalty_point_to_transfer' => business_config('min_loyalty_point_to_transfer', 'customer_config')->live_values,
             'transactions' => $transactions
         ]), 200);
+    }
+
+    /**
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function changeLanguage(Request $request): JsonResponse
+    {
+        if (auth('api')->user()){
+            $customer = $this->customer->find(auth('api')->user()->id);
+            $customer->current_language_key = $request->header('X-localization') ?? 'en';
+            $customer->save();
+            return response()->json(response_formatter(DEFAULT_200), 200);
+        }elseif($request->has('guest_id')){
+            $guest = $this->guest::find($request->guest_id);
+            if (!isset($guest)) {
+                $guest = $this->guest;
+                $guest->ip_address = $request->ip();
+            }
+            $guest->current_language_key = $request->header('X-localization') ?? 'en';
+            $guest->save();
+            return response()->json(response_formatter(DEFAULT_200), 200);
+        }
+        return response()->json(response_formatter(DEFAULT_404), 200);
     }
 
 }

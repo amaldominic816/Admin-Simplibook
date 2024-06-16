@@ -20,14 +20,14 @@ class ChattingController extends Controller
 {
     protected ChannelList $channel_list;
     protected ChannelUser $channel_user;
-    protected ChannelConversation $channel_conversation;
+    protected ChannelConversation $channelConversation;
     protected ConversationFile $conversation_file;
 
-    public function __construct(ChannelList $channel_list, ChannelUser $channel_user, ChannelConversation $channel_conversation, ConversationFile $conversation_file)
+    public function __construct(ChannelList $channel_list, ChannelUser $channel_user, ChannelConversation $channelConversation, ConversationFile $conversation_file)
     {
         $this->channel_list = $channel_list;
         $this->channel_user = $channel_user;
-        $this->channel_conversation = $channel_conversation;
+        $this->channel_conversation = $channelConversation;
         $this->conversation_file = $conversation_file;
     }
 
@@ -36,7 +36,7 @@ class ChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function channel_list(Request $request): JsonResponse
+    public function channelList(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -47,14 +47,14 @@ class ChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $chat_list = $this->channel_list->withCount(['channelUsers'])
+        $chatList = $this->channel_list->withCount(['channelUsers'])
             ->with(['channelUsers.user'])
             ->whereHas('channelUsers', function ($query) use ($request) {
                 $query->where(['user_id' => $request->user()->id]);
             })->orderBy('updated_at', 'DESC')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, $chat_list), 200);
+        return response()->json(response_formatter(DEFAULT_200, $chatList), 200);
     }
 
     /**
@@ -62,7 +62,7 @@ class ChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function referenced_channel_list(Request $request): JsonResponse
+    public function referencedChannelList(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -75,14 +75,14 @@ class ChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $chat_list = $this->channel_list->withCount(['channelUsers'])->with(['channelUsers.user'])
+        $chatList = $this->channel_list->withCount(['channelUsers'])->with(['channelUsers.user'])
             ->where(['reference_id' => $request['reference_id'], 'reference_type' => $request['reference_type']])
             ->whereHas('channelUsers', function ($query) use ($request) {
                 $query->where(['user_id' => $request->user()->id]);
             })->orderBy('updated_at', 'DESC')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, $chat_list), 200);
+        return response()->json(response_formatter(DEFAULT_200, $chatList), 200);
     }
 
     /**
@@ -90,7 +90,7 @@ class ChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function create_channel(Request $request): JsonResponse
+    public function createChannel(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'reference_id' => '',
@@ -102,12 +102,12 @@ class ChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $channel_ids = $this->channel_user->where(['user_id' => $request->user()->id])->pluck('channel_id')->toArray();
-        $find_channel = $this->channel_list->whereIn('id', $channel_ids)->whereHas('channelUsers', function ($query) use ($request) {
+        $channelIds = $this->channel_user->where(['user_id' => $request->user()->id])->pluck('channel_id')->toArray();
+        $findChannel = $this->channel_list->whereIn('id', $channelIds)->whereHas('channelUsers', function ($query) use ($request) {
             $query->where(['user_id' => $request['to_user']]);
         })->latest()->first();
 
-        if (!isset($find_channel)) {
+        if (!isset($findChannel)) {
             $channel = $this->channel_list;
             $channel->reference_id = $request['reference_id'] ?? null;
             $channel->reference_type = $request['reference_type'] ?? null;
@@ -132,7 +132,7 @@ class ChattingController extends Controller
             return response()->json(response_formatter(DEFAULT_STORE_200, $channel), 200);
         }
 
-        return response()->json(response_formatter(DEFAULT_200, $find_channel), 200);
+        return response()->json(response_formatter(DEFAULT_200, $findChannel), 200);
     }
 
     /**
@@ -140,7 +140,7 @@ class ChattingController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function send_message(Request $request): JsonResponse
+    public function sendMessage(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'message' => '',
@@ -162,17 +162,17 @@ class ChattingController extends Controller
                     'is_read' => 0
                 ]);
 
-            $channel_conversation = $this->channel_conversation;
-            $channel_conversation->channel_id = $request->channel_id;
-            $channel_conversation->message = $request['message'];
-            $channel_conversation->user_id = $request->user()->id;
-            $channel_conversation->save();
+            $channelConversation = $this->channel_conversation;
+            $channelConversation->channel_id = $request->channel_id;
+            $channelConversation->message = $request['message'];
+            $channelConversation->user_id = $request->user()->id;
+            $channelConversation->save();
 
             if ($request->has('files')) {
                 foreach ($request->file('files') as $file) {
                     $extension = $file->getClientOriginalExtension();
                     $this->conversation_file->create([
-                        'conversation_id' => $channel_conversation->id,
+                        'conversation_id' => $channelConversation->id,
                         'file_name' => file_uploader('conversation/', $extension, $file),
                         'file_type' => $extension,
                     ]);

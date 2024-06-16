@@ -23,7 +23,7 @@ use Modules\PaymentModule\Traits\SmsGateway;
 class VerificationController extends Controller
 {
     public function __construct(
-        private User $user,
+        private User             $user,
         private UserVerification $user_verification
     )
     {
@@ -44,21 +44,19 @@ class VerificationController extends Controller
      * @return RedirectResponse|Renderable
      * @throws ValidationException
      */
-    public function send_otp(Request $request): RedirectResponse|Renderable
+    public function sendOtp(Request $request): RedirectResponse|Renderable
     {
         Validator::make($request->all(), [
             'identity' => 'required|max:255',
             'identity_type' => 'required|in:phone,email'
         ])->validate();
 
-        //provider check
         $user = $this->user->where($request['identity_type'], $request['identity'])->whereIn('user_type', PROVIDER_USER_TYPES)->first();
-        if(!isset($user)) {
-            Toastr::error(DEFAULT_404['message']);
+        if (!isset($user)) {
+            Toastr::error(translate(DEFAULT_404['message']));
             return redirect(route('provider.auth.verification.index'));
         }
 
-        //resend time check
         $user_verification = $this->user_verification->where('identity', $request['identity'])->first();
         $otp_resend_time = business_config('otp_resend_time', 'otp_login_setup')?->live_values;
 
@@ -81,18 +79,16 @@ class VerificationController extends Controller
             'expires_at' => now()->addMinute(3),
         ]);
 
-        //send otp
         if ($request['identity_type'] == 'phone') {
-            //for payment and sms gateway addon
             $published_status = 0;
             $payment_published_status = config('get_payment_publish_status');
             if (isset($payment_published_status[0]['is_published'])) {
                 $published_status = $payment_published_status[0]['is_published'];
             }
 
-            if($published_status == 1){
+            if ($published_status == 1) {
                 $response = SmsGateway::send($request['identity'], $otp);
-            }else{
+            } else {
                 $response = SMS_gateway::send($request['identity'], $otp);
             }
 
@@ -111,16 +107,16 @@ class VerificationController extends Controller
             Session::put('identity', $request['identity']);
             Session::put('identity_type', $request['identity_type']);
 
-            Toastr::success(DEFAULT_SENT_OTP_200['message']);
+            Toastr::success(translate(DEFAULT_SENT_OTP_200['message']));
             return view('auth::verification.verify-otp');
 
         } else {
-            Toastr::error(DEFAULT_SENT_OTP_FAILED_200['message']);
+            Toastr::error(translate(DEFAULT_SENT_OTP_FAILED_200['message']));
             return redirect(route('provider.auth.verification.index'));
         }
     }
 
-    public function verify_otp(Request $request): JsonResponse|Renderable|RedirectResponse
+    public function verifyOtp(Request $request): JsonResponse|Renderable|RedirectResponse
     {
         $validator = Validator::make($request->all(), [
             'identity' => 'required',
@@ -130,7 +126,7 @@ class VerificationController extends Controller
 
         if ($validator->fails()) {
             $error = error_processor($validator);
-            $message = $error[0]['message'] ?? DEFAULT_400['message'];
+            $message = $error[0]['message'] ?? translate(DEFAULT_400['message']);
             Toastr::error($message);
             return redirect(route('provider.auth.verification.index'));
         }
@@ -160,7 +156,7 @@ class VerificationController extends Controller
             }
             $this->user_verification->where(['identity' => $request['identity'], 'otp' => $request['otp']])->delete();
 
-            Toastr::success(OTP_VERIFICATION_SUCCESS_200['message']);
+            Toastr::success(translate(OTP_VERIFICATION_SUCCESS_200['message']));
             return redirect(route('provider.auth.login'));
 
         } else {
@@ -210,7 +206,7 @@ class VerificationController extends Controller
             $user_verify->save();
         }
 
-        Toastr::error(OTP_VERIFICATION_FAIL_403['message']);
+        Toastr::error(translate(OTP_VERIFICATION_FAIL_403['message']));
         return redirect(route('provider.auth.verification.index'));
     }
 }

@@ -17,16 +17,14 @@ use Modules\BidModule\Http\Controllers\APi\V1\Provider\PostController as Provide
 |
 */
 
-/** Customer */
 Route::group(['prefix' => 'customer', 'namespace' => 'Api\V1\Customer', 'middleware' => ['auth:api', 'ensureBiddingIsActive']], function () {
     Route::group(['prefix' => 'post'], function () {
         Route::get('/', [PostController::class, 'index']);
         Route::get('/details/{id}', [PostController::class, 'show']);
         Route::post('/', [PostController::class, 'store']);
 
-        Route::put('update-info', [PostController::class, 'update_info']);
+        Route::put('update-info', [PostController::class, 'updateInfo']);
 
-        //Bids
         Route::group(['prefix' => 'bid'], function () {
             Route::get('/', [PostBidController::class, 'index']);
             Route::get('details', [PostBidController::class, 'show']);
@@ -35,18 +33,16 @@ Route::group(['prefix' => 'customer', 'namespace' => 'Api\V1\Customer', 'middlew
     });
 });
 
-/** Provider */
 Route::group(['prefix' => 'provider', 'namespace' => 'Api\V1\Provider', 'middleware' => ['auth:api', 'ensureBiddingIsActive']], function () {
     Route::group(['prefix' => 'post'], function () {
         Route::get('/', [ProviderPostController::class, 'index']);
         Route::get('details/{id}', [ProviderPostController::class, 'show']);
-        Route::post('/', [ProviderPostController::class, 'decline']);  //decline posts
+        Route::post('/', [ProviderPostController::class, 'decline']);
 
-        //Bids
         Route::group(['prefix' => 'bid'], function () {
             Route::get('/', [ProviderPostBidController::class, 'index']);
-            Route::post('/', [ProviderPostBidController::class, 'store']);  //make bid for post
-            Route::post('/withdraw', [ProviderPostBidController::class, 'withdraw']);  //make bid for post
+            Route::post('/', [ProviderPostBidController::class, 'store']);
+            Route::post('/withdraw', [ProviderPostBidController::class, 'withdraw']);
         });
     });
 });

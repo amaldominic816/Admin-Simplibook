@@ -2,27 +2,25 @@
 
 namespace Modules\CustomerModule\Http\Controllers\Api\V1\Customer;
 
-use Grimzy\LaravelMysqlSpatial\Types\Point;
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
 use Modules\UserManagement\Entities\UserAddress;
 use Modules\ZoneManagement\Entities\Zone;
+use MatanYadaev\EloquentSpatial\Objects\Point;
 
 class AddressController extends Controller
 {
     private UserAddress $address;
-    private bool $is_customer_logged_in;
-    private mixed $customer_user_id;
+    private bool $isCustomerLoggedIn;
+    private mixed $customerUserId;
 
     public function __construct(UserAddress $address, Request $request)
     {
         $this->address = $address;
-
-        $this->is_customer_logged_in = (bool)auth('api')->user();
-        $this->customer_user_id = $this->is_customer_logged_in ? auth('api')->user()->id : $request['guest_id'];
+        $this->isCustomerLoggedIn = (bool)auth('api')->user();
+        $this->customerUserId = $this->isCustomerLoggedIn ? auth('api')->user()->id : $request['guest_id'];
     }
 
     /**
@@ -35,18 +33,18 @@ class AddressController extends Controller
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
             'offset' => 'required|numeric|min:1|max:100000',
-            'guest_id' => $this->is_customer_logged_in ? 'nullable' : 'required|uuid',
+            'guest_id' => $this->isCustomerLoggedIn ? 'nullable' : 'required|uuid',
         ]);
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        if ($this->is_customer_logged_in && !in_array(auth('api')->user()?->user_type, CUSTOMER_USER_TYPES)) {
+        if ($this->isCustomerLoggedIn && !in_array(auth('api')->user()?->user_type, CUSTOMER_USER_TYPES)) {
             return response()->json(response_formatter(DEFAULT_403), 401);
         }
 
-        $addresses = $this->address->where(['user_id' => $this->customer_user_id])
+        $addresses = $this->address->where(['user_id' => $this->customerUserId])
             ->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])
             ->withPath('');
@@ -75,18 +73,18 @@ class AddressController extends Controller
             'address_label' => 'required',
             'house' => 'nullable',
             'floor' => 'nullable',
-            'guest_id' => $this->is_customer_logged_in ? 'nullable' : 'required|uuid',
+            'guest_id' => $this->isCustomerLoggedIn ? 'nullable' : 'required|uuid',
         ]);
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $point = new Point($request->lat, $request->lon);
-        $zone_id = Zone::contains('coordinates', $point)->ofStatus(1)->latest()->first()?->id;
+        $point = new Point($request->lat, $request->lon, 0);
+        $zone_id = Zone::whereContains('coordinates', $point)->ofStatus(1)->latest()->first()?->id;
 
         $address = $this->address;
-        $address->user_id = $this->customer_user_id;
+        $address->user_id = $this->customerUserId;
         $address->lat = $request->lat;
         $address->lon = $request->lon;
         $address->city = $request->city;
@@ -101,7 +99,7 @@ class AddressController extends Controller
         $address->address_label = $request->address_label;
         $address->house = $request->house;
         $address->floor = $request->floor;
-        $address->is_guest = !$this->is_customer_logged_in;
+        $address->is_guest = !$this->isCustomerLoggedIn;
         $address->save();
 
         return response()->json(response_formatter(DEFAULT_STORE_200, $address), 200);
@@ -115,7 +113,7 @@ class AddressController extends Controller
      */
     public function edit(string $id, Request $request): JsonResponse
     {
-        $address = $this->address->where(['user_id' => $this->customer_user_id])->where('id', $id)->first();
+        $address = $this->address->where(['user_id' => $this->customerUserId])->where('id', $id)->first();
         if (!isset($address)) return response()->json(response_formatter(DEFAULT_404), 404);
 
         return response()->json(response_formatter(DEFAULT_200, $address), 200);
@@ -150,14 +148,14 @@ class AddressController extends Controller
         }
 
         $point = new Point($request->lat, $request->lon);
-        $zone = Zone::contains('coordinates', $point)->ofStatus(1)->latest()->first();
+        $zone = Zone::whereContains('coordinates', $point)->ofStatus(1)->latest()->first();
         if ($zone) {
             $zone_id = $zone->id;
         } else {
             $zone_id = null;
         }
 
-        $address = $this->address->where(['user_id' => $this->customer_user_id])->where('id', $id)->first();
+        $address = $this->address->where(['user_id' => $this->customerUserId])->where('id', $id)->first();
         $address->lat = $request->lat;
         $address->lon = $request->lon;
         $address->city = $request->city;
@@ -186,14 +184,14 @@ class AddressController extends Controller
     public function destroy(Request $request, $id): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'guest_id' => $this->is_customer_logged_in ? 'nullable' : 'required|uuid',
+            'guest_id' => $this->isCustomerLoggedIn ? 'nullable' : 'required|uuid',
         ]);
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        if (!$this->address->where('id', $id)->where('user_id', $this->customer_user_id)->exists()) {
+        if (!$this->address->where('id', $id)->where('user_id', $this->customerUserId)->exists()) {
             return response()->json(response_formatter(DEFAULT_404), 404);
         }
 

@@ -3,6 +3,7 @@
 namespace Modules\PromotionManagement\Http\Controllers\Web\Admin;
 
 use Brian2694\Toastr\Facades\Toastr;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
@@ -19,10 +20,12 @@ use Modules\ServiceManagement\Entities\Service;
 use Modules\ZoneManagement\Entities\Zone;
 use Rap2hpoutre\FastExcel\FastExcel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class CampaignController extends Controller
 {
-    protected $discount, $campaign, $discountType, $service, $category, $zone, $discount_types;
+    protected $discount, $campaign, $discountType, $service, $category, $zone, $discountTypes;
+    use AuthorizesRequests;
 
     public function __construct(Campaign $campaign, Discount $discount, DiscountType $discountType, Service $service, Category $category, Zone $zone)
     {
@@ -38,12 +41,14 @@ class CampaignController extends Controller
      * Store a newly created resource in storage.
      * @param Request $request
      * @return Factory|View|Application
+     * @throws AuthorizationException
      */
     public function index(Request $request): Factory|View|Application
     {
+        $this->authorize('campaign_view');
         $search = $request->has('search') ? $request['search'] : '';
-        $discount_type = $request->has('discount_type') ? $request['discount_type'] : 'all';
-        $query_param = ['search' => $search, 'discount_type' => $discount_type];
+        $discountType = $request->has('discount_type') ? $request['discount_type'] : 'all';
+        $queryParam = ['search' => $search, 'discount_type' => $discountType];
 
         $campaigns = $this->campaign->with(['discount', 'discount.category_types.category', 'discount.service_types.service', 'discount.zone_types'])
             ->when($request->has('search'), function ($query) use ($request) {
@@ -58,9 +63,9 @@ class CampaignController extends Controller
                 return $query->whereHas('discount',function ($query) use ($request) {
                     $query->where(['discount_type' => $request['discount_type']]);
                 });
-            })->latest()->paginate(pagination_limit())->appends($query_param);
+            })->latest()->paginate(pagination_limit())->appends($queryParam);
 
-        return view('promotionmanagement::admin.campaigns.list', compact('campaigns', 'search', 'discount_type'));
+        return view('promotionmanagement::admin.campaigns.list', compact('campaigns', 'search', 'discountType'));
     }
 
 
@@ -68,9 +73,11 @@ class CampaignController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function create(Request $request): View|Factory|Application
     {
+        $this->authorize('campaign_add');
         $categories = $this->category->ofStatus(1)->ofType('main')->latest()->get();
         $zones = $this->zone->ofStatus(1)->latest()->get();
         $services = $this->service->active()->latest()->get();
@@ -83,13 +90,15 @@ class CampaignController extends Controller
      * Store a newly created resource in storage.
      * @param Request $request
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('campaign_add');
         $request->validate([
             'campaign_name' => 'required',
-            'cover_image' => 'required|image|mimes:jpeg,jpg,png,gif|required|max:10000',
-            'thumbnail' => 'required|image|mimes:jpeg,jpg,png,gif|required|max:10000',
+            'cover_image' => 'required|image|required|max:10000|mimes:' . implode(',', array_column(IMAGEEXTENSION, 'key')),
+            'thumbnail' => 'required|image|required|max:10000|mimes:' . implode(',', array_column(IMAGEEXTENSION, 'key')),
             'discount_type' => 'required',
             'discount_title' => 'required',
             'discount_amount' => 'required|numeric',
@@ -124,13 +133,13 @@ class CampaignController extends Controller
             $campaign->is_active = 1;
             $campaign->save();
 
-            $dis_types = ['category', 'service', 'zone'];
-            foreach ((array)$dis_types as $dis_type) {
+            $disTypes = ['category', 'service', 'zone'];
+            foreach ((array)$disTypes as $disType) {
                 $types = [];
-                foreach ((array)$request[$dis_type . '_ids'] as $id) {
+                foreach ((array)$request[$disType . '_ids'] as $id) {
                     $types[] = [
                         'discount_id' => $discount['id'],
-                        'discount_type' => $dis_type,
+                        'discount_type' => $disType,
                         'type_wise_id' => $id,
                         'created_at' => now(),
                         'updated_at' => now()
@@ -140,7 +149,7 @@ class CampaignController extends Controller
             }
         });
 
-        Toastr::success(DEFAULT_STORE_200['message']);
+        Toastr::success(translate(DEFAULT_STORE_200['message']));
         return back();
     }
 
@@ -148,9 +157,11 @@ class CampaignController extends Controller
      * Show the form for editing the specified resource.
      * @param string $id
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function edit(string $id): View|Factory|Application
     {
+        $this->authorize('campaign_update');
         $campaign = $this->campaign->with(['discount', 'discount.category_types', 'discount.service_types', 'discount.zone_types'])->where('id', $id)->first();
         $categories = $this->category->ofStatus(1)->ofType('main')->latest()->get();
         $zones = $this->zone->ofStatus(1)->latest()->get();
@@ -165,13 +176,15 @@ class CampaignController extends Controller
      * @param Request $request
      * @param string $id
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function update(Request $request, string $id): RedirectResponse
     {
+        $this->authorize('campaign_update');
         $request->validate([
             'campaign_name' => 'required',
-            'cover_image' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
-            'thumbnail' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
+            'cover_image' => 'image|max:10000|mimes:' . implode(',', array_column(IMAGEEXTENSION, 'key')),
+            'thumbnail' => 'image|max:10000|mimes:' . implode(',', array_column(IMAGEEXTENSION, 'key')),
             'discount_type' => 'required',
             'discount_title' => 'required',
             'discount_amount' => 'required|numeric',
@@ -209,13 +222,13 @@ class CampaignController extends Controller
 
             $discount->discount_types()->delete();
 
-            $dis_types = ['category', 'service', 'zone'];
-            foreach ((array)$dis_types as $dis_type) {
+            $disTypes = ['category', 'service', 'zone'];
+            foreach ((array)$disTypes as $disType) {
                 $types = [];
-                foreach ((array)$request[$dis_type . '_ids'] as $id) {
+                foreach ((array)$request[$disType . '_ids'] as $id) {
                     $types[] = [
                         'discount_id' => $discount['id'],
-                        'discount_type' => $dis_type,
+                        'discount_type' => $disType,
                         'type_wise_id' => $id,
                         'created_at' => now(),
                         'updated_at' => now()
@@ -225,7 +238,7 @@ class CampaignController extends Controller
             }
         });
 
-        Toastr::success(CAMPAIGN_UPDATE_200['message']);
+        Toastr::success(translate(CAMPAIGN_UPDATE_200['message']));
         return back();
     }
 
@@ -234,9 +247,12 @@ class CampaignController extends Controller
      * @param Request $request
      * @param $id
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function destroy(Request $request, $id): RedirectResponse
     {
+        $this->authorize('campaign_delete');
+
         $campaign = $this->campaign->where('id', $id)->first();
 
         if (isset($campaign)){
@@ -247,7 +263,7 @@ class CampaignController extends Controller
             $this->campaign->where('id', $id)->delete();
         }
 
-        Toastr::success(DEFAULT_DELETE_200['message']);
+        Toastr::success(translate(DEFAULT_DELETE_200['message']));
         return back();
     }
 
@@ -256,14 +272,16 @@ class CampaignController extends Controller
      * @param Request $request
      * @param $id
      * @return JsonResponse
+     * @throws AuthorizationException
      */
-    public function status_update(Request $request, $id): JsonResponse
+    public function statusUpdate(Request $request, $id): JsonResponse
     {
+        $this->authorize('campaign_manage_status');
         $campaign = $this->campaign->where('id', $id)->first();
         $this->campaign->where('id', $id)->update(['is_active' => !$campaign->is_active]);
         $this->discount->where('id', $campaign->discount_id)->update(['is_active' => !$campaign->is_active]);
 
-        return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+        return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
     }
 
     /**
@@ -273,6 +291,7 @@ class CampaignController extends Controller
      */
     public function download(Request $request): string|StreamedResponse
     {
+        $this->authorize('campaign_export');
         $items = $this->campaign->with(['discount', 'discount.category_types', 'discount.service_types', 'discount.zone_types'])
             ->when($request->has('search'), function ($query) use ($request) {
                 $keys = explode(' ', $request['search']);

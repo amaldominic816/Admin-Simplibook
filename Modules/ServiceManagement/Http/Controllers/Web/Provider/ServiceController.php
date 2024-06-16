@@ -49,9 +49,9 @@ class ServiceController extends Controller
      */
     public function index(Request $request): View|Factory|Application
     {
-        $active_category = $request->has('active_category') ? $request['active_category'] : 'all';
+        $activeCategory = $request->has('active_category') ? $request['active_category'] : 'all';
 
-        $subscribed_ids = $this->subscribed_service->where('provider_id', $request->user()->provider->id)
+        $subscribedIds = $this->subscribed_service->where('provider_id', $request->user()->provider->id)
             ->ofStatus(1)
             ->pluck('sub_category_id')
             ->toArray();
@@ -61,15 +61,15 @@ class ServiceController extends Controller
                 return $query->where('zone_id', $request->user()->provider->zone_id);
             })->latest()->get();
 
-        $sub_categories = $this->category->with(['services'])
+        $subCategories = $this->category->with(['services'])
             ->with(['services' => function ($query) {
                 $query->where(['is_active' => 1]);
             }])
             ->withCount(['services' => function ($query) {
                 $query->where(['is_active' => 1]);
             }])
-            ->when($active_category != 'all', function ($query) use ($active_category) {
-                $query->where(['parent_id' => $active_category]);
+            ->when($activeCategory != 'all', function ($query) use ($activeCategory) {
+                $query->where(['parent_id' => $activeCategory]);
             })
             ->when($request->has('category_id') && $request['category_id'] != 'all', function ($query) use ($request) {
                 $query->where('parent_id', $request['category_id']);
@@ -83,14 +83,14 @@ class ServiceController extends Controller
             ->ofStatus(1)->ofType('sub')
             ->latest()->get();
 
-        return view('servicemanagement::provider.available-services', compact('categories', 'sub_categories', 'subscribed_ids', 'active_category'));
+        return view('servicemanagement::provider.available-services', compact('categories', 'subCategories', 'subscribedIds', 'activeCategory'));
     }
 
     /**
      * Display a listing of the resource.
      * @return Application|Factory|View
      */
-    public function request_list(Request $request): View|Factory|Application
+    public function requestList(Request $request): View|Factory|Application
     {
         $search = $request['search'];
         $requests = ServiceRequest::with(['category'])
@@ -113,7 +113,7 @@ class ServiceController extends Controller
      * Display a listing of the resource.
      * @return Application|Factory|View
      */
-    public function make_request(): View|Factory|Application
+    public function makeRequest(): View|Factory|Application
     {
         $categories = $this->category->ofType('main')->select('id', 'name')->get();
         return view('servicemanagement::provider.service.make-request', compact('categories'));
@@ -124,29 +124,29 @@ class ServiceController extends Controller
      * @param Request $request
      * @return RedirectResponse
      */
-    public function store_request(Request $request): RedirectResponse
+    public function storeRequest(Request $request): RedirectResponse
     {
         Validator::make($request->all(), [
-            'category_ids' => 'array',
-            'category_ids.*' => 'uuid',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'nullable|uuid',
             'service_name' => 'required|max:255',
             'service_description' => 'required',
         ])->validate();
 
         ServiceRequest::create([
-            'category_id' => $request['category_id'],
+            'category_id' => strtolower($request['category_id']) == 'null' || $request['category_id'] == '' ? null : $request['category_id'],
             'service_name' => $request['service_name'],
             'service_description' => $request['service_description'],
             'status' => 'pending',
             'user_id' => $request->user()->id,
         ]);
 
-        Toastr::success(DEFAULT_STORE_200['message']);
+        Toastr::success(translate(SERVICE_REQUEST_STORE_200['message']));
         return back();
     }
 
 
-    public function update_subscription(Request $request): JsonResponse
+    public function updateSubscription(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'sub_category_id' => 'required|uuid'
@@ -199,27 +199,27 @@ class ServiceController extends Controller
                 return $query->ofStatus(($request['status'] == 'active') ? 1 : 0);
             })->latest()->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $rating_group_count = DB::table('reviews')->where('provider_id', $request->user()->provider->id)
+        $ratingGroupCount = DB::table('reviews')->where('provider_id', $request->user()->provider->id)
             ->where('service_id', $service_id)
             ->select('review_rating', DB::raw('count(*) as total'))
             ->groupBy('review_rating')
             ->get();
 
-        $total_avg = 0;
-        $main_divider = 0;
-        foreach ($rating_group_count as $count) {
-            $total_avg = round($count->review_rating / $count->total, 2);
-            $main_divider += 1;
+        $totalAvg = 0;
+        $mainDivider = 0;
+        foreach ($ratingGroupCount as $count) {
+            $totalAvg = round($count->review_rating / $count->total, 2);
+            $mainDivider += 1;
         }
 
-        $rating_info = [
-            'rating_count' => $rating_group_count->count(),
-            'average_rating' => round($total_avg / ($main_divider == 0 ? $main_divider + 1 : $main_divider), 2),
-            'rating_group_count' => $rating_group_count,
+        $ratingInfo = [
+            'rating_count' => $ratingGroupCount->count(),
+            'average_rating' => round($totalAvg / ($mainDivider == 0 ? $mainDivider + 1 : $mainDivider), 2),
+            'rating_group_count' => $ratingGroupCount,
         ];
 
         if ($reviews->count() > 0) {
-            return response()->json(response_formatter(DEFAULT_200, ['reviews' => $reviews, 'rating' => $rating_info]), 200);
+            return response()->json(response_formatter(DEFAULT_200, ['reviews' => $reviews, 'rating' => $ratingInfo]), 200);
         }
 
         return response()->json(response_formatter(DEFAULT_404), 200);
@@ -234,7 +234,10 @@ class ServiceController extends Controller
      */
     public function show(Request $request, string $id): View|Factory|RedirectResponse|Application
     {
-        $service = $this->service->where('id', $id)->with(['category.children', 'variations.zone', 'reviews'])->withCount(['bookings'])->first();
+        $service = $this->service->where('id', $id)->with(['category.children', 'variations.zone',
+            'reviews' => function ($query) use ($request) {
+            $query->where('provider_id', $request->user()->provider->id);
+        },])->withCount(['bookings'])->first();
         $ongoing = $this->booking->whereHas('detail', function ($query) use ($id) {
             $query->where('service_id', $id);
         })->where(['booking_status' => 'ongoing'])->count();
@@ -244,8 +247,8 @@ class ServiceController extends Controller
 
         $faqs = $this->faq->latest()->where('service_id', $id)->get();
 
-        $web_page = $request->has('review_page') ? 'review' : 'general';
-        $query_param = ['web_page' => $web_page];
+        $webPage = $request->has('review_page') ? 'review' : 'general';
+        $query_param = ['web_page' => $webPage];
 
         $reviews = $this->review->with(['customer', 'booking'])
             ->where('service_id', $id)
@@ -253,6 +256,7 @@ class ServiceController extends Controller
             ->latest()->paginate(pagination_limit(), ['*'], 'review_page')->appends($query_param);
 
         $rating_group_count = DB::table('reviews')->where('provider_id', $request->user()->provider->id)
+            ->where('service_id', $id)
             ->select('review_rating', DB::raw('count(*) as total'))
             ->groupBy('review_rating')
             ->get();
@@ -260,10 +264,10 @@ class ServiceController extends Controller
         if (isset($service)) {
             $service['ongoing_count'] = $ongoing;
             $service['canceled_count'] = $canceled;
-            return view('servicemanagement::provider.detail', compact('service', 'faqs', 'reviews', 'rating_group_count', 'web_page'));
+            return view('servicemanagement::provider.detail', compact('service', 'faqs', 'reviews', 'rating_group_count', 'webPage'));
         }
 
-        Toastr::error(DEFAULT_204['message']);
+        Toastr::error(translate(DEFAULT_204['message']));
         return back();
     }
 
@@ -282,7 +286,7 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',

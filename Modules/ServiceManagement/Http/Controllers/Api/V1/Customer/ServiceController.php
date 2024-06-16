@@ -2,11 +2,9 @@
 
 namespace Modules\ServiceManagement\Http\Controllers\Api\V1\Customer;
 
-use Brian2694\Toastr\Facades\Toastr;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -14,30 +12,45 @@ use Illuminate\Support\Facades\Validator;
 use Modules\BookingModule\Entities\Booking;
 use Modules\CustomerModule\Traits\CustomerSearchTrait;
 use Modules\ReviewModule\Entities\Review;
+use Modules\ServiceManagement\Entities\FavoriteService;
 use Modules\ServiceManagement\Entities\RecentSearch;
 use Modules\ServiceManagement\Entities\RecentView;
 use Modules\ServiceManagement\Entities\Service;
 use Modules\ServiceManagement\Entities\ServiceRequest;
+use Modules\ServiceManagement\Entities\Variation;
 use Modules\ServiceManagement\Traits\VisitedServiceTrait;
+use Modules\ZoneManagement\Entities\Zone;
+use Stevebauman\Location\Facades\Location;
 
 class ServiceController extends Controller
 {
     use VisitedServiceTrait;
     use CustomerSearchTrait;
 
-    private $service;
+    private Service $service;
     private Review $review;
-    private RecentView $recent_view;
-    private RecentSearch $recent_search;
+    private RecentView $recentView;
+    private RecentSearch $recentSearch;
     private Booking $booking;
+    private Zone $zone;
 
-    public function __construct(Service $service, Review $review, RecentView $recent_view, RecentSearch $recent_search, Booking $booking)
+    private  FavoriteService $favoriteService;
+
+    private bool $is_customer_logged_in;
+    private mixed $customer_user_id;
+
+    public function __construct(Service $service, Review $review, RecentView $recentView, RecentSearch $recentSearch, Booking $booking, Zone $zone, FavoriteService $favoriteService, Request $request)
     {
         $this->service = $service;
         $this->review = $review;
-        $this->recent_view = $recent_view;
-        $this->recent_search = $recent_search;
+        $this->recentView = $recentView;
+        $this->recentSearch = $recentSearch;
         $this->booking = $booking;
+        $this->zone = $zone;
+        $this->favoriteService = $favoriteService;
+
+        $this->is_customer_logged_in = (bool)auth('api')->user();
+        $this->customer_user_id = $this->is_customer_logged_in ? auth('api')->user()->id : $request['guest_id'];
     }
 
     /**
@@ -60,7 +73,11 @@ class ServiceController extends Controller
             ->active()->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, self::variation_mapper($services)), 200);
+        foreach ($services as $service){
+            $service['is_favorite'] = $this->favoriteService->where('customer_user_id',$this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+        }
+
+        return response()->json(response_formatter(DEFAULT_200, self::variationMapper($services)), 200);
     }
 
     /**
@@ -73,41 +90,251 @@ class ServiceController extends Controller
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
             'offset' => 'required|numeric|min:1|max:100000',
-            'string' => 'required'
+            'string' => 'nullable',
+            'sort_by' => 'nullable|in:a_to_z,z_to_a,high_to_low,low_to_high',
+            'sort_by_type' => 'nullable|in:default,top_rated,most_loved,popular,newest,recommended,trending',
         ]);
 
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $auth_user = auth('api')->user();
-        if ($auth_user) {
-            //recent search log
-            $this->recent_search->Create(['user_id' => $auth_user->id, 'keyword' => base64_decode($request['string'])]);
+        $authUser = auth('api')->user();
+        if ($authUser) {
+            $this->recentSearch->Create(['user_id' => $authUser->id, 'keyword' => base64_decode($request['string'])]);
         }
 
-        $keys = explode(' ', base64_decode($request['string']));
-        $services = $this->service->with(['category.zonesBasicInfo', 'variations'])
-            ->where(function ($query) use ($keys) {
+        $searchString = $request->input('string');
+        $decodedString = base64_decode($searchString);
+        $keys = explode(' ', $decodedString);
+
+        $services = $this->service
+            ->orderByRaw("
+                CASE
+                    WHEN name = '$decodedString' THEN 0
+                    WHEN name LIKE '$decodedString%' THEN 1
+                    WHEN name LIKE '%$decodedString%' THEN 2
+                    WHEN name LIKE '%$decodedString' THEN 3
+                    ELSE 4
+                END
+            ")
+            ->with(['category.zonesBasicInfo', 'variations', 'tags', 'faqs','favorites'])
+            ->withCount('favorites','bookings')
+            ->active()
+            ->where(function ($query) use ($decodedString, $keys) {
                 foreach ($keys as $key) {
-                    $query->orWhere('name', 'LIKE', '%' . $key . '%')
-                        ->orWhereHas('tags',function($query) use ($key) {
-                            $query->where('tag', 'like', "%{$key}%");
-                        });
+                    $query->orWhere('name', 'LIKE', '%' . $key . '%');
+                    $query->orWhere('short_description', 'LIKE', '%' . $decodedString . '%');
+                    $query->orWhere('description', 'LIKE', '%' . $decodedString . '%');
+                    $query->orWhereHas('variations', function ($query) use ($key) {
+                        $query->where('variant', 'like', "%{$key}%");
+                    });
+                    $query->orWhereHas('category', function ($query) use ($key) {
+                        $query->where('name', 'like', "%{$key}%");
+                    });
+                    $query->orWhereHas('subCategory', function ($query) use ($key) {
+                        $query->where('name', 'like', "%{$key}%");
+                    });
+                    $query->orWhereHas('tags', function ($query) use ($key) {
+                        $query->where('tag', 'like', "%{$key}%");
+                    });
+                    $query->orWhereHas('faqs', function ($query) use ($key) {
+                        $query->where('question', 'like', "%{$key}%");
+                    });
                 }
             })
-            ->active()->latest()
+            ->when(!is_null($request['rating']), function ($query) use ($request){
+                return $query->where('avg_rating', '>=', $request['rating']);
+            })
+            ->when(isset($request['category_ids']) && is_array($request['category_ids']), function ($query) use ($request) {
+                return $query->whereIn('category_id', $request['category_ids']);
+            })
+            ->when(isset($request['sort_by_type']) && !is_null($request['sort_by_type']), function ($query) use ($request) {
+                return $query->when($request['sort_by_type'] == 'top_rated', function ($query) {
+                    return $query->orderBy('avg_rating', 'DESC');
+                })
+                    ->when($request['sort_by_type'] == 'most_loved', function ($query) {
+                        return $query->orderBy('order_count', 'DESC')
+                            ->orderByDesc('favorites_count');
+                    })
+                    ->when($request['sort_by_type'] == 'popular', function ($query) {
+                        return $query->orderByDesc('bookings_count');
+                    })
+                    ->when($request['sort_by_type'] == 'newest', function ($query) {
+                        return $query->orderBy('created_at', 'DESC');
+                    })
+                    ->when($request['sort_by_type'] == 'recommended', function ($query) {
+                        return $query->when($this->is_customer_logged_in, function ($query) {
+                            $categoryIds = $this->booking->where('customer_id', auth('api')->user()->id)->get()->pluck('category_id');
+                            if ($categoryIds->count() > 0) {
+                                $query->whereIn('category_id', $categoryIds);
+                            } else {
+                            $query->inRandomOrder();}
+                        })->when(!$this->is_customer_logged_in, function ($query) {
+                            $query->inRandomOrder();
+                        });
+                    })
+                    ->when($request['sort_by_type'] == 'trending', function ($query) {
+                        return $query->when($this->booking->count() > 0, function ($query){
+                            $query->whereHas('bookings', function ($query) {
+                                $query->where('created_at', '>', now()->subDays(30)->endOfDay());
+                            })->withCount('bookings')->orderBy('bookings_count', 'desc');
+                        })
+                            ->when($this->booking->count() == 0, function ($query){
+                                $query->withCount(['bookings' => function ($query) {
+                                    $query->where('created_at', '>', now()->subDays(30)->endOfDay());
+                                }])->orderBy('bookings_count', 'desc');
+                            });
+                    });
+            })
+            ->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        if ($auth_user) {
-            //search log
-            $recent_search = RecentSearch::where('keyword', base64_decode($request['string']))->oldest() ->first();
-            $this->Searched_data_log($auth_user->id, 'search', $recent_search->id, count($services));
+
+        $price = [];
+        foreach ($services as $key=>$service){
+            $service['is_favorite'] = $this->favoriteService->where('customer_user_id', $this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+            $serviceFilterMinMaxPrice = [];
+            foreach ($service->variations as $variation){
+                $price[] = $variation->price;
+                $serviceFilterMinMaxPrice[] = $variation->price;
+            }
+            $service['service_filter_min_max_price'] =  min($serviceFilterMinMaxPrice);
         }
 
-        return response()->json(response_formatter(DEFAULT_200, self::variation_mapper($services)), 200);
+        if ($request['min_price'] != null && $request['max_price'] != null && $request['max_price'] > 0) {
+            $filteredServices = collect($services->items())->filter(function ($service) use ($request) {
+                return $service['service_filter_min_max_price'] >= $request['min_price'] &&
+                    $service['service_filter_min_max_price'] <= $request['max_price'];
+            });
+
+            $currentPage = LengthAwarePaginator::resolveCurrentPage();
+            $perPage = $request['limit'];
+            $currentPageItems = $filteredServices->slice(($currentPage - 1) * $perPage, $perPage)->values()->all();
+            $totalFilteredServices = $filteredServices->count();
+
+            $services = new LengthAwarePaginator($currentPageItems, $totalFilteredServices, $perPage, $currentPage);
+            $services->withPath('');
+        }
+
+        if (isset($request['sort_by']) && $request['sort_by'] != null) {
+            $sortedServices = collect($services->items())->sort(function ($a, $b) use ($request) {
+                $aName = $a['name'] ?? '';
+                $bName = $b['name'] ?? '';
+                $aPrice = $a['service_filter_min_max_price'] ?? 0;
+                $bPrice = $b['service_filter_min_max_price'] ?? 0;
+
+                switch ($request['sort_by']) {
+                    case 'a_to_z':
+                        return strcmp($aName, $bName);
+                    case 'z_to_a':
+                        return strcmp($bName, $aName);
+                    case 'high_to_low':
+                        return $bPrice <=> $aPrice;
+                    case 'low_to_high':
+                        return $aPrice <=> $bPrice;
+                    default:
+                        return strcmp($a['id'], $b['id']);
+                }
+            })->values()->all();
+            $services->setCollection(collect($sortedServices));
+        }
+
+
+        if ($authUser) {
+            $recentSearch = RecentSearch::where('keyword', base64_decode($request['string']))->oldest()->first();
+            $this->Searched_data_log($authUser->id, 'search', $recentSearch->id, count($services));
+        }
+
+        $filterMinPrice = count($price) > 0 ? min($price) : 0;
+        $filterMaxPrice = count($price) > 0 ? max($price) : 0;
+
+        $initialMinPrice = Variation::min('price');
+        $initialMaxPrice = Variation::max('price');
+
+        return response()->json(response_formatter(DEFAULT_200, ['filter_min_price' => $filterMinPrice == $filterMaxPrice ? 0 : $filterMinPrice, 'filter_max_price' => $filterMaxPrice,'initial_min_price' => $initialMinPrice == $initialMaxPrice ? 0 : $initialMinPrice, 'initial_max_price' => $initialMaxPrice, 'services' => self::variationMapper($services)]), 200);
     }
 
+
+
+    /**
+     * Display a listing of the resource.
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function searchSuggestions(Request $request)
+    {
+        $searchString = $request->input('string');
+        $decodedString = base64_decode($searchString);
+        $searchWords = explode(' ', $decodedString);
+
+        $services = $this->service->whereHas('category.zones', function ($query) {
+            $query->where('zone_id', Config::get('zone_id'));
+        });
+
+        $searchQuery = $services->orderByRaw("
+            CASE
+                WHEN name = '$decodedString' THEN 0
+                WHEN name LIKE '$decodedString%' THEN 1
+                WHEN name LIKE '%$decodedString%' THEN 2
+                WHEN name LIKE '%$decodedString' THEN 3
+                ELSE 4
+            END
+        ");
+
+        foreach ($searchWords as $word) {
+            $searchQuery->orWhere('name', 'LIKE', "%$word%");
+        }
+
+        $servicesResult = $searchQuery->active()->pluck('name');
+
+        $categoryServices = $this->service->withoutGlobalScopes()->with('category')
+            ->whereHas('category', function ($query) use ($decodedString) {
+                $query->where('name', 'LIKE', "%$decodedString%");
+            })
+            ->whereHas('category.zones', function ($query) {
+                $query->where('zone_id', Config::get('zone_id'));
+            })
+            ->pluck('name');
+
+        $subCategoryServices = $this->service->withoutGlobalScopes()->with('subCategory')
+            ->whereHas('subCategory', function ($query) use ($decodedString) {
+                $query->where('name', 'LIKE', "%$decodedString%");
+            })
+            ->whereHas('category.zones', function ($query) {
+                $query->where('zone_id', Config::get('zone_id'));
+            })
+            ->pluck('name');
+
+        $tagServices = $this->service->withoutGlobalScopes()
+            ->whereHas('tags', function ($query) use ($decodedString) {
+                $query->where('tag', 'LIKE', "%$decodedString%");
+            })
+            ->whereHas('category.zones', function ($query) {
+                $query->where('zone_id', Config::get('zone_id'));
+            })
+            ->pluck('name');
+
+        $results = $servicesResult->merge($categoryServices)
+            ->merge($subCategoryServices)
+            ->merge($tagServices)
+            ->unique();
+
+        $authUser = auth('api')->user();
+        $services = $results->map(function ($serviceName) use ($authUser) {
+            $recentSearched = 0;
+            if ($authUser) {
+                $recentSearched = $this->recentSearch->where('keyword', $serviceName)->exists() ? 1 : 0;
+            }
+            return [
+                'name' => $serviceName,
+                'is_searched' => $recentSearched
+            ];
+        });
+
+        $servicesArray = $services->values()->toArray();
+        return response()->json(response_formatter(DEFAULT_200, $servicesArray), 200);
+    }
 
     /**
      * Display a listing of the resource.
@@ -125,7 +352,7 @@ class ServiceController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        if($this->booking->count() > 0) {
+        if ($this->booking->count() > 0) {
             $services = $this->service->with(['category.zonesBasicInfo', 'variations'])
                 ->has('bookings')
                 ->withCount('bookings')
@@ -133,15 +360,23 @@ class ServiceController extends Controller
                 ->active()
                 ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
+            foreach ($services as $service){
+                $service['is_favorite'] = $this->favoriteService->where('customer_user_id',$this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+            }
+
         } else {
             $services = $this->service->with(['category.zonesBasicInfo', 'variations'])
                 ->withCount('bookings')
                 ->orderBy('bookings_count', 'desc')
                 ->active()
                 ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+
+            foreach ($services as $service){
+                $service['is_favorite'] = $this->favoriteService->where('customer_user_id',$this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+            }
         }
 
-        return response()->json(response_formatter(DEFAULT_200, self::variation_mapper($services)), 200);
+        return response()->json(response_formatter(DEFAULT_200, self::variationMapper($services)), 200);
     }
 
     /**
@@ -166,26 +401,38 @@ class ServiceController extends Controller
 
         $services = $this->service->with(['category.zonesBasicInfo', 'variations']);
         if (auth('api')->user()) {
-            $category_ids = $this->booking->where('customer_id', auth('api')->user()->id)->get()->pluck('category_id');
+            $categoryIds = $this->booking->where('customer_id', auth('api')->user()->id)->get()->pluck('category_id');
 
-            if (count($category_ids) > 0) {
+            if (count($categoryIds) > 0) {
                 $services = $services
-                    ->whereHas('category', function ($query) use($category_ids) {
-                        $query->whereIn('category_id', $category_ids);
+                    ->whereHas('category', function ($query) use ($categoryIds) {
+                        $query->whereIn('category_id', $categoryIds);
                     })
                     ->active()
                     ->latest()
                     ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+
+                foreach ($services as $service){
+                    $service['is_favorite'] = $this->favoriteService->where('customer_user_id', $this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+                }
+
             } else {
                 $services = $services->active()->inRandomOrder()->latest()->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+
+                foreach ($services as $service){
+                    $service['is_favorite'] = $this->favoriteService->where('customer_user_id', $this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+                }
             }
 
         } else {
             $services = $services->active()->inRandomOrder()->latest()->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+            foreach ($services as $service){
+                $service['is_favorite'] = $this->favoriteService->where('customer_user_id', $this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+            }
         }
 
 
-        return response()->json(response_formatter(DEFAULT_200, self::variation_mapper($services)), 200);
+        return response()->json(response_formatter(DEFAULT_200, self::variationMapper($services)), 200);
     }
 
     /**
@@ -193,14 +440,18 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function search_recommended(Request $request): JsonResponse
+    public function searchRecommended(Request $request): JsonResponse
     {
         $services = $this->service->select('id', 'name')
             ->active()
             ->inRandomOrder()
             ->take(5)->get();
 
-        return response()->json(response_formatter(DEFAULT_200, self::variation_mapper($services)), 200);
+        foreach ($services as $service){
+            $service['is_favorite'] = $this->favoriteService->where('customer_user_id', $this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+        }
+
+        return response()->json(response_formatter(DEFAULT_200, self::variationMapper($services)), 200);
     }
 
     /**
@@ -219,7 +470,7 @@ class ServiceController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        if($this->booking->count() > 0) {
+        if ($this->booking->count() > 0) {
             $services = $this->service->with(['category.zonesBasicInfo', 'variations'])
                 ->whereHas('bookings', function ($query) {
                     $query->where('created_at', '>', now()->subDays(30)->endOfDay());
@@ -229,17 +480,25 @@ class ServiceController extends Controller
                 ->active()
                 ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
+            foreach ($services as $service){
+                $service['is_favorite'] = $this->favoriteService->where('customer_user_id', $this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+            }
+
         } else {
             $services = $this->service->with(['category.zonesBasicInfo', 'variations'])
-                ->withCount(['bookings' => function($query) {
+                ->withCount(['bookings' => function ($query) {
                     $query->where('created_at', '>', now()->subDays(30)->endOfDay());
                 }])
                 ->orderBy('bookings_count', 'desc')
                 ->active()
                 ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+
+            foreach ($services as $service){
+                $service['is_favorite'] = $this->favoriteService->where('customer_user_id', $this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+            }
         }
 
-        return response()->json(response_formatter(DEFAULT_200, self::variation_mapper($services)), 200);
+        return response()->json(response_formatter(DEFAULT_200, self::variationMapper($services)), 200);
     }
 
     /**
@@ -247,7 +506,7 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function recently_viewed(Request $request)
+    public function recentlyViewed(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -258,7 +517,7 @@ class ServiceController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $service_ids = $this->recent_view
+        $serviceIds = $this->recentView
             ->where('user_id', $request->user()->id)
             ->select(
                 DB::raw('count(total_service_view) as total_service_view'),
@@ -269,12 +528,16 @@ class ServiceController extends Controller
             ->toArray();
 
         $services = $this->service->with(['category.zonesBasicInfo', 'variations'])
-            ->whereIn('id', $service_ids)
+            ->whereIn('id', $serviceIds)
             ->active()
             ->orderBy('avg_rating', 'DESC')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, self::variation_mapper($services)), 200);
+        foreach ($services as $service){
+            $service['is_favorite'] = $this->favoriteService->where('customer_user_id', $this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+        }
+
+        return response()->json(response_formatter(DEFAULT_200, self::variationMapper($services)), 200);
     }
 
     /**
@@ -282,7 +545,7 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function recently_searched_keywords(Request $request)
+    public function recentlySearchedKeywords(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -293,14 +556,14 @@ class ServiceController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $searched_keywords = $this->recent_search
+        $searchedKeywords = $this->recentSearch
             ->where('user_id', $request->user()->id)
             ->select('id', 'keyword')
             ->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        if (count($searched_keywords) > 0) {
-            return response()->json(response_formatter(DEFAULT_200, $searched_keywords), 200);
+        if (count($searchedKeywords) > 0) {
+            return response()->json(response_formatter(DEFAULT_200, $searchedKeywords), 200);
         }
 
         return response()->json(response_formatter(DEFAULT_404), 404);
@@ -311,7 +574,7 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function remove_searched_keywords(Request $request)
+    public function removeSearchedKeywords(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'id' => 'array',
@@ -322,7 +585,7 @@ class ServiceController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $this->recent_search
+        $this->recentSearch
             ->where('user_id', $request->user()->id)
             ->when($request->has('id'), function ($query) use ($request) {
                 $query->whereIn('id', $request->id);
@@ -344,6 +607,15 @@ class ServiceController extends Controller
             'offset' => 'required|numeric|min:1|max:100000'
         ]);
 
+        if (!session()->has('location')) {
+            $data = Location::get($request->ip());
+            $location = [
+                'lat' => $data ? $data->latitude : '23.757989',
+                'lng' => $data ? $data->longitude : '90.360587'
+            ];
+            session()->put('location', $location);
+        }
+
         if ($validator->fails()) {
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
@@ -353,19 +625,23 @@ class ServiceController extends Controller
             ->orderBy('avg_rating', 'DESC')
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        return response()->json(response_formatter(DEFAULT_200, self::variation_mapper($services)), 200);
+        foreach ($services as $service){
+            $service['is_favorite'] = $this->favoriteService->where('customer_user_id', $this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+        }
+
+        return response()->json(response_formatter(DEFAULT_200, self::variationMapper($services)), 200);
     }
 
-    private function variation_mapper($services)
+    private function variationMapper($services)
     {
         $services->map(function ($service) {
-            $service['variations_app_format'] = self::variations_app_format($service);
+            $service['variations_app_format'] = self::variationsAppFormat($service);
             return $service;
         });
         return $services;
     }
 
-    private function variations_app_format($service): array
+    private function variationsAppFormat($service): array
     {
         $formatting = [];
         $filtered = $service['variations']->where('zone_id', Config::get('zone_id'));
@@ -383,6 +659,7 @@ class ServiceController extends Controller
 
     /**
      * Show the specified resource.
+     * @param Request $request
      * @param string $id
      * @return JsonResponse
      */
@@ -396,32 +673,27 @@ class ServiceController extends Controller
             ->first();
 
         if (isset($service)) {
-            //log for services (that are found by search)
-            if($request->has('attribute') && $request->attribute == 'service' && auth('api')->user()) {
+            if ($request->has('attribute') && $request->attribute == 'service' && auth('api')->user()) {
                 $this->Searched_data_log(auth('api')->user()->id, 'service', $service->id, null);
             }
 
-
-            //visited service log
             if (auth('api')->user()) {
                 $this->visited_service_update(auth('api')->user()->id, $id);
 
                 //search log volume update
-                if($request->has('attribute') && $request->attribute != 'service') {
+                if ($request->has('attribute') && $request->attribute != 'service') {
                     $this->search_log_volume_update(auth('api')->user()->id, $service->id);
                 }
             }
 
-
-            //update service view count
-            $auth_user = auth('api')->user();
-            if ($auth_user) {
-                $recent_view = $this->recent_view->firstOrNew(['service_id' =>  $service->id, 'user_id' => $auth_user->id]);
-                $recent_view->total_service_view += 1;
-                $recent_view->save();
+            $authUser = auth('api')->user();
+            if ($authUser) {
+                $recentView = $this->recentView->firstOrNew(['service_id' => $service->id, 'user_id' => $authUser->id]);
+                $recentView->total_service_view += 1;
+                $recentView->save();
             }
 
-            $service['variations_app_format'] = self::variations_app_format($service);
+            $service['variations_app_format'] = self::variationsAppFormat($service);
             return response()->json(response_formatter(DEFAULT_200, $service), 200);
         }
         return response()->json(response_formatter(DEFAULT_204), 200);
@@ -430,10 +702,10 @@ class ServiceController extends Controller
     /**
      * Display a listing of the resource.
      * @param Request $request
-     * @param string $service_id
+     * @param string $serviceId
      * @return JsonResponse
      */
-    public function review(Request $request, string $service_id): JsonResponse
+    public function review(Request $request, string $serviceId): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -444,29 +716,29 @@ class ServiceController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $reviews = $this->review->with(['provider', 'customer'])->where('service_id', $service_id)->ofStatus(1)->latest()
+        $reviews = $this->review->with(['provider', 'customer'])->where('service_id', $serviceId)->ofStatus(1)->latest()
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
-        $rating_group_count = DB::table('reviews')->where('service_id', $service_id)
+        $ratingGroupCount = DB::table('reviews')->where('service_id', $serviceId)
             ->select('review_rating', DB::raw('count(*) as total'))
             ->groupBy('review_rating')
             ->get();
 
-        $total_rating = 0;
-        $rating_count = 0;
-        foreach ($rating_group_count as $count) {
-            $total_rating += round($count->review_rating * $count->total, 2);
-            $rating_count += $count->total;
+        $totalRating = 0;
+        $ratingCount = 0;
+        foreach ($ratingGroupCount as $count) {
+            $totalRating += round($count->review_rating * $count->total, 2);
+            $ratingCount += $count->total;
         }
 
-        $rating_info = [
-            'rating_count' => $rating_count,
-            'average_rating' => round(divnum($total_rating, $rating_count), 2),
-            'rating_group_count' => $rating_group_count,
+        $ratingInfo = [
+            'rating_count' => $ratingCount,
+            'average_rating' => round(divnum($totalRating, $ratingCount), 2),
+            'rating_group_count' => $ratingGroupCount,
         ];
 
         if ($reviews->count() > 0) {
-            return response()->json(response_formatter(DEFAULT_200, ['reviews' => $reviews, 'rating' => $rating_info]), 200);
+            return response()->json(response_formatter(DEFAULT_200, ['reviews' => $reviews, 'rating' => $ratingInfo]), 200);
         }
 
         return response()->json(response_formatter(DEFAULT_404), 200);
@@ -475,10 +747,10 @@ class ServiceController extends Controller
     /**
      * Display a listing of the resource.
      * @param Request $request
-     * @param string $sub_category_id
+     * @param string $subCategoryId
      * @return JsonResponse
      */
-    public function services_by_subcategory(Request $request, string $sub_category_id): JsonResponse
+    public function servicesBySubcategory(Request $request, string $subCategoryId): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -490,20 +762,23 @@ class ServiceController extends Controller
         }
 
         $services = $this->service->with(['category.zonesBasicInfo', 'variations'])
-            ->where(['sub_category_id' => $sub_category_id])
+            ->where(['sub_category_id' => $subCategoryId])
             ->latest()->where(['is_active' => 1])
             ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
+        foreach ($services as $service){
+            $service['is_favorite'] = $this->favoriteService->where('customer_user_id', $this->customer_user_id)->where('service_id',$service->id)->exists() ? 1 : 0;
+        }
+
         if (count($services) > 0) {
-            //update sub-category view count
-            $auth_user = auth('api')->user();
-            if ($auth_user) {
-                $recent_view = $this->recent_view->firstOrNew(['sub_category_id' =>  $sub_category_id, 'user_id' => $auth_user->id]);
-                $recent_view->total_sub_category_view += 1;
-                $recent_view->save();
+            $authUser = auth('api')->user();
+            if ($authUser) {
+                $recentView = $this->recentView->firstOrNew(['sub_category_id' => $subCategoryId, 'user_id' => $authUser->id]);
+                $recentView->total_sub_category_view += 1;
+                $recentView->save();
             }
 
-            return response()->json(response_formatter(DEFAULT_200, self::variation_mapper($services)), 200);
+            return response()->json(response_formatter(DEFAULT_200, self::variationMapper($services)), 200);
         }
 
         return response()->json(response_formatter(DEFAULT_204), 200);
@@ -514,10 +789,10 @@ class ServiceController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function make_request(Request $request): JsonResponse
+    public function makeRequest(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'category_id' => 'required|uuid',
+            'category_id' => 'nullable|uuid',
             'service_name' => 'required|max:255',
             'service_description' => 'required',
         ]);
@@ -527,7 +802,7 @@ class ServiceController extends Controller
         }
 
         ServiceRequest::create([
-            'category_id' => $request['category_id'],
+            'category_id' => strtolower($request['category_id']) == 'null' || $request['category_id'] == '' ? null : $request['category_id'],
             'service_name' => $request['service_name'],
             'service_description' => $request['service_description'],
             'status' => 'pending',
@@ -540,9 +815,9 @@ class ServiceController extends Controller
     /**
      * Display a listing of the resource.
      * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @return JsonResponse
      */
-    public function request_list(Request $request): JsonResponse
+    public function requestList(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -562,5 +837,36 @@ class ServiceController extends Controller
             return response()->json(response_formatter(DEFAULT_200, $requests), 200);
         }
         return response()->json(response_formatter(DEFAULT_204, $requests), 200);
+    }
+
+    public function serviceAreaAvailability(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'limit' => 'required|numeric|min:1|max:200',
+            'offset' => 'required|numeric|min:1|max:100000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
+        }
+
+        $zones = $this->zone
+            ->where('is_active', 1)
+            ->latest()->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
+
+        foreach ($zones as $key=>$zone) {
+            $object = json_decode($zone->coordinates[0]->toJson(),true)['coordinates'];
+            $data = [];
+            foreach ($object as $coordinate) {
+                $data[] = (object)['latitude' => $coordinate[1], 'longitude' => $coordinate[0]]; //unusual case for lat long
+            }
+
+            $formatted_coordinates = $data;
+            $zone['formatted_coordinates'] = $formatted_coordinates;
+            unset($zones[$key]['coordinates']);
+            unset($zones[$key]['is_active']);
+        }
+
+        return response()->json(response_formatter(DEFAULT_200, $zones), 200);
     }
 }

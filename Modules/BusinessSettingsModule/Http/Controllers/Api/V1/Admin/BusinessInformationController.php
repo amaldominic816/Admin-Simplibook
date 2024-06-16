@@ -48,7 +48,7 @@ class BusinessInformationController extends Controller
             'currency_symbol_position' => 'required',
             'currency_decimal_point' => 'required',
             'time_zone' => 'required',
-            'time_format' => '',
+            'time_format' => 'required',
             'business_favicon' => 'image',
             'business_logo' => 'image',
             'default_commission' => 'required',

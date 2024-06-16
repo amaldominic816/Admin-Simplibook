@@ -3,6 +3,7 @@
 namespace Modules\PromotionManagement\Http\Controllers\Web\Admin;
 
 use Brian2694\Toastr\Facades\Toastr;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
@@ -18,11 +19,13 @@ use Modules\ServiceManagement\Entities\Service;
 use Modules\ZoneManagement\Entities\Zone;
 use Rap2hpoutre\FastExcel\FastExcel;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class DiscountController extends Controller
 {
 
     protected $discount, $service, $category, $zone, $discount_types;
+    use AuthorizesRequests;
 
     public function __construct(Discount $discount, Service $service, Category $category, Zone $zone, DiscountType $discount_types)
     {
@@ -38,12 +41,16 @@ class DiscountController extends Controller
      * Store a newly created resource in storage.
      * @param Request $request
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function index(Request $request): View|Factory|Application
     {
+
+        $this->authorize('discount_view');
+
         $search = $request->has('search') ? $request['search'] : '';
         $type = $request->has('type') ? $request['type'] : 'all';
-        $query_param = ['search' => $search, 'type' => $type];
+        $queryParam = ['search' => $search, 'type' => $type];
 
         $discounts = $this->discountQuery->with(['category_types', 'service_types', 'zone_types'])
             ->when($request->has('search'), function ($query) use ($request) {
@@ -56,7 +63,7 @@ class DiscountController extends Controller
             })
             ->when($type != 'all', function ($query) use ($type) {
                 return $query->where(['discount_type' => $type]);
-            })->orderBy('created_at', 'desc')->paginate(pagination_limit())->appends($query_param);
+            })->orderBy('created_at', 'desc')->paginate(pagination_limit())->appends($queryParam);
 
         return view('promotionmanagement::admin.discounts.list', compact('discounts', 'search', 'type'));
     }
@@ -65,11 +72,13 @@ class DiscountController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function create(Request $request): View|Factory|Application
     {
+        $this->authorize('discount_add');
         $categories = $this->category->ofStatus(1)->ofType('main')->latest()->get();
-        $zones = $this->zone->ofStatus(1)->latest()->get();
+        $zones = $this->zone->withoutGlobalScope('translate')->ofStatus(1)->latest()->get();
         $services = $this->service->active()->latest()->get();
 
         return view('promotionmanagement::admin.discounts.create', compact('categories', 'zones', 'services'));
@@ -79,9 +88,11 @@ class DiscountController extends Controller
      * Store a newly created resource in storage.
      * @param Request $request
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function store(Request $request): RedirectResponse
     {
+        $this->authorize('discount_add');
         $request->validate([
             'discount_type' => 'required|in:category,service,zone,mixed',
             'discount_amount' => 'required|numeric',
@@ -110,13 +121,13 @@ class DiscountController extends Controller
             $discount->is_active = 1;
             $discount->save();
 
-            $dis_types = ['category', 'service', 'zone'];
-            foreach ((array)$dis_types as $dis_type) {
+            $disTypes = ['category', 'service', 'zone'];
+            foreach ((array)$disTypes as $disType) {
                 $types = [];
-                foreach ((array)$request[$dis_type . '_ids'] as $id) {
+                foreach ((array)$request[$disType . '_ids'] as $id) {
                     $types[] = [
                         'discount_id' => $discount['id'],
-                        'discount_type' => $dis_type,
+                        'discount_type' => $disType,
                         'type_wise_id' => $id,
                         'created_at' => now(),
                         'updated_at' => now()
@@ -126,7 +137,7 @@ class DiscountController extends Controller
             }
         });
 
-        Toastr::success(DISCOUNT_CREATE_200['message']);
+        Toastr::success(translate(DISCOUNT_CREATE_200['message']));
         return back();
     }
 
@@ -134,12 +145,14 @@ class DiscountController extends Controller
      * Show the form for editing the specified resource.
      * @param string $id
      * @return Application|Factory|View
+     * @throws AuthorizationException
      */
     public function edit(string $id): View|Factory|Application
     {
+        $this->authorize('discount_update');
         $discount = $this->discountQuery->with(['category_types', 'service_types', 'zone_types'])->where('id', $id)->first();
         $categories = $this->category->ofStatus(1)->ofType('main')->latest()->get();
-        $zones = $this->zone->ofStatus(1)->latest()->get();
+        $zones = $this->zone->withoutGlobalScope('translate')->ofStatus(1)->latest()->get();
         $services = $this->service->active()->latest()->get();
 
         return view('promotionmanagement::admin.discounts.edit', compact('categories', 'zones', 'services', 'discount'));
@@ -150,9 +163,11 @@ class DiscountController extends Controller
      * @param Request $request
      * @param string $id
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
     public function update(Request $request, string $id): RedirectResponse
     {
+        $this->authorize('discount_update');
         $request->validate([
             'discount_type' => 'required|in:category,service,zone,mixed',
             'discount_amount' => 'required|numeric',
@@ -186,19 +201,19 @@ class DiscountController extends Controller
                 $discount->discount_types()->delete();
 
                 if ($request['discount_type'] == 'category') {
-                    $dis_types = ['category', 'zone'];
+                    $disTypes = ['category', 'zone'];
                 } elseif ($request['discount_type'] == 'service') {
-                    $dis_types = ['service', 'zone'];
+                    $disTypes = ['service', 'zone'];
                 } elseif ($request['discount_type'] == 'mixed') {
-                    $dis_types = ['category', 'service', 'zone'];
+                    $disTypes = ['category', 'service', 'zone'];
                 }
 
-                foreach ((array)$dis_types as $dis_type) {
+                foreach ((array)$disTypes as $disType) {
                     $types = [];
-                    foreach ((array)$request[$dis_type . '_ids'] as $id) {
+                    foreach ((array)$request[$disType . '_ids'] as $id) {
                         $types[] = [
                             'discount_id' => $discount['id'],
-                            'discount_type' => $dis_type,
+                            'discount_type' => $disType,
                             'type_wise_id' => $id,
                             'created_at' => now(),
                             'updated_at' => now()
@@ -209,7 +224,7 @@ class DiscountController extends Controller
             });
         }
 
-        Toastr::success(DISCOUNT_UPDATE_200['message']);
+        Toastr::success(translate(DISCOUNT_UPDATE_200['message']));
         return back();
     }
 
@@ -218,13 +233,16 @@ class DiscountController extends Controller
      * @param Request $request
      * @param $id
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
-    public function destroy(Request $request, $id)
+    public function destroy(Request $request, $id): RedirectResponse
     {
+        $this->authorize('discount_delete');
         $discount = $this->discountQuery->where('id', $id);
         $this->discount_types->where(['discount_id' => $id])->delete();
         $discount->delete();
-        Toastr::success(DEFAULT_DELETE_200['message']);
+
+        Toastr::success(translate(DEFAULT_DELETE_200['message']));
         return back();
     }
 
@@ -233,13 +251,15 @@ class DiscountController extends Controller
      * @param Request $request
      * @param $id
      * @return JsonResponse
+     * @throws AuthorizationException
      */
-    public function status_update(Request $request, $id): JsonResponse
+    public function statusUpdate(Request $request, $id): JsonResponse
     {
+        $this->authorize('discount_manage_status');
         $discount = $this->discountQuery->where('id', $id)->first();
         $this->discountQuery->where('id', $id)->update(['is_active' => !$discount->is_active]);
 
-        return response()->json(DEFAULT_STATUS_UPDATE_200, 200);
+        return response()->json(response_formatter(DEFAULT_STATUS_UPDATE_200), 200);
     }
 
     /**
@@ -249,6 +269,7 @@ class DiscountController extends Controller
      */
     public function download(Request $request): string|StreamedResponse
     {
+        $this->authorize('discount_export');
         $items = $this->discountQuery->with(['category_types', 'service_types', 'zone_types'])
             ->when($request->has('search'), function ($query) use ($request) {
                 $keys = explode(' ', $request['search']);

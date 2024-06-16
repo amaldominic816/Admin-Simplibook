@@ -8,6 +8,7 @@
     <script src="{{asset('public/assets')}}/js/bootstrap.min.js"></script>
     <script src="{{asset('public/assets')}}/js/jquery.min.js"></script>
     <style>
+
         a {
             color: rgb(65, 83, 179) !important;
         }
@@ -177,6 +178,7 @@
                 page-break-before: always
             }
         }
+
     </style>
 </head>
 <body style="background-color: #ececec;margin:0;padding:0">
@@ -255,26 +257,26 @@
                     @endforeach
                     </tbody>
                     <tfoot>
-                        <tr>
-                            <td colspan="2"></td>
-                            <td colspan="2" class="text-uppercase">{{translate('subtotal')}}</td>
-                            <td>{{with_currency_symbol($sub_total)}}</td>
-                        </tr>
-                        <tr>
-                            <td colspan="2"></td>
-                            <td colspan="2" class="text-uppercase">{{translate('Coupon_Discount')}} </td>
-                            <td>{{with_currency_symbol($booking->total_discount_amount)}}</td>
-                        </tr>
-                        <tr>
-                            <td colspan="2"></td>
-                            <td colspan="2" class="text-uppercase">{{translate('tax')}} %</td>
-                            <td>{{with_currency_symbol($booking->total_tax_amount)}}</td>
-                        </tr>
-                        <tr>
-                            <td colspan="2"></td>
-                            <td colspan="2" class="text-uppercase">{{translate('grand_total')}}</td>
-                            <td>{{with_currency_symbol($booking->total_booking_amount)}}</td>
-                        </tr>
+                    <tr>
+                        <td colspan="2"></td>
+                        <td colspan="2" class="text-uppercase">{{translate('subtotal')}}</td>
+                        <td>{{with_currency_symbol($sub_total)}}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2"></td>
+                        <td colspan="2" class="text-uppercase">{{translate('Coupon_Discount')}} </td>
+                        <td>{{with_currency_symbol($booking->total_discount_amount)}}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2"></td>
+                        <td colspan="2" class="text-uppercase">{{translate('tax')}} %</td>
+                        <td>{{with_currency_symbol($booking->total_tax_amount)}}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2"></td>
+                        <td colspan="2" class="text-uppercase">{{translate('grand_total')}}</td>
+                        <td>{{with_currency_symbol($booking->total_booking_amount)}}</td>
+                    </tr>
                     </tfoot>
                 </table>
                 <div class="thanks">{{translate('thank_you')}}!</div>
@@ -287,7 +289,6 @@
                 {{translate('copy_right')}} {{$business_name->live_values}}
             </footer>
         </div>
-        <!--DO NOT DELETE THIS div. IT is responsible for showing footer always at the bottom-->
         <div></div>
     </div>
 </div>

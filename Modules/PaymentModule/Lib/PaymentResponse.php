@@ -38,7 +38,7 @@ class PaymentResponse
 
         if (!$request->has('post_id') || is_null($request['post_id'])) {
             $is_guest = !User::where('id', $customer_user_id)->exists();
-            $response = (new PaymentResponse)->place_booking_request($customer_user_id, $request, $tran_id, $is_guest);
+            $response = (new PaymentResponse)->placeBookingRequest($customer_user_id, $request, $tran_id, $is_guest);
 
         } else {
             //for bidding
@@ -61,9 +61,9 @@ class PaymentResponse
                 'is_partial' => $request['is_partial']
             ];
 
-            $response = (new PaymentResponse)->place_booking_request_for_bidding(base64_decode($request['access_token']), $request, $tran_id, $data);
+            $response = (new PaymentResponse)->placeBookingRequestForBidding(base64_decode($request['access_token']), $request, $tran_id, $data);
             if ($response['flag'] == 'success') {
-                PostBidController::accept_post_bid_offer($post_bid->id, $response['booking_id']);
+                PostBidController::acceptPostBidOffer($post_bid->id, $response['booking_id']);
             }
         }
 

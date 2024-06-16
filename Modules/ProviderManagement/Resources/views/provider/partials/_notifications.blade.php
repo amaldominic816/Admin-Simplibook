@@ -4,10 +4,12 @@
             <span class="material-icons">notifications</span>
         </div>
         <div class="media-body ">
-            <img
-                onerror="this.src='{{asset('public/assets/provider-module/img/logo-icon.png')}}'"
-                src="{{asset('storage/app/public')}}/push-notification/{{$notification->cover_image}}"
-                class="avatar rounded-circle">
+            <img src="{{onErrorImage(
+                    $notification->cover_image,
+                    asset('storage/app/public/push-notification').'/' . $notification->cover_image,
+                    asset('public/assets/provider-module/img/logo-icon.png') ,
+                    'push-notification/')}}"
+                 class="avatar rounded-circle" alt="{{translate('image')}}">
             <h5 class="card-title">{{$notification->title}}</h5>
             <p class="card-text fz-14 mb-2">{{$notification->description}}</p>
             @php

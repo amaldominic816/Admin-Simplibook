@@ -6,11 +6,15 @@
             <div class="card mt-3">
                 <div class="card-body">
                     <div class="mar-ver pad-btm text-center mb-4">
-                        <h1 class="h3">
-                            Software Update
-                        </h1>
+                        <h1 class="h3">{{translate('Software Update')}}</h1>
+                        @if(env('SOFTWARE_VERSION') == 7.4)
+                            <div class="alert alert-danger px-1 mt-2" role="alert">
+                                {{ translate('Important Notice: We’ve upgraded the Firebase push notification system to a new and improved version as the old one will be phased out by June 2024.
+                                    Make sure your system is up-to-date to keep getting all the notification seamlessly please do check the Notification settings in the Admin panel.
+                                    Thanks for staying connected!.')  }}
+                            </div>
+                        @endif
                     </div>
-
 
                     <form method="POST" action="{{route('update-system')}}">
                         @csrf
@@ -20,12 +24,13 @@
                                     <div class="col-md-6">
                                         <div class="from-group">
                                             <label for="username" class="d-flex align-items-center gap-2 mb-2">
-                                                <span class="fw-medium">Username</span>
+                                                <span class="fw-medium">{{translate('Username')}}</span>
                                                 <span class="cursor-pointer" data-bs-toggle="tooltip"
                                                       data-bs-placement="top" data-bs-custom-class="custom-tooltip"
                                                       data-bs-html="true"
-                                                      data-bs-title="The username of your codecanyon account">
-                                                      <img src="{{asset('public/assets/installation')}}/assets/img/svg-icons/info2.svg" class="svg" alt="">
+                                                      data-bs-title="{{translate('The username of your codecanyon account')}}">
+                                                      <img src="{{asset('public/assets/installation')}}/assets/img/svg-icons/info2.svg"
+                                                          class="svg" alt="">
                                                 </span>
                                             </label>
                                             <input type="text" id="username" class="form-control" name="username"
@@ -35,8 +40,10 @@
                                     </div>
                                     <div class="col-md-6">
                                         <div class="from-group">
-                                            <label for="purchase_key" class="mb-2">Purchase Code</label>
-                                            <input type="text" id="purchase_key" class="form-control" name="purchase_key"
+                                            <label for="purchase_key"
+                                                   class="mb-2">{{translate('Purchase Code')}}</label>
+                                            <input type="text" id="purchase_key" class="form-control"
+                                                   name="purchase_key"
                                                    value="{{env('PURCHASE_CODE')}}"
                                                    placeholder="Ex: 19xxxxxx-ca5c-49c2-83f6-696a738b0000" required>
                                         </div>
@@ -46,7 +53,7 @@
                         </div>
 
                         <div class="text-center">
-                            <button type="submit" class="btn btn-dark px-sm-5">Update</button>
+                            <button type="submit" class="btn btn-dark px-sm-5">{{translate('Update')}}</button>
                         </div>
                     </form>
                 </div>

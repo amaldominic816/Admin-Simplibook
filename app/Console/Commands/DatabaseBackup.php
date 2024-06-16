@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Spatie\DbDumper\Databases\MySql;
+use Spatie\DbDumper\Exceptions\CannotStartDump;
+use Spatie\DbDumper\Exceptions\DumpFailed;
 
 class DatabaseBackup extends Command
 {
@@ -34,7 +36,9 @@ class DatabaseBackup extends Command
     /**
      * Execute the console command.
      *
-     * @return int
+     * @return void
+     * @throws CannotStartDump
+     * @throws DumpFailed
      */
     public function handle()
     {

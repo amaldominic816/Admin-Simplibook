@@ -16,6 +16,5 @@ class CartModuleDatabaseSeeder extends Seeder
     {
         Model::unguard();
 
-        // $this->call("OthersTableSeeder");
     }
 }

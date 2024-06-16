@@ -3,35 +3,23 @@
 @section('title',translate('chat_list'))
 
 @push('css_or_js')
-
+    <link rel="stylesheet" href="{{asset('public/assets/css/lightbox.css')}}">
 @endpush
 
 @section('content')
     <div class="main-content">
         <div class="container-fluid">
             <div class="page-title-wrap mb-3">
-                <h2 class="page-title">{{translate('chat_module')}}</h2>
+                <h2 class="page-title d-flex gap-3 align-items-center">
+                    {{translate('Messages')}}
+                    <span class="badge bg--secondary fs-6">{{$chatList->count()}}</span>
+                </h2>
             </div>
 
             <div class="row gx-1">
-                <div class="col-xl-3 col-lg-4">
+                <div class="col-xxl-3 col-lg-4">
                     <div class="card card-body px-0 h-100">
-                        <div class="media align-items-center px-3 gap-3 mb-4">
-                            <div class="position-relative">
-                                <img
-                                    onerror="this.src='{{asset('public/assets/provider-module/img/user2x.png')}}'"
-                                    src="{{asset('storage/app/public')}}/provider/logo/{{auth()->user()->provider->logo}}"
-                                    class="avatar rounded-circle">
-                                <span class="avatar-status bg-success"></span>
-                            </div>
-                            <div class="media-body">
-                                <h5 class="profile-name">{{auth()->user()->provider->company_name}}</h5>
-                                <!-- <span class="fz-12">Super Admin</span> -->
-                            </div>
-                        </div>
-
-                        <div class="inbox_people">
-                            <form action="#" class="search-form mx-3">
+                        <div class="d-flex gap-3 align-items-center mx-3 mb-3">
                                 <div class="input-group search-form__input_group">
                                         <span class="search-form__icon">
                                             <span class="material-icons">search</span>
@@ -39,23 +27,84 @@
                                     <input type="search" class="h-40 flex-grow-1 search-form__input" id="chat-search"
                                            placeholder="{{translate('search_here')}}">
                                 </div>
-                            </form>
+                            <div class="ripple-animation" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ translate('Search by name or phone number to start the conversation') }}" type="button">
+                                <img src="{{asset('/public/assets/admin-module/img/info.svg')}}" class="svg" alt="">
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-start justify-content-between gap-2 px-3">
+                            <div class="media align-items-center gap-3 mb-4">
+                                <div class="position-relative">
+                                    <img class="avatar rounded-circle"
+                                         src="{{onErrorImage(
+                                                auth()->user()->provider->logo,
+                                                asset('storage/app/public/provider/logo').'/' . auth()->user()->provider->logo,
+                                                asset('public/assets/admin-module/img/media/user.png') ,
+                                                'provider/logo/')}}"
+                                         alt="{{ translate('logo') }}">
+                                    <span class="avatar-status bg-success"></span>
+                                </div>
+                                <div class="media-body">
+                                    <h5 class="profile-name">{{auth()->user()->provider->company_name}}</h5>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-center mx-lg-4 mb-4">
+                            <ul class="nav nav--tabs border-bottom">
+                                <li class="nav-item">
+                                    <a class="nav-link {{request()->getQueryString() == 'user_type=super_admin' ? 'active':''}}"
+                                       href="{{url()->current()}}?user_type=super_admin">
+                                        {{translate('admin')}}
+                                    </a>
+                                </li>                                <li class="nav-item">
+                                    <a class="nav-link {{request()->getQueryString() == 'user_type=customer' ? 'active':''}}"
+                                       href="{{url()->current()}}?user_type=customer">
+                                        {{translate('customer')}}
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link {{request()->getQueryString() == 'user_type=provider_serviceman'?'active':''}}"
+                                       href="{{url()->current()}}?user_type=provider_serviceman">
+                                        {{translate('Service Man')}}
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="inbox_people">
 
                             <div class="inbox_chat d-flex flex-column mt-1">
-                                @foreach($chat_list as $chat)
+                                @foreach($chatList as $chat)
                                     @php($from_user=$chat->channelUsers->where('user_id','!=',auth()->id())->first())
-                                    <div class="chat_list {{$chat->is_read==0?'active':''}}" id="chat-{{$chat->id}}"
-                                         onclick="fetch_conversation('{{route('provider.chat.ajax-conversation',['channel_id'=>$chat->id,'offset'=>1])}}','{{$chat->id}}')">
+                                    <div class="chat_list chat-list-class {{$chat->is_read==0?'active':''}}"
+                                         id="chat-{{$chat->id}}"
+                                         data-route="{{route('provider.chat.ajax-conversation',['channel_id'=>$chat->id,'offset'=>1])}}"
+                                         data-chat="{{$chat->id}}">
                                         <div class="chat_people media gap-10" id="chat_people">
                                             <div class="position-relative">
                                                 <img
-                                                    onerror="this.src='{{asset('public/assets/provider-module/img/user2x.png')}}'"
                                                     @if(isset($from_user->user) && $from_user->user->user_type == 'super-admin')
-                                                    src="{{asset('storage/app/public')}}/user/profile_image/{{isset($from_user->user)?$from_user->user->profile_image:'def.png'}}"
+                                                        src="{{onErrorImage($from_user->user->profile_image,
+                                                    asset('storage/app/public/user/profile_image').'/' . $from_user->user->profile_image,
+                                                    asset('public/assets/provider-module/img/user2x.png') ,
+                                                    'user/profile_image/')}}"
                                                     @elseif(isset($from_user->user) && $from_user->user->user_type == 'provider-serviceman')
-                                                    src="{{asset('storage/app/public')}}/serviceman/profile/{{isset($from_user->user)?$from_user->user->profile_image:'def.png'}}"
+                                                        src="{{onErrorImage($from_user->user->profile_image,
+                                                    asset('storage/app/public/serviceman/profile').'/' . $from_user->user->profile_image,
+                                                    asset('public/assets/admin-module/img/media/user.png') ,
+                                                    'serviceman/profile/')}}"
                                                     @elseif(isset($from_user->user) && $from_user->user->user_type == 'customer')
-                                                    src="{{asset('storage/app/public')}}/user/profile_image/{{isset($from_user->user)?$from_user->user->profile_image:'def.png'}}"
+                                                        src="{{onErrorImage($from_user->user->profile_image,
+                                                    asset('storage/app/public/user/profile_image').'/' . $from_user->user->profile_image,
+                                                    asset('public/assets/admin-module/img/media/user.png') ,
+                                                    'user/profile_image/')}}"
+                                                    @else
+                                                        src="{{onErrorImage(
+                                                                'null',
+                                                                asset('storage/app/public/serviceman/profile').'/',
+                                                                asset('public/assets/admin-module/img/media/user.png') ,
+                                                                'serviceman/profile/')}}"
                                                     @endif
                                                     class="avatar rounded-circle">
                                                 <span class="avatar-status bg-success"></span>
@@ -64,7 +113,8 @@
                                                 <h5 class="">{{isset($from_user->user)?$from_user->user->first_name:translate('no_user_found')}}</h5>
                                                 @php($phone_visibility = business_config('phone_number_visibility_for_chatting', 'business_information')->live_values ?? '0')
                                                 @if($phone_visibility == 1 || (isset($from_user->user) && $from_user->user->user_type != 'customer'))
-                                                    <span class="fz-12">{{isset($from_user->user)?$from_user->user->phone:''}}</span>
+                                                    <span
+                                                        class="fz-12">{{isset($from_user->user)?$from_user->user->phone:''}}</span>
                                                 @endif
                                             </div>
                                         </div>
@@ -81,7 +131,7 @@
                     </div>
                 </div>
 
-                <div class="col-xl-9 col-lg-8 mt-4 mt-lg-0">
+                <div class="col-xxl-9 col-lg-8 mt-4 mt-lg-0">
                     <div class="card-header d-flex justify-content-end radius-10 mb-1">
                         <button class="btn btn--primary" type="button" data-bs-toggle="modal"
                                 data-bs-target="#modal-conversation-start">
@@ -89,8 +139,8 @@
                             {{translate('start_conversation')}}
                         </button>
                     </div>
-                    <div class="card card-body card-chat justify-content-between" id="set-conversation">
-                        <h4 class="d-flex align-items-center justify-content-center my-auto gap-2">
+                    <div class="card card-chat justify-content-between" id="set-conversation">
+                        <h4 class="d-flex align-items-center justify-content-center my-auto gap-2 p-3">
                             <span class="material-icons">chat</span>
                             {{translate('start_conversation')}}
                         </h4>
@@ -126,26 +176,28 @@
                         <div class="form-group">
                             <select class="form-control" id="super-admin" name="super-admin">
                                 <option value="0" selected disabled>{{translate('Select_User')}}</option>
-                                @foreach($super_admin as $admin)
+                                @foreach($superAdmin as $admin)
                                     <option value="{{$admin->id}}">
                                         {{$admin->first_name . ' ' . $admin->last_name}} ({{$admin->phone}})
                                     </option>
                                 @endforeach
                             </select>
                         </div>
-                        <div class="form-group mb-30" id="serviceman" style="display: none">
+                        <div class="form-group mb-30 d--none" id="serviceman">
                             <select class="form-control js-select" name="serviceman_id">
                                 <option value="0" disabled selected>{{translate('---Select_Serviceman---')}}</option>
                                 @foreach($servicemen as $item)
                                     <option value="{{$item->user->id}}">
-                                        {{$item->user->first_name??'' . ' '.$item->user->last_name??''}} ({{$item->user->phone}})
+                                        {{$item->user->first_name??'' . ' '.$item->user->last_name??''}}
+                                        ({{$item->user->phone}})
                                     </option>
                                 @endforeach
                             </select>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn--secondary" data-bs-dismiss="modal" aria-label="Close">{{translate('close')}}</button>
+                        <button type="button" class="btn btn--secondary" data-bs-dismiss="modal"
+                                aria-label="Close">{{translate('close')}}</button>
                         <button type="submit" class="btn btn--primary">{{translate('start')}}</button>
                     </div>
                 </form>
@@ -157,8 +209,15 @@
 @endsection
 
 @push('script')
+    <script src="{{asset('public/assets/js/lightbox.min.js')}}"></script>
     <script>
-        "use Strict"
+        "use Strict";
+
+        $('.chat-list-class').on('click', function () {
+            let chatId = $(this).data('chat');
+            let route = $(this).data('route');
+            fetch_conversation(route, chatId)
+        })
 
         function fetch_conversation(route, chat_id) {
             $.get({
@@ -166,40 +225,31 @@
                 dataType: 'json',
                 data: {},
                 beforeSend: function () {
-                    /*$('#loading').show();*/
                 },
                 success: function (response) {
-                    /* console.log(response.template) */
                     $('#set-conversation').empty().html(response.template);
                     document.getElementById('chat-' + chat_id).classList.remove("active");
                     document.getElementById('badge-' + chat_id).classList.add("hide-div");
                 },
-                complete: function () {
-                    /*$('#loading').hide();*/
+                error: function (jqXHR, exception) {
+                    if (jqXHR.responseJSON && jqXHR.responseJSON.errors && jqXHR.responseJSON.errors.length > 0) {
+                        var errorMessages = jqXHR.responseJSON.errors.map(function (error) {
+                            return error.message;
+                        });
+
+                        errorMessages.forEach(function (errorMessage) {
+                            toastr.error(errorMessage);
+                        });
+                    } else {
+                        toastr.error("An error occurred.");
+                    }
                 },
+                complete: function () {
+                }
             });
         }
     </script>
 
-    <script>
-        $("#chat-search").on("keyup", function () {
-            var value = this.value.toLowerCase().trim();
-            $(".inbox_chat div").show().filter(function () {
-                return $(this).text().toLowerCase().trim().indexOf(value) == -1;
-            }).hide();
-        });
-    </script>
+    <script src="{{asset('public/assets/chatting-module/js/provider.js')}}"></script>
 
-    <script>
-        "use Strict"
-        $('#user_type').on('change', function () {
-            if(this.value==='super-admin'){
-                $('#super-admin').show();
-                $('#serviceman').hide();
-            }else if(this.value==='provider-serviceman'){
-                $('#super-admin').hide();
-                $('#serviceman').show();
-            }
-        });
-    </script>
 @endpush

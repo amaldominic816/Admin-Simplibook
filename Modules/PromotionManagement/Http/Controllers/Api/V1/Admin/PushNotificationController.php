@@ -84,20 +84,20 @@ class PushNotificationController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $image_name = file_uploader('push-notification/', 'png', $request->file('cover_image'));
+        $imageName = file_uploader('push-notification/', 'png', $request->file('cover_image'));
 
         $pushNotification = $this->pushNotification;
         $pushNotification->title = $request['title'];
         $pushNotification->description = $request['description'];
         $pushNotification->to_users = $request['to_users'];
         $pushNotification->zone_ids = $request['zone_ids'] ?? [];
-        $pushNotification->cover_image = $image_name;
+        $pushNotification->cover_image = $imageName;
         $pushNotification->is_active = 1;
         $pushNotification->save();
 
         foreach ($request['to_users'] as $type) {
             foreach ($request['zone_ids'] as $zone_id) {
-                topic_notification($type . '-' . $zone_id, $request['title'], $request['description'], $image_name, null, 'general');
+                topic_notification($type . '-' . $zone_id, $request['title'], $request['description'], $imageName, null, 'general');
             }
         }
 
@@ -113,15 +113,15 @@ class PushNotificationController extends Controller
     {
         $pushNotification = $this->pushNotification->where('id', $id)->first();
         if (isset($pushNotification)) {
-            $zone_array = [];
+            $zoneArray = [];
             if ($pushNotification->zone_ids != null) {
                 foreach ($pushNotification->zone_ids as $id) {
                     $zone = $this->zone::select('id', 'name')->find($id);
                     if (!is_null($zone)) {
-                        $zone_array[] = $zone;
+                        $zoneArray[] = $zone;
                     }
                 }
-                $pushNotification->zone_ids = $zone_array;
+                $pushNotification->zone_ids = $zoneArray;
             }
             return response()->json(response_formatter(DEFAULT_200, $pushNotification), 200);
         }
@@ -155,9 +155,11 @@ class PushNotificationController extends Controller
         $pushNotification->description = $request['description'];
         $pushNotification->to_users = $request['to_users'];
         $pushNotification->zone_ids = $request['zone_ids'];
+
         if ($request->has('cover_image')) {
             $pushNotification->cover_image = file_uploader('push-notification/', 'png', $request->file('cover_image'), $pushNotification->cover_image);
         }
+
         $pushNotification->save();
 
         return response()->json(response_formatter(BANNER_UPDATE_200), 200);
@@ -179,13 +181,16 @@ class PushNotificationController extends Controller
         }
 
         $pushNotifications = $this->pushNotification->whereIn('id', $request['push_notification_ids']);
+
         if ($pushNotifications->count() > 0) {
             foreach ($pushNotifications->get() as $pushNotification) {
                 file_remover('push-notification/', $pushNotification['cover_image']);
             }
+
             $pushNotifications->delete();
             return response()->json(response_formatter(DEFAULT_DELETE_200), 200);
         }
+
         return response()->json(response_formatter(DEFAULT_204), 200);
     }
 
@@ -194,7 +199,7 @@ class PushNotificationController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function status_update(Request $request): JsonResponse
+    public function statusUpdate(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:1,0',

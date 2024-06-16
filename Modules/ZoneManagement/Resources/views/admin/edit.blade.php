@@ -3,8 +3,9 @@
 @section('title',translate('zone_edit'))
 
 @push('css_or_js')
-    <link rel="stylesheet" href="{{asset('public/assets/admin-module')}}/plugins/dataTables/jquery.dataTables.min.css"/>
-    <link rel="stylesheet" href="{{asset('public/assets/admin-module')}}/plugins/dataTables/select.dataTables.min.css"/>
+    <link rel="stylesheet" href="{{asset('public/assets/admin-module/plugins/dataTables/jquery.dataTables.min.css')}}"/>
+    <link rel="stylesheet" href="{{asset('public/assets/admin-module/plugins/dataTables/select.dataTables.min.css')}}"/>
+    <link rel="stylesheet" href="{{asset('public/assets/admin-module/css/zone-module.css')}}"/>
 @endpush
 
 @section('content')
@@ -16,7 +17,6 @@
                         <h2 class="page-title">{{translate('zone_update')}}</h2>
                     </div>
 
-                    <!-- Instructions -->
                     <div class="card zone-setup-instructions mb-30">
                         <div class="card-body p-30">
                             <form action="{{route('admin.zone.update',[$zone->id])}}" enctype="multipart/form-data"
@@ -31,8 +31,8 @@
 
                                             <div class="media mb-2 gap-3 align-items-center">
                                                 <img
-                                                    src="{{asset('public/assets/admin-module')}}/img/icons/map-drag.png"
-                                                    alt="">
+                                                    src="{{asset('public/assets/admin-module/img/icons/map-drag.png')}}"
+                                                    alt="{{ translate('image') }}">
                                                 <div class="media-body ">
                                                     <p>{{translate('use_this_to_drag_map_to_find_proper_area')}}</p>
                                                 </div>
@@ -40,47 +40,107 @@
 
                                             <div class="media gap-3 align-items-center">
                                                 <img
-                                                    src="{{asset('public/assets/admin-module')}}/img/icons/map-draw.png"
-                                                    alt="">
+                                                    src="{{asset('public/assets/admin-module/img/icons/map-draw.png')}}"
+                                                    alt="{{ translate('image') }}">
                                                 <div class="media-body ">
                                                     <p>{{translate('click_this_icon_to_start_pin_points_in_the_map_and_connect_them_
                                                         to_draw_a_
-                                                        zone_._Minimum_3_points_required')}}</p>
+                                                        zone_._Minimum_3_points_required')}}
+                                                    </p>
                                                 </div>
                                             </div>
                                             <div class="map-img mt-4">
-                                                <img src="{{asset('public/assets/admin-module')}}/img/instructions.gif"
+                                                <img src="{{asset('public/assets/admin-module/img/instructions.gif')}}"
                                                      alt="">
                                             </div>
                                         </div>
                                     </div>
                                     <div class="col-lg-7">
-                                        <div class="form-floating mb-30">
-                                            <input type="text" class="form-control" id="floatingInput" name="name"
-                                                   placeholder="{{translate('zone_name')}}" required
-                                                   value="{{$zone->name}}">
-                                            <label for="floatingInput">{{translate('zone_name')}}</label>
-                                        </div>
+                                        @php($language= Modules\BusinessSettingsModule\Entities\BusinessSettings::where('key_name','system_language')->first())
+                                        @php($default_lang = str_replace('_', '-', app()->getLocale()))
+                                        @if($language)
+                                            <ul class="nav nav--tabs border-color-primary mb-4">
+                                                <li class="nav-item">
+                                                    <a class="nav-link lang_link active"
+                                                       href="#"
+                                                       id="default-link">{{translate('default')}}</a>
+                                                </li>
+                                                @foreach ($language?->live_values as $lang)
+                                                    <li class="nav-item">
+                                                        <a class="nav-link lang_link"
+                                                           href="#"
+                                                           id="{{ $lang['code'] }}-link">{{ get_language_name($lang['code']) }}</a>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                        @endif
+                                        @if($language)
+                                            <div class="form-floating form-floating__icon mb-30 lang-form" id="default-form">
+                                                <input type="text" name="name[]" class="form-control"
+                                                       placeholder="{{translate('zone_name')}}"
+                                                       value="{{$zone?->getRawOriginal('name')}}" required>
+                                                <label>{{translate('zone_name')}} ({{ translate('default') }})</label>
+                                                <span class="material-icons">note_alt</span>
+                                            </div>
+                                            <input type="hidden" name="lang[]" value="default">
+                                            @foreach ($language?->live_values as $lang)
+                                                    <?php
+                                                    if (count($zone['translations'])) {
+                                                        $translate = [];
+                                                        foreach ($zone['translations'] as $t) {
+                                                            if ($t->locale == $lang['code'] && $t->key == "zone_name") {
+                                                                $translate[$lang['code']]['zone_name'] = $t->value;
+                                                            }
+                                                        }
+                                                    }
+                                                    ?>
+                                                <div class="form-floating form-floating__icon mb-30 d-none lang-form"
+                                                     id="{{$lang['code']}}-form">
+                                                    <input type="text" name="name[]" class="form-control"
+                                                           placeholder="{{translate('zone_name')}}"
+                                                           value="{{$translate[$lang['code']]['zone_name']??''}}">
+                                                    <label>{{translate('zone_name')}}
+                                                        ({{strtoupper($lang['code'])}})</label>
+                                                    <span class="material-icons">note_alt</span>
+                                                </div>
+                                                <input type="hidden" name="lang[]" value="{{$lang['code']}}">
+                                            @endforeach
+                                        @else
+                                            <div class="lang-form">
+                                                <div class="mb-30">
+                                                    <div class="form-floating form-floating__icon">
+                                                        <input type="text" class="form-control" name="name[]"
+                                                               placeholder="{{translate('zone_name')}} *"
+                                                               required value="{{$zone->name}}">
+                                                        <label>{{translate('zone_name')}} *</label>
+                                                        <span class="material-icons">note_alt</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <input type="hidden" name="lang[]" value="default">
+                                        @endif
 
-                                        <div class="form-group mb-3" style="display: none">
+                                        <div class="form-group mb-3 coordinates">
                                             <label class="input-label"
                                                    for="exampleFormControlInput1">{{translate('coordinates')}}
                                                 <span
                                                     class="input-label-secondary">{{translate('draw_your_zone_on_the_map')}}</span>
                                             </label>
-                                            <textarea type="text" name="coordinates" id="coordinates"
-                                                      class="form-control">{{$current_zone}}</textarea>
+
+                                            <textarea type="text" rows="8" name="coordinates" id="coordinates"
+                                                      class="form-control" readonly>@foreach($zone->coordinates[0]->toArray()['coordinates'] as $key=>$coords)
+                                                        <?php if (count($zone->coordinates[0]->toArray()['coordinates']) != $key + 1) {
+                                                        if ($key != 0) echo(','); ?>({{$coords[1]}}, {{$coords[0]}}
+                                                    )<?php } ?>
+                                                @endforeach</textarea>
                                         </div>
 
-                                        <!-- Start Map -->
-                                        <div class="map-warper overflow-hidden" style="border-radius: 5px;">
-                                            <input id="pac-input" class="controls rounded"
-                                                   style="height: 3em;width:fit-content;"
+                                        <div class="map-warper overflow-hidden map_area">
+                                            <input id="pac-input" class="controls rounded search_area"
                                                    title="{{translate('search_your_location_here')}}" type="text"
                                                    placeholder="{{translate('search_here')}}"/>
-                                            <div id="map-canvas" style="height: 310px"></div>
+                                            <div class="map_canvas" id="map-canvas"></div>
                                         </div>
-                                        <!-- End Map -->
                                     </div>
                                     <div class="col-12">
                                         <div class="d-flex justify-content-end gap-20 mt-30">
@@ -94,7 +154,6 @@
                             </form>
                         </div>
                     </div>
-                    <!-- End Instructions -->
                 </div>
             </div>
         </div>
@@ -103,9 +162,11 @@
 
 @push('script')
     @php($api_key=(business_config('google_map', 'third_party'))->live_values)
-    <script src="https://maps.googleapis.com/maps/api/js?key={{$api_key['map_api_key_client']}}&libraries=drawing,places&v=3.45.8"></script>
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key={{$api_key['map_api_key_client']}}&libraries=drawing,places&v=3.45.8"></script>
 
     <script>
+        "use strict";
         auto_grow();
 
         function auto_grow() {
@@ -113,18 +174,16 @@
             element.style.height = "5px";
             element.style.height = (element.scrollHeight) + "px";
         }
-    </script>
 
-    <script>
-        var map; // Global declaration of the map
-        var lat_longs = [];
-        var drawingManager;
-        var lastpolygon = null;
-        var bounds = new google.maps.LatLngBounds();
-        var polygons = [];
+        let map; // Global declaration of the map
+        let lat_longs = new Array();
+        let drawingManager;
+        let lastpolygon = null;
+        let bounds = new google.maps.LatLngBounds();
+        let polygons = [];
+
 
         function resetMap(controlDiv) {
-            // Set CSS for the control border.
             const controlUI = document.createElement("div");
             controlUI.style.backgroundColor = "#fff";
             controlUI.style.border = "2px solid #fff";
@@ -136,7 +195,6 @@
             controlUI.style.textAlign = "center";
             controlUI.title = "Reset map";
             controlDiv.appendChild(controlUI);
-            // Set CSS for the control interior.
             const controlText = document.createElement("div");
             controlText.style.color = "rgb(25,25,25)";
             controlText.style.fontFamily = "Roboto,Arial,sans-serif";
@@ -146,7 +204,6 @@
             controlText.style.paddingRight = "2px";
             controlText.innerHTML = "X";
             controlUI.appendChild(controlText);
-            // Setup the click event listeners: simply set the map to Chicago.
             controlUI.addEventListener("click", () => {
                 lastpolygon.setMap(null);
                 $('#coordinates').val('');
@@ -155,8 +212,8 @@
         }
 
         function initialize() {
-            var myLatlng = new google.maps.LatLng('{{$center_lat}}', '{{$center_lng}}');
-            var myOptions = {
+            let myLatlng = new google.maps.LatLng({{trim(explode(' ',$zone->center)[1], 'POINT()')}}, {{trim(explode(' ',$zone->center)[0], 'POINT()')}});
+            let myOptions = {
                 zoom: 13,
                 center: myLatlng,
                 mapTypeId: google.maps.MapTypeId.ROADMAP
@@ -164,9 +221,10 @@
             map = new google.maps.Map(document.getElementById("map-canvas"), myOptions);
 
             const polygonCoords = [
-                    @foreach($zone->coordinates as $coords)
+
+                    @foreach($area['coordinates'] as $coords)
                 {
-                    lat: {{$coords->lat}}, lng: {{$coords->lng}}
+                    lat: {{$coords[1]}}, lng: {{$coords[0]}}
                 },
                 @endforeach
             ];
@@ -219,29 +277,23 @@
             resetMap(resetDiv, lastpolygon);
             map.controls[google.maps.ControlPosition.TOP_CENTER].push(resetDiv);
 
-            // Create the search box and link it to the UI element.
             const input = document.getElementById("pac-input");
             const searchBox = new google.maps.places.SearchBox(input);
             map.controls[google.maps.ControlPosition.TOP_CENTER].push(input);
-            // Bias the SearchBox results towards current map's viewport.
             map.addListener("bounds_changed", () => {
                 searchBox.setBounds(map.getBounds());
             });
             let markers = [];
-            // Listen for the event fired when the user selects a prediction and retrieve
-            // more details for that place.
             searchBox.addListener("places_changed", () => {
                 const places = searchBox.getPlaces();
 
                 if (places.length == 0) {
                     return;
                 }
-                // Clear out the old markers.
                 markers.forEach((marker) => {
                     marker.setMap(null);
                 });
                 markers = [];
-                // For each place, get the icon, name and location.
                 const bounds = new google.maps.LatLngBounds();
                 places.forEach((place) => {
                     if (!place.geometry || !place.geometry.location) {
@@ -255,7 +307,6 @@
                         anchor: new google.maps.Point(17, 34),
                         scaledSize: new google.maps.Size(25, 25),
                     };
-                    // Create a marker for each place.
                     markers.push(
                         new google.maps.Marker({
                             map,
@@ -266,7 +317,6 @@
                     );
 
                     if (place.geometry.viewport) {
-                        // Only geocodes have viewport.
                         bounds.union(place.geometry.viewport);
                     } else {
                         bounds.extend(place.geometry.location);
@@ -284,7 +334,6 @@
                 dataType: 'json',
                 success: function (data) {
 
-                    console.log(data);
                     for (var i = 0; i < data.length; i++) {
                         polygons.push(new google.maps.Polygon({
                             paths: data[i],
@@ -311,5 +360,33 @@
             lastpolygon.setMap(null);
             $('#coordinates').val(null);
         })
+
+        function performValidation(event) {
+            if (!lastpolygon) {
+                event.preventDefault();
+            }
+        }
+
+        $('form').submit(function(event) {
+            performValidation(event);
+        });
+
+        $('#pac-input').keydown(function(event) {
+            if (event.keyCode === 13) {
+                performValidation(event);
+            }
+        });
+
+        $(".lang_link").on('click', function (e) {
+            e.preventDefault();
+            $(".lang_link").removeClass('active');
+            $(".lang-form").addClass('d-none');
+            $(this).addClass('active');
+
+            let form_id = this.id;
+            let lang = form_id.substring(0, form_id.length - 5);
+            console.log(lang);
+            $("#" + lang + "-form").removeClass('d-none');
+        });
     </script>
 @endpush

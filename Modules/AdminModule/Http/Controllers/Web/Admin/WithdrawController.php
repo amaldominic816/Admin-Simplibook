@@ -12,8 +12,8 @@ use Modules\TransactionModule\Entities\Transaction;
 use Modules\UserManagement\Entities\User;
 use function response;
 use function response_formatter;
-use function withdraw_request_accept_transaction;
-use function withdraw_request_deny_transaction;
+use function withdrawRequestAcceptTransaction;
+use function withdrawRequestDenyTransaction;
 
 class WithdrawController extends Controller
 {
@@ -33,9 +33,10 @@ class WithdrawController extends Controller
 
     /**
      * Display a listing of the resource.
+     * @param Request $request
      * @return JsonResponse
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'limit' => 'required|numeric|min:1|max:200',
@@ -47,13 +48,13 @@ class WithdrawController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 400);
         }
 
-        $withdraw_request = $this->withdraw_request->with(['user.provider.bank_detail','request_updater'])
+        $withdrawRequest = $this->withdraw_request->with(['user.provider.bank_detail', 'request_updater'])
             ->when($request->has('status') && $request['status'] != 'all', function ($query) use ($request) {
                 return $query->where('request_status', $request->status);
             })->latest()->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
 
-        return response()->json(response_formatter(DEFAULT_200, $withdraw_request), 200);
+        return response()->json(response_formatter(DEFAULT_200, $withdrawRequest), 200);
     }
 
 
@@ -74,28 +75,28 @@ class WithdrawController extends Controller
             return response()->json(response_formatter(DEFAULT_400, null, error_processor($validator)), 403);
         }
 
-        $withdraw_request = $this->withdraw_request::find($id);
-        if(isset($withdraw_request) && $withdraw_request['request_status'] != 'pending') {
+        $withdrawRequest = $this->withdraw_request::find($id);
+        if (isset($withdrawRequest) && $withdrawRequest['request_status'] != 'pending') {
             return response()->json(response_formatter(DEFAULT_400), 200);
         }
 
-        if($request['request_status'] == 'approved') {
-            withdraw_request_accept_transaction($withdraw_request['request_updated_by'], $withdraw_request['amount']);
+        if ($request['request_status'] == 'approved') {
+            withdrawRequestAcceptTransaction($withdrawRequest['request_updated_by'], $withdrawRequest['amount']);
 
-            $withdraw_request->request_status = 'approved';
-            $withdraw_request->request_updated_by = $request->user()->id;
-            $withdraw_request->note = $request->note;
-            $withdraw_request->is_paid = 1;
-            $withdraw_request->save();
+            $withdrawRequest->request_status = 'approved';
+            $withdrawRequest->request_updated_by = $request->user()->id;
+            $withdrawRequest->note = $request->note;
+            $withdrawRequest->is_paid = 1;
+            $withdrawRequest->save();
 
         } else {
-            withdraw_request_deny_transaction($withdraw_request['request_updated_by'], $withdraw_request['amount']);
+            withdrawRequestDenyTransaction($withdrawRequest['request_updated_by'], $withdrawRequest['amount']);
 
-            $withdraw_request->request_status = 'denied';
-            $withdraw_request->request_updated_by = $request->user()->id;
-            $withdraw_request->note = $request->note;
-            $withdraw_request->is_paid = 0;
-            $withdraw_request->save();
+            $withdrawRequest->request_status = 'denied';
+            $withdrawRequest->request_updated_by = $request->user()->id;
+            $withdrawRequest->note = $request->note;
+            $withdrawRequest->is_paid = 0;
+            $withdrawRequest->save();
 
         }
 

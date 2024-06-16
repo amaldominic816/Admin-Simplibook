@@ -40,25 +40,21 @@ class CampaignController extends Controller
 
         $campaigns = $this->campaign
             ->with(['discount', 'discount.category_types.category', 'discount.service_types.service.category', 'discount.service_types.service.subCategory'])
-            ->ofStatus(1)->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
-
-        foreach ($campaigns as $key=>$campaign) {
-            //category
-            if ($campaign->discount->category_types) {
-                foreach ($campaign->discount->category_types as $category_type) {
-                    if ($category_type->category && $category_type->category->is_active === 0) unset($campaigns[$key]);
-                }
-            }
-
-            //discount
-            if ($campaign->discount->service_types) {
-                foreach ($campaign->discount->service_types as $service_type) {
-                    if ($service_type?->service?->category?->is_active === 0 || $service_type?->service?->subCategory?->is_active === 0){
-                        unset($campaigns[$key]);
-                    }
-                }
-            }
-        }
+            ->whereHas('discount.category_types', function ($query) {
+                $query->whereHas('category', function ($query) {
+                    $query->where('is_active', '!=', 0);
+                });
+            })
+            ->whereHas('discount.service_types', function ($query) {
+                $query->whereHas('service.category', function ($query) {
+                    $query->where('is_active', '!=', 0);
+                })
+                ->orWhereHas('service.subCategory', function ($query) {
+                    $query->where('is_active', '!=', 0);
+                });
+            })
+            ->ofStatus(1)
+            ->paginate($request['limit'], ['*'], 'offset', $request['offset'])->withPath('');
 
         return response()->json(response_formatter(DEFAULT_200, $campaigns), 200);
     }
@@ -68,7 +64,7 @@ class CampaignController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function campaign_items(Request $request): JsonResponse
+    public function campaignItems(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'campaign_id' => 'required|uuid',

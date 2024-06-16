@@ -2,7 +2,6 @@
 
 namespace Modules\ReviewModule\Http\Controllers\Api\V1\Customer;
 
-use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -35,7 +34,6 @@ class ReviewController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'booking_id' => 'required|uuid',
-            //'service_id' => 'required|uuid',
         ]);
 
         if ($validator->fails()) {
@@ -46,7 +44,6 @@ class ReviewController extends Controller
             ->with(['booking.detail.variation'])
             ->with(['service'])
             ->where('booking_id', $request->booking_id)
-            //->where('service_id', $request->service_id)
             ->where('customer_id', $request->user()->id)
             ->orderBy('created_at', 'desc')
             ->get()
@@ -105,16 +102,16 @@ class ReviewController extends Controller
         $review->save();
 
         foreach (['service_id' => $request->service_id, 'provider_id' => $booking->provider_id] as $key => $value) {
-            $rating_group_count = DB::table('reviews')->where($key, $value)
+            $ratingGroupCount = DB::table('reviews')->where($key, $value)
                 ->select('review_rating', DB::raw('count(*) as total'))
                 ->groupBy('review_rating')
                 ->get();
 
-            $total_rating = 0;
-            $rating_count = 0;
-            foreach ($rating_group_count as $count) {
-                $total_rating += round($count->review_rating * $count->total, 2);
-                $rating_count += $count->total;
+            $totalRating = 0;
+            $ratingCount = 0;
+            foreach ($ratingGroupCount as $count) {
+                $totalRating += round($count->review_rating * $count->total, 2);
+                $ratingCount += $count->total;
             }
 
             $query = collect([]);
@@ -125,8 +122,8 @@ class ReviewController extends Controller
             }
 
             $query->update([
-                'rating_count' => $rating_count,
-                'avg_rating' => round($total_rating / $rating_count, 2)
+                'rating_count' => $ratingCount,
+                'avg_rating' => round($totalRating / $ratingCount, 2)
             ]);
         }
 

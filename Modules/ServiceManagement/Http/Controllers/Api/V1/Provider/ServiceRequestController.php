@@ -61,10 +61,10 @@ class ServiceRequestController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function make_request(Request $request): JsonResponse
+    public function makeRequest(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'category_id' => 'required|uuid',
+            'category_id' => 'nullable|uuid',
             'service_name' => 'required|max:255',
             'service_description' => 'required',
         ]);
@@ -74,7 +74,7 @@ class ServiceRequestController extends Controller
         }
 
         ServiceRequest::create([
-            'category_id' => $request['category_id'],
+            'category_id' => strtolower($request['category_id']) == 'null' || $request['category_id'] == '' ? null : $request['category_id'],
             'service_name' => $request['service_name'],
             'service_description' => $request['service_description'],
             'status' => 'pending',

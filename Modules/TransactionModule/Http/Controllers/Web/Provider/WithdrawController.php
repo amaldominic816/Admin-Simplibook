@@ -23,7 +23,7 @@ class WithdrawController extends Controller
      * @param Request $request
      * @return JsonResponse
      */
-    public function get_method(Request $request): JsonResponse
+    public function getMethod(Request $request): JsonResponse
     {
         $method = $this->withdrawal_method->ofStatus(1)->where('id', $request->method_id)->first();
         return response()->json(response_formatter(DEFAULT_200, $method), 200);

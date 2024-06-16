@@ -3,11 +3,11 @@
 @section('title',translate('Account Verification'))
 
 @push('css_or_js')
-
+    <script src="{{asset('public/assets/admin-module/js/intlTelInput.js')}}"></script>
+    <link rel="stylesheet" href="{{asset('public/assets/admin-module/css/intlTelInput.css')}}/">
 @endpush
 
 @section('content')
-    <!-- Login Form -->
     <div class="register-form dark-support"
          data-bg-img="{{asset('public/assets/provider-module')}}/img/media/login-bg.png">
         <div class="container">
@@ -28,10 +28,10 @@
                             <div class="row">
                                 <div class="col-10">
                                     <div class="mb-30">
-                                        @php($email_verification = business_config('email_verification', 'service_setup')?->live_values ?? 0)
-                                        @php($phone_verification = business_config('phone_verification', 'service_setup')?->live_values ?? 0)
+                                        @php($emailVerification = business_config('email_verification', 'service_setup')?->live_values ?? 0)
+                                        @php($phoneVerification = business_config('phone_verification', 'service_setup')?->live_values ?? 0)
 
-                                        @if($email_verification)
+                                        @if($emailVerification)
                                             <div class="form-floating">
                                                 <input type="email" class="form-control" name="identity"
                                                        placeholder="{{translate('Enter your email address')}} *"
@@ -39,15 +39,14 @@
                                                 <input type="hidden" name="identity_type" value="email">
                                                 <label>{{translate('Enter your email address')}} *</label>
                                             </div>
-                                        @elseif($phone_verification)
+                                        @elseif($phoneVerification)
                                             <div class="form-floating">
-                                                <input type="tel" class="form-control" name="identity"
+                                                <label for="identity">{{translate('Enter your phone number')}} *</label>
+                                                <input type="tel" class="form-control" name="identity" id="identity"
                                                        placeholder="{{translate('Enter your phone number')}} *"
                                                        required>
                                                 <input type="hidden" name="identity_type" value="phone">
-                                                <label>{{translate('Enter your phone number')}} *</label>
                                             </div>
-                                            <label class="small text-danger mb-1">{{translate('Country code is required')}}</label>
                                         @endif
                                     </div>
                                 </div>
@@ -62,10 +61,21 @@
             </div>
         </div>
     </div>
-    <!-- End Login Form -->
 @endsection
 
 @push('script')
-
-
+<script>
+    let flag = "{{business_config('country_code', 'business_information')->live_values ?? 'bd'}}"
+    const identity = window.intlTelInput(document.querySelector("#identity"), {
+        utilsScript: "{{asset('public/assets/admin-module/js/utils.js')}}",
+        autoHideDialCode: false,
+        autoPlaceholder: "ON",
+        dropdownContainer: document.body,
+        formatOnDisplay: true,
+        hiddenInput: "identity",
+        placeholderNumberType: "MOBILE",
+        separateDialCode: true,
+        initialCountry: flag,
+    });
+</script>
 @endpush

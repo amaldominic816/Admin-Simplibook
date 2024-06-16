@@ -1,38 +1,32 @@
 @extends('adminmodule::layouts.master')
 
-@push('css_or_js')
-
-
-@endpush
+@section('title',translate('Bookings'))
 
 @section('content')
-    <!-- Main Content -->
     <div class="main-content">
         <div class="container-fluid">
             <div class="page-title-wrap mb-4">
-                <h2 class="page-title">{{translate('Customer_Details')}}</h2>
+                <h2 class="page-title mb-2">{{translate('Customer')}}</h2>
+                <div>{{translate('Joined_on')}} {{date('d-M-y H:iA', strtotime($customer?->created_at))}}</div>
             </div>
 
-            <!-- Nav Tabs -->
             <div class="mb-3">
                 <ul class="nav nav--tabs nav--tabs__style2">
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='overview'?'active':''}}"
+                        <a class="nav-link {{$webPage=='overview'?'active':''}}"
                            href="{{url()->current()}}?web_page=overview">{{translate('Overview')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='bookings'?'active':''}}"
+                        <a class="nav-link {{$webPage=='bookings'?'active':''}}"
                            href="{{url()->current()}}?web_page=bookings">{{translate('Bookings')}}</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{$web_page=='reviews'?'active':''}}"
+                        <a class="nav-link {{$webPage=='reviews'?'active':''}}"
                            href="{{url()->current()}}?web_page=reviews">{{translate('Reviews')}}</a>
                     </li>
                 </ul>
             </div>
-            <!-- End Nav Tabs -->
 
-            <!-- Tab Content -->
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="boookings-tab-pane">
                     <div class="d-flex justify-content-end border-bottom mb-10">
@@ -82,26 +76,29 @@
                                         <tr>
                                             <td>{{$booking->readable_id}}</td>
                                             <td>
-                                                {{Str::limit($booking->provider && $booking->provider->owner?$booking->provider->owner->first_name.' '.$booking->provider->owner->last_name:'', 30)}}
+                                                {{Str::limit(($booking->provider) ? ($booking?->provider->company_name) : translate('No provider accepted yet'), 30)}}
                                             </td>
                                             <td>{{with_currency_symbol($booking->total_booking_amount)}}</td>
                                             <td>
                                                 {{translate($booking->booking_status)}}
                                             </td>
                                             <td>
-                                                <span class="badge badge badge-{{$booking->is_paid == 1 ? 'success' : 'danger'}} radius-50">
+                                                <span
+                                                    class="badge badge badge-{{$booking->is_paid == 1 ? 'success' : 'danger'}} radius-50">
                                                     <span class="dot"></span>
                                                     {{$booking->is_paid == 1 ? translate('Paid') : translate('Unpaid')}}
                                                 </span>
-                                                {{--<div class="mt-1">Paid on 15/052020</div>--}}
                                             </td>
                                             <td>{{date('d-M-Y h:ia',strtotime($booking->service_schedule))}}</td>
                                             <td>{{date('d-M-Y h:ia',strtotime($booking->created_at))}}</td>
                                             <td>
-                                                <a href="{{route('admin.booking.details', [$booking->id,'web_page'=>'details'])}}" class="btn btn--light text-capitalize">
-                                                    <span class="material-symbols-outlined">visibility</span>
-                                                    {{translate('View_Details')}}
-                                                </a>
+                                                <div class="table-actions">
+                                                    <a href="{{route('provider.booking.details', [$booking->id,'web_page'=>'details'])}}"
+                                                       type="button"
+                                                       class="action-btn btn--light-primary fw-medium text-capitalize fz-14" style="--size: 30px">
+                                                        <span class="material-icons">visibility</span>
+                                                    </a>
+                                                </div>
                                             </td>
                                         </tr>
                                     @endforeach
@@ -115,12 +112,7 @@
                     </div>
                 </div>
             </div>
-            <!-- End Tab Content -->
         </div>
     </div>
-    <!-- End Main Content -->
 @endsection
 
-@push('script')
-
-@endpush

@@ -16,7 +16,6 @@
                     <div class="page-title-wrap mb-3">
                         <h2 class="page-title">{{translate('push_notification')}}</h2>
                     </div>
-
                     <div class="card mb-30">
                         <div class="card-body p-30">
                             <form action="{{route('admin.push-notification.update',[$pushNotification->id])}}" method="POST"
@@ -25,13 +24,14 @@
                                 @method('PUT')
                                 <div class="row">
                                     <div class="col-lg-6 mb-4 mb-lg-0">
-                                        <div class="form-floating mb-30">
+                                        <div class="form-floating form-floating__icon mb-30">
                                             <input type="text" class="form-control" id="floatingInput" name="title"
-                                                   placeholder="Title" required="" value="{{$pushNotification->title}}">
+                                                   placeholder="{{translate('Title')}}" required="" value="{{$pushNotification->title}}">
                                             <label for="floatingInput">{{translate('title')}}</label>
+                                            <span class="material-icons">title</span>
                                         </div>
                                         <div class="form-floating mb-30">
-                                            <textarea class="form-control" id="floatingInput2"
+                                            <textarea class="form-control resize-none" id="floatingInput2"
                                                       placeholder="{{translate('description')}}"
                                                       name="description">{{$pushNotification->description}}</textarea>
                                             <label for="floatingInput2">{{translate('description')}}</label>
@@ -40,7 +40,8 @@
                                             <div class="col-lg-6">
                                                 <div class="mb-30">
                                                     <select class="select-zone theme-input-style w-100"
-                                                            name="zone_ids[]" multiple="multiple">
+                                                            name="zone_ids[]" id="zone_selector__select" multiple="multiple">
+                                                        <option value="all">{{translate('Select All')}}</option>
                                                         @foreach($zones as $zone)
                                                             <option value="{{$zone->id}}" {{in_array($zone->id,collect($pushNotification['zone_ids'])->pluck('id')->toArray())?'selected':''}}>{{$zone->name}}</option>
                                                         @endforeach
@@ -50,7 +51,8 @@
                                             <div class="col-lg-6">
                                                 <div class="mb-30">
                                                     <select class="select-user theme-input-style w-100"
-                                                            name="to_users[]" multiple="multiple">
+                                                            name="to_users[]" id="user_selector__select" multiple="multiple">
+                                                        <option value="all">{{translate('all')}}</option>
                                                         <option value="customer" {{in_array('customer',$pushNotification->to_users)?'selected':''}}>
                                                             {{translate('customer')}}
                                                         </option>
@@ -70,12 +72,14 @@
                                             <p class="title-color mb-0">{{translate('upload_cover_image')}}</p>
 
                                             <div class="upload-file">
-                                                <input type="file" class="upload-file__input" name="cover_image">
+                                                <input type="file" class="upload-file__input" name="cover_image" accept=".{{ implode(',.', array_column(IMAGEEXTENSION, 'key')) }}, |image/*">
                                                 <div class="upload-file__img upload-file__img_banner">
                                                     <img
-                                                        onerror="this.src='{{asset('public/assets/admin-module/img/media/banner-upload-file.png')}}'"
-                                                        src="{{asset('storage/app/public/push-notification')}}/{{$pushNotification->cover_image}}"
-                                                        alt="">
+                                                        src="{{onErrorImage($pushNotification->cover_image,
+                                                            asset('storage/app/public/push-notification').'/' . $pushNotification->cover_image,
+                                                            asset('public/assets/admin-module/img/media/banner-upload-file.png') ,
+                                                            'push-notification/')}}"
+                                                        alt="{{ translate('image') }}">
                                                 </div>
                                                 <span class="upload-file__edit">
                                                     <span class="material-icons">edit</span>
@@ -107,7 +111,26 @@
 
 @push('script')
     <script src="{{asset('public/assets/admin-module')}}/plugins/select2/select2.min.js"></script>
+
     <script>
+        "use Strict";
+
+        $('#user_selector__select').on('change', function() {
+            var selectedValues = $(this).val();
+            if (selectedValues !== null && selectedValues.includes('all')) {
+                $(this).find('option').not(':disabled').prop('selected', 'selected');
+                $(this).find('option[value="all"]').prop('selected', false);
+            }
+        });
+
+        $('#zone_selector__select').on('change', function() {
+            var selectedValues = $(this).val();
+            if (selectedValues !== null && selectedValues.includes('all')) {
+                $(this).find('option').not(':disabled').prop('selected', 'selected');
+                $(this).find('option[value="all"]').prop('selected', false);
+            }
+        });
+
         $(document).ready(function () {
             $('.js-select').select2();
         });

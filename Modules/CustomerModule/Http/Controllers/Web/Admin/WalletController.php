@@ -4,21 +4,25 @@ namespace Modules\CustomerModule\Http\Controllers\Web\Admin;
 
 use Brian2694\Toastr\Facades\Toastr;
 use Carbon\Carbon;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Modules\TransactionModule\Entities\Transaction;
 use Modules\UserManagement\Entities\User;
 use Modules\ZoneManagement\Entities\Zone;
 use Rap2hpoutre\FastExcel\FastExcel;
+use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class WalletController extends Controller
 {
     protected User $user;
     protected Zone $zone;
     protected Transaction $transaction;
+    use AuthorizesRequests;
 
     public function __construct(User $user, Zone $zone, Transaction $transaction)
     {
@@ -31,9 +35,11 @@ class WalletController extends Controller
     /**
      * Display a listing of the resource.
      * @return Renderable
+     * @throws AuthorizationException
      */
-    public function add_fund()
+    public function addFund(): Renderable
     {
+        $this->authorize('wallet_add');
         $users = $this->user->ofType(['customer'])->get();
         return view('customermodule::admin.wallet.fund-add', compact('users'));
     }
@@ -42,27 +48,32 @@ class WalletController extends Controller
      * Display a listing of the resource.
      * @param Request $request
      * @return RedirectResponse
+     * @throws AuthorizationException
      */
-    public function store_fund(Request $request): RedirectResponse
+    public function storeFund(Request $request): RedirectResponse
     {
+        $this->authorize('wallet_add');
         $request->validate([
             'user_id' => 'required|uuid',
             'amount' => 'required|min:0|not_in:0',
             'reference' => 'max:50',
         ]);
 
-        add_fund_transaction($request['user_id'], $request['amount'], $request['reference']);
+        addFundTransaction($request['user_id'], $request['amount'], $request['reference']);
 
-        Toastr::success(DEFAULT_STORE_200['message']);
+        Toastr::success(translate(DEFAULT_STORE_200['message']));
         return back();
     }
 
     /**
      * Display a listing of the resource.
+     * @param Request $request
      * @return Renderable
+     * @throws ValidationException|AuthorizationException
      */
-    public function get_func_report(Request $request)
+    public function getFuncReport(Request $request): Renderable
     {
+        $this->authorize('wallet_view');
         Validator::make($request->all(), [
             'zone_ids' => 'array',
             'zone_ids.*' => 'uuid',
@@ -73,61 +84,58 @@ class WalletController extends Controller
             'transaction_type' => 'in:all,debit,credit'
         ])->validate();
 
-        //Dropdown data
         $zones = $this->zone->select('id', 'name')->get();
         $customers = $this->user->ofType(['customer'])->select('id', 'first_name', 'last_name', 'phone')->get();
 
-        //params
-        $query_params = [];
-        $transaction_type = $request->has('transaction_type') ? $request->transaction_type : 'all';
-        $query_params['transaction_type'] = $transaction_type;
+        $queryParams = [];
+        $transactionType = $request->has('transaction_type') ? $request->transaction_type : 'all';
+        $queryParams['transaction_type'] = $transactionType;
         $search = $request['search'];
-        $query_params['search'] = $search;
-        if($request->has('zone_ids')) {
-            $query_params['zone_ids'] = $request['zone_ids'];
+        $queryParams['search'] = $search;
+        if ($request->has('zone_ids')) {
+            $queryParams['zone_ids'] = $request['zone_ids'];
         }
         if ($request->has('customer_ids')) {
-            $query_params['customer_ids'] = $request['customer_ids'];
+            $queryParams['customer_ids'] = $request['customer_ids'];
         }
         if ($request->has('trx_type')) {
-            $query_params['trx_type'] = $request['trx_type'];
+            $queryParams['trx_type'] = $request['trx_type'];
         }
         if ($request->has('date_range')) {
-            $query_params['date_range'] = $request['date_range'];
+            $queryParams['date_range'] = $request['date_range'];
         }
         if ($request->has('date_range') && $request['date_range'] == 'custom_date') {
-            $query_params['from'] = $request['from'];
-            $query_params['to'] = $request['to'];
+            $queryParams['from'] = $request['from'];
+            $queryParams['to'] = $request['to'];
         }
 
-        //*** Card Data ***
-        $total_credit = $this->filter_query($this->transaction, $request)
+        $totalCredit = $this->filterQuery($this->transaction, $request)
             ->with(['booking', 'from_user', 'to_user'])
             ->where('to_user_account', '!=', 'balance_pending')
             ->whereIn('trx_type', array_values(WALLET_TRX_TYPE))
             ->sum('credit');
 
-        $total_debit = $this->filter_query($this->transaction, $request)
+        $totalDebit = $this->filterQuery($this->transaction, $request)
             ->with(['booking', 'from_user', 'to_user'])
             ->where('to_user_account', '!=', 'balance_pending')
             ->whereIn('trx_type', WALLET_TRX_TYPE)
             ->sum('debit');
 
-        //*** Table Data ***
-        $filtered_transactions = $this->filter_query($this->transaction, $request)
+        $filteredTransactions = $this->filterQuery($this->transaction, $request)
             ->with(['booking', 'from_user', 'to_user'])
             ->whereIn('trx_type', WALLET_TRX_TYPE)
-            ->latest()->paginate(pagination_limit())->appends($query_params);
+            ->latest()->paginate(pagination_limit())->appends($queryParams);
 
-        return view('customermodule::admin.wallet.report', compact('zones', 'customers', 'filtered_transactions', 'transaction_type', 'total_credit', 'total_debit', 'query_params'));
+        return view('customermodule::admin.wallet.report', compact('zones', 'customers', 'filteredTransactions', 'transactionType', 'totalCredit', 'totalDebit', 'queryParams'));
     }
 
     /**
      * Display a listing of the resource.
      * @return string|\Symfony\Component\HttpFoundation\StreamedResponse
      */
-    public function get_func_report_download(Request $request)
+    public function getFuncReportDownload(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse|string
     {
+        $this->authorize('wallet_export');
         Validator::make($request->all(), [
             'zone_ids' => 'array',
             'zone_ids.*' => 'uuid',
@@ -138,17 +146,16 @@ class WalletController extends Controller
             'transaction_type' => 'in:all,debit,credit'
         ])->validate();
 
-        //*** Table Data ***
-        $filtered_transactions = $this->filter_query($this->transaction, $request)
+        $filteredTransactions = $this->filterQuery($this->transaction, $request)
             ->with(['booking', 'from_user', 'to_user'])
             ->whereIn('trx_type', WALLET_TRX_TYPE)
             ->latest()->get();
 
-        return (new FastExcel($filtered_transactions))->download(time().'-provider-report.xlsx', function ($transaction) {
+        return (new FastExcel($filteredTransactions))->download(time() . '-provider-report.xlsx', function ($transaction) {
             return [
                 'Transaction ID' => $transaction->id,
-                'Transaction Date' => date('d-M-Y h:ia',strtotime($transaction->created_at)),
-                'Transaction To (full name)' => isset($transaction->to_user) ? $transaction->to_user->first_name.' '.$transaction->to_user->last_name : null,
+                'Transaction Date' => date('d-M-Y h:ia', strtotime($transaction->created_at)),
+                'Transaction To (full name)' => isset($transaction->to_user) ? $transaction->to_user->first_name . ' ' . $transaction->to_user->last_name : null,
                 'Transaction To (phone)' => isset($transaction->to_user) ? $transaction->to_user->phone : null,
                 'Transaction To (email)' => isset($transaction->to_user) ? $transaction->to_user->email : null,
                 'Debit' => with_currency_symbol($transaction->debit),
@@ -164,21 +171,16 @@ class WalletController extends Controller
      * @param $request
      * @return mixed
      */
-    function filter_query($instance, $request): mixed
+    function filterQuery($instance, $request): mixed
     {
         return $instance
-            ->when($request->has('transaction_type') && $request['transaction_type'] != 'all', function ($query) use($request) {
+            ->when($request->has('transaction_type') && $request['transaction_type'] != 'all', function ($query) use ($request) {
                 if ($request['transaction_type'] == 'debit') {
                     $query->where('debit', '!=', 0);
                 } elseif ($request['transaction_type'] == 'credit') {
                     $query->where('credit', '!=', 0);
                 }
             })
-            /*->when($request->has('zone_ids'), function ($query) use ($request) {
-                $query->whereHas('from_user.zones', function ($query) use ($request) {
-                    $query->whereIn('zone_id', $request['zone_ids']);
-                });
-            })*/
             ->when($request->has('customer_ids'), function ($query) use ($request) {
                 $query->whereHas('to_user', function ($query) use ($request) {
                     $query->whereIn('id', $request['customer_ids']);
@@ -190,57 +192,33 @@ class WalletController extends Controller
             ->when($request->has('trx_type') && $request['trx_type'] != 'all', function ($query) use ($request) {
                 $query->where('trx_type', $request['trx_type']);
             })
-            ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use($request) {
+            ->when($request->has('date_range') && $request['date_range'] == 'custom_date', function ($query) use ($request) {
                 $query->whereBetween('created_at', [Carbon::parse($request['from'])->startOfDay(), Carbon::parse($request['to'])->endOfDay()]);
             })
-            ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use($request) {
-                //DATE RANGE
-                if($request['date_range'] == 'this_week') {
-                    //this week
+            ->when($request->has('date_range') && $request['date_range'] != 'custom_date', function ($query) use ($request) {
+                if ($request['date_range'] == 'this_week') {
                     $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
-
                 } elseif ($request['date_range'] == 'last_week') {
-                    //last week
                     $query->whereBetween('created_at', [Carbon::now()->subWeek()->startOfWeek(), Carbon::now()->subWeek()->endOfWeek()]);
-
                 } elseif ($request['date_range'] == 'this_month') {
-                    //this month
                     $query->whereMonth('created_at', Carbon::now()->month);
-
                 } elseif ($request['date_range'] == 'last_month') {
-                    //last month
                     $query->whereMonth('created_at', Carbon::now()->subMonth()->month);
-
                 } elseif ($request['date_range'] == 'last_15_days') {
-                    //last 15 days
                     $query->whereBetween('created_at', [Carbon::now()->subDay(15), Carbon::now()]);
-
                 } elseif ($request['date_range'] == 'this_year') {
-                    //this year
                     $query->whereYear('created_at', Carbon::now()->year);
-
                 } elseif ($request['date_range'] == 'last_year') {
-                    //last year
                     $query->whereYear('created_at', Carbon::now()->subYear()->year);
-
                 } elseif ($request['date_range'] == 'last_6_month') {
-                    //last 6month
                     $query->whereBetween('created_at', [Carbon::now()->subMonth(6), Carbon::now()]);
-
                 } elseif ($request['date_range'] == 'this_year_1st_quarter') {
-                    //this year 1st quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(1)->startOfQuarter(), Carbon::now()->month(1)->endOfQuarter()]);
-
                 } elseif ($request['date_range'] == 'this_year_2nd_quarter') {
-                    //this year 2nd quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(4)->startOfQuarter(), Carbon::now()->month(4)->endOfQuarter()]);
-
                 } elseif ($request['date_range'] == 'this_year_3rd_quarter') {
-                    //this year 3rd quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(7)->startOfQuarter(), Carbon::now()->month(7)->endOfQuarter()]);
-
                 } elseif ($request['date_range'] == 'this_year_4th_quarter') {
-                    //this year 4th quarter
                     $query->whereBetween('created_at', [Carbon::now()->month(10)->startOfQuarter(), Carbon::now()->month(10)->endOfQuarter()]);
                 }
             })

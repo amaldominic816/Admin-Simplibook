@@ -2,19 +2,15 @@
 
 @section('title',translate('Request Details'))
 
-@push('css_or_js')
-
-@endpush
-
 @section('content')
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
-                <!-- Page Title -->
                 <div class="page-title-wrap mb-3 d-flex align-items-center justify-content-between">
                     <h2 class="page-title">{{translate('Request Details')}}</h2>
 
-                    <div class=""><i class="material-icons ripple-animation" data-bs-toggle="modal" data-bs-target="#alertModal">info</i></div>
+                    <div class=""><i class="material-icons ripple-animation" data-bs-toggle="modal"
+                                     data-bs-target="#alertModal">info</i></div>
                 </div>
 
                 <div class="card">
@@ -25,9 +21,12 @@
                                     <div class="card-body pb-5">
                                         <div class="media flex-wrap gap-3">
                                             <img width="140" class="radius-10"
-                                                 src="{{asset('storage/app/public/user/profile_image')}}/{{$post?->customer?->profile_image}}"
-                                                 onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                                                 alt="">
+                                                 src="{{onErrorImage(
+                                                        $post?->customer?->profile_image,
+                                                        asset('storage/app/public/user/profile_image').'/' . $post?->customer?->profile_image,
+                                                        asset('public/assets/placeholder.png') ,
+                                                        'user/profile_image/')}}"
+                                                 alt="{{ translate('profile-image') }}">
                                             <div class="media-body">
                                                 <div class="d-flex align-items-center gap-2 mb-2">
                                                     <span class="material-icons text-primary">person</span>
@@ -39,10 +38,6 @@
                                                         {{$distance . ' ' . translate('away from you')}}
                                                     @endif
                                                 </p>
-                                                <div class="d-flex align-items-center gap-2 mb-2">
-                                                    <span class="material-icons">phone_iphone</span>
-                                                    <a href="tel:{{$post?->customer?->phone}}">{{$post?->customer?->phone}}</a>
-                                                </div>
                                                 <div class="d-flex align-items-center gap-2">
                                                     <span class="material-icons">map</span>
                                                     <p>{{Str::limit($post?->service_address?->address??translate('not_available'), 100)}}</p>
@@ -63,9 +58,12 @@
                                         </div>
                                         <div class="media gap-2 mb-4">
                                             <img width="30"
-                                                 src="{{asset('storage/app/public/category')}}/{{$post?->sub_category?->image}}"
-                                                 onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                                                 alt="">
+                                                 src="{{onErrorImage(
+                                                        $post?->sub_category?->image,
+                                                        asset('storage/app/public/category').'/' . $post?->sub_category?->image,
+                                                        asset('public/assets/placeholder.png') ,
+                                                        'category/')}}"
+                                                 alt="{{ translate('category') }}">
                                             <div class="media-body">
                                                 <h5>{{$post?->service?->name}}</h5>
                                                 <div class="text-muted fs-12">{{$post?->sub_category?->name}}</div>
@@ -93,7 +91,7 @@
                                         <h5 class="text-uppercase">{{translate('Additional Instruction')}}</h5>
                                     </div>
                                     <div class="card-body pb-4">
-                                        <ul class="d-flex flex-column gap-3 px-3" style="max-width: 340px">
+                                        <ul class="d-flex flex-column gap-3 px-3 instruction-details">
                                             @forelse($post?->addition_instructions as $item)
                                                 <li>{{$item->details}}</li>
                                             @empty
@@ -156,9 +154,12 @@
                                                         <div class="media gap-3">
                                                             <div class="avatar avatar-lg">
                                                                 <img
-                                                                    src="{{asset('storage/app/public/provider/logo')}}/{{$item?->provider?->logo}}"
-                                                                    onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                                                                    class="rounded" alt="">
+                                                                    src="{{onErrorImage(
+                                                                   $item?->provider?->logo,
+                                                                    asset('storage/app/public/provider/logo').'/' .$item?->provider?->logo,
+                                                                    asset('public/assets/placeholder.png') ,
+                                                                    'provider/logo/')}}"
+                                                                    class="rounded" alt="{{translate('image')}}">
                                                             </div>
                                                             <div class="media-body">
                                                                 <h5>{{$item?->provider->company_name}}</h5>
@@ -204,16 +205,13 @@
 
                         @if(!$post->is_booked && !$post?->bids->contains('provider_id', auth()->user()->provider->id))
                             <div class="d-flex justify-content-end gap-3 mt-4">
-                                <!-- Ignore -->
                                 <a href="{{route('provider.booking.post.update_status', [$post->id, 'status' => 'ignore'])}}"
                                    class="btn btn-danger">{{translate('Ignore')}}</a>
-                                <!-- Place offer -->
                                 <a class="btn btn--primary" href="#" data-bs-toggle="modal"
                                    data-bs-target="#newBookingModal">{{translate('Place Offer')}}</a>
                             </div>
                         @elseif(!$post->is_booked && $post?->bids->contains('provider_id', auth()->user()->provider->id))
                             <div class="d-flex justify-content-end gap-3 mt-4">
-                                <!-- Withdraw offer -->
                                 <button class="btn btn--danger" data-bs-toggle="modal"
                                         data-bs-target="#withdrawRequestModal--{{$post['id']}}">{{translate('Withdraw Offer')}}</button>
                             </div>
@@ -224,7 +222,6 @@
         </div>
     </div>
 
-    <!-- New Booking Request Modal -->
     <div class="modal fade" id="newBookingModal" tabindex="-1"
          aria-labelledby="newBookingModalLabel"
          aria-hidden="true">
@@ -245,9 +242,12 @@
                                     <div class="media gap-2">
                                         <div class="avatar avatar-lg rounded">
                                             <img
-                                                src="{{asset('storage/app/public/user/profile_image')}}/{{$post?->customer?->profile_image}}"
-                                                onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                                                alt="">
+                                                src="{{onErrorImage(
+                                               $post?->customer?->profile_image,
+                                                asset('storage/app/public/user/profile_image').'/' .$post?->customer?->profile_image,
+                                                asset('public/assets/placeholder.png') ,
+                                                'user/profile_image/')}}"
+                                                alt="{{translate('image')}}">
                                         </div>
                                         <div class="media-body">
                                             <h5 class="text-primary">{{$post?->customer?->first_name.' '.$post?->customer?->last_name}}</h5>
@@ -261,9 +261,12 @@
                                     <div>
                                         <div class="media gap-2 border-start ps-4">
                                             <img width="30"
-                                                 src="{{asset('storage/app/public/category')}}/{{$post?->sub_category?->image}}"
-                                                 onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                                                 alt="">
+                                                 src="{{onErrorImage(
+                                                $post?->sub_category?->image,
+                                                asset('storage/app/public/category').'/' .$post?->sub_category?->image,
+                                                asset('public/assets/placeholder.png') ,
+                                                'category/')}}"
+                                                 alt="{{translate('profile image')}}">
                                             <div class="media-body">
                                                 <h5>{{$post?->service?->name}}</h5>
                                                 <div
@@ -323,14 +326,12 @@
         </div>
     </div>
 
-    <!-- Alert Modal -->
     <div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel"
          aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header pb-0 border-0">
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"
-                            aria-label="Close"></button>
+
                 </div>
                 <div class="modal-body pb-sm-5 px-sm-5">
                     <div class="d-flex flex-column align-items-center gap-2 text-center">
@@ -346,7 +347,6 @@
     </div>
 
 
-    <!-- Withdraw Request Modal -->
     <div class="modal fade" id="withdrawRequestModal--{{$post['id']}}" tabindex="-1"
          aria-labelledby="withdrawRequestModalLabel"
          aria-hidden="true">
@@ -371,7 +371,7 @@
                     class="modal-footer d-flex justify-content-center gap-3 border-0 pt-0 pb-4">
                     <button type="button" class="btn btn--secondary"
                             data-bs-dismiss="modal"
-                            aria-label="Close">{{translate('Cancel')}}</button>
+                            aria-label="{{translate('Close')}}">{{translate('Cancel')}}</button>
                     <a href="{{route('provider.booking.post.withdraw', [$post->id])}}"
                        type="button"
                        class="btn btn--primary">{{translate('Withdraw Offer')}}</a>
@@ -380,10 +380,10 @@
         </div>
     </div>
 
-    <!-- Provider Information Modal -->
     @foreach($post->bids as $item)
         @if($item?->provider?->id != auth()->user()->provider->id)
-            <div class="modal fade" id="providerInformationModal--{{$item->provider->id}}" tabindex="-1" aria-labelledby="alertModalLabel"
+            <div class="modal fade" id="providerInformationModal--{{$item->provider->id}}" tabindex="-1"
+                 aria-labelledby="alertModalLabel"
                  aria-hidden="true">
                 <div class="modal-dialog">
                     <div class="modal-content">
@@ -397,9 +397,12 @@
                                 <div class="media gap-3">
                                     <div class="avatar avatar-lg">
                                         <img
-                                            src="{{asset('storage/app/public/provider/logo')}}/{{$item?->provider?->logo}}"
-                                            onerror="this.src='{{asset('public/assets/placeholder.png')}}'"
-                                            class="rounded" alt="">
+                                            src="{{onErrorImage(
+                                            $item?->provider?->logo,
+                                            asset('storage/app/public/provider/logo').'/' . $item?->provider?->logo,
+                                            asset('public/assets/placeholder.png') ,
+                                            'provider/logo/')}}"
+                                            class="rounded" alt="{{translate('provider logo')}}">
                                     </div>
                                     <div class="media-body">
                                         <div class="d-flex justify-content-between">
@@ -432,7 +435,3 @@
         @endif
     @endforeach
 @endsection
-
-@push('script')
-
-@endpush
