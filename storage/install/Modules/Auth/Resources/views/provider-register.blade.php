@@ -152,7 +152,7 @@
                                                     <select name="identity_type" id="identity_type" class="form-control">
                                                         <option value="0" selected disabled>{{translate('Identity_Type')}}</option>
                                                         <option value="passport" {{old('identity_type')=='passport'?'selected':''}}>{{translate('passport')}}</option>
-                                                        <option value="nid" {{old('identity_type')=='nid'?'selected':''}}>{{translate('nid')}}</option>
+                                                        <option value="Aadhar" {{old('identity_type')=='Aadhar'?'selected':''}}>{{translate('Aadhar')}}</option>
                                                         <option value="driving_licence" {{old('identity_type')=='driving_licence'?'selected':''}}>{{translate('driving_licence')}}</option>
                                                         <option value="trade_license" {{old('identity_type')=='trade_license'?'selected':''}}>{{translate('trade_license')}}</option>
                                                         <option value="company_id" {{old('identity_type')=='company_id'?'selected':''}}>{{translate('company_id')}}</option>

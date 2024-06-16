@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "830483924391",
+    "project_id": "simplibook-3fe0a",
+    "storage_bucket": "simplibook-3fe0a.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:830483924391:android:77be142730bab77fb8e282",
+        "android_client_info": {
+          "package_name": "com.loop.simplibook"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "830483924391-1rd2jrgiudcr362jikaejfa7q4gvl9q4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.loop.simplibook",
+            "certificate_hash": "ed24c566803f148cc23edaa82ab5e19f1f29144c"
+          }
+        },
+        {
+          "client_id": "830483924391-o6ho6o4tk671fgp6eb2lfg84lh86s4tt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBP2cnT6Y00cTMSeHnhsQi6yK7bqZ2Ase8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "830483924391-o6ho6o4tk671fgp6eb2lfg84lh86s4tt.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

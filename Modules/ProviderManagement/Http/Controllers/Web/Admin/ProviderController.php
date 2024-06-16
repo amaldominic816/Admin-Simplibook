@@ -133,7 +133,7 @@ class ProviderController extends Controller
             'company_email' => 'required|email|unique:providers',
             'logo' => 'required|image|mimes:jpeg,jpg,png,gif',
 
-            'identity_type' => 'required|in:passport,driving_license,nid,trade_license,company_id',
+            'identity_type' => 'required|in:passport,driving_license,Aadhar,trade_license,company_id',
             'identity_number' => 'required',
             'identity_images' => 'array',
             'identity_images.*' => 'image|mimes:jpeg,jpg,png,gif',
@@ -431,7 +431,7 @@ class ProviderController extends Controller
             'company_email' => 'required|email|unique:providers,company_email,' . $provider->id . ',id',
             'logo' => 'image|mimes:jpeg,jpg,png,gif|max:10000',
 
-            'identity_type' => 'required|in:passport,driving_license,nid,trade_license,company_id',
+            'identity_type' => 'required|in:passport,driving_license,Aadhar,trade_license,company_id',
             'identity_number' => 'required',
             'identity_images' => 'array',
             'identity_images.*' => 'image|mimes:jpeg,jpg,png,gif',

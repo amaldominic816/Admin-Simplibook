@@ -5,15 +5,17 @@
     "keywords": ["framework", "laravel"],
     "license": "MIT",
     "require": {
-        "php": "^8.0",
+        "php": ">=7.3 || ^8.2.5",
         "ext-curl": "*",
         "ext-json": "*",
+        "ext-mysqli": "*",
         "brian2694/laravel-toastr": "^5.57",
         "doctrine/dbal": "^3.3",
         "fruitcake/laravel-cors": "^2.0",
         "grimzy/laravel-mysql-spatial": "^5.0",
-        "guzzlehttp/guzzle": "^7.0.1",
+        "guzzlehttp/guzzle": "^7.8",
         "kingflamez/laravelrave": "^4.2",
+        "laminas/laminas-diactoros": "*",
         "laravel/framework": "^8.75",
         "laravel/passport": "^10.3",
         "laravel/sanctum": "^2.11",
@@ -29,8 +31,7 @@
         "stevebauman/location": "^6.5",
         "stripe/stripe-php": "^9.4",
         "twilio/sdk": "^6.39",
-        "unicodeveloper/laravel-paystack": "^1.0",
-        "ext-mysqli": "*"
+        "unicodeveloper/laravel-paystack": "^1.0"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.7",

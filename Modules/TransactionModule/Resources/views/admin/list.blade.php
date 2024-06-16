@@ -111,11 +111,11 @@
                                                         @endif
                                                     </td>
                                                     <td>
-                                                        @if($transaction->to_user->provider)
+                                                        @if($transaction->to_user?->provider)
                                                             {{Str::limit($transaction->to_user->provider->company_name, 30)}} <br/>
                                                             <small class="opacity-75">{{translate($transaction->to_user_account)}}</small>
                                                         @else
-                                                            {{Str::limit($transaction->to_user->first_name.' '.$transaction->to_user->last_name, 30)}} <br/>
+                                                            {{Str::limit($transaction->to_user?->first_name.' '.$transaction->to_user?->last_name, 30)}} <br/>
                                                             <small class="opacity-75">{{translate($transaction->to_user_account)}}</small>
                                                         @endif
                                                     </td>

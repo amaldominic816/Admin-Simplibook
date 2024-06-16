@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Customer\LandingController;
 use Illuminate\Http\Request;
+use App\Http\Controllers\OtpController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -20,4 +21,7 @@ Route::group(['prefix' => 'customer', 'as' => 'customer.', 'namespace' => 'Api\V
         Route::get('/contents', [LandingController::class, 'index']);
     });
 });
+
+
+// Route::post('Api/v1/user/verification/send-otp', [OtpController::class, 'sendOtp']);
 
